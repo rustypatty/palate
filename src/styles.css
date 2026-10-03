@@ -608,6 +608,8 @@ img {
   display: grid;
   place-items: center;
   color: #cfcac5;
+  /* Decorative only: never intercept taps meant for what's around it. */
+  pointer-events: none;
 }
 
 .tile .rating-badge {
@@ -767,6 +769,8 @@ img {
 }
 
 .empty .art {
+  position: relative;
+  overflow: hidden;
   width: 96px;
   height: 128px;
   margin: 0 auto 18px;
@@ -846,6 +850,15 @@ img {
   right: 12px;
   display: flex;
   justify-content: space-between;
+}
+
+.hero-cta {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  background: #fff;
+  box-shadow: var(--shadow-sm);
 }
 
 .hero-credit {

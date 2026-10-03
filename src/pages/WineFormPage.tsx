@@ -29,6 +29,7 @@ export function WineFormPage() {
   const toast = useToast();
   const wines = useWines();
   const prefill = (location.state as AddPrefill | null)?.draft;
+  const findPhoto = Boolean((location.state as { findPhoto?: boolean } | null)?.findPhoto);
 
   const [draft, setDraft] = useState<WineDraft | null>(editing ? null : { ...emptyDraft(), ...prefill });
   const [vintageText, setVintageText] = useState(prefill?.vintage != null ? String(prefill.vintage) : '');
@@ -168,6 +169,7 @@ export function WineFormPage() {
       )}
 
       <PhotoPicker
+        autoSearch={findPhoto}
         photo={draft.photo}
         onChange={(photo) => set({ photo })}
         expected={{ producer: draft.producer, name: draft.name, vintage: draft.vintage }}
