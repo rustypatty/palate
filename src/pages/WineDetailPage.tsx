@@ -1,4 +1,4 @@
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Globe, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { BottleImage } from '../components/BottleImage';
@@ -58,6 +58,11 @@ export function WineDetailPage() {
             <Pencil size={18} />
           </Link>
         </div>
+        {!wine.photo && (
+          <Link to={`/wine/${wine.id}/edit`} state={{ findPhoto: true }} className="btn btn-outline btn-sm hero-cta">
+            <Globe size={16} /> Find a photo
+          </Link>
+        )}
         {wine.photo?.source && wine.photo.source.name !== 'Your photo' && (
           <a className="hero-credit" href={wine.photo.source.pageUrl} target="_blank" rel="noreferrer">
             Photo: {wine.photo.source.name}

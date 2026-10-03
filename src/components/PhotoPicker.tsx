@@ -10,7 +10,9 @@ export function PhotoPicker({
   photo,
   onChange,
   expected,
+  autoSearch = false,
 }: {
+  autoSearch?: boolean;
   photo: Photo | null;
   onChange: (p: Photo | null) => void;
   expected: ExpectedWine;
@@ -18,7 +20,7 @@ export function PhotoPicker({
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  const [searching, setSearching] = useState(false);
+  const [searching, setSearching] = useState(autoSearch);
   const toast = useToast();
 
   const onFile = async (file: File | undefined) => {
