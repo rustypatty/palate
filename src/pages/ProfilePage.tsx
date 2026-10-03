@@ -71,7 +71,7 @@ function LabelReadingSettings() {
       </h2>
       <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
         “Snap the label” sends the photo to Anthropic’s Claude, which reads the producer, wine, vintage, region and grapes. It uses your own Anthropic
-        API key, billed to your Anthropic account — typically around a cent per label. Create a key at{' '}
+        API key, billed to your Anthropic account — typically 2–3 cents per label. Create a key at{' '}
         <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">
           console.anthropic.com
         </a>

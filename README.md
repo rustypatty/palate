@@ -25,7 +25,7 @@ Barcode scanning works on iPhone and Android, live through the camera or from a 
 
 ## Label reading setup
 
-Label reading calls the Anthropic API directly from the browser with the user's own API key (there is no Palate server). Add the key under **My palate → Label reading with Claude**; it is checked, then stored in that browser's local storage only. Each label costs roughly a cent on the Anthropic account. Requests use structured output (a fixed JSON schema), medium effort, and the server-side refusal fallback (`fallbacks: "default"`). The SDK is loaded only the first time a label is read. Because the key lives in the browser, anyone with access to that device and browser could use it — set a spend limit on the key in the Anthropic Console.
+Label reading calls the Anthropic API directly from the browser with the user's own API key (there is no Palate server). Add the key under **My palate → Label reading with Claude**; it is checked, then stored in that browser's local storage only. Each label costs roughly 2–3 cents on the Anthropic account. Requests use structured output (a fixed JSON schema), medium effort, and the server-side refusal fallback (`fallbacks: "default"`). The SDK is loaded only the first time a label is read. Because the key lives in the browser, anyone with access to that device and browser could use it — set a spend limit on the key in the Anthropic Console.
 
 ## Development
 
