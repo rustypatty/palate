@@ -2,6 +2,7 @@ import { ArrowLeft, Barcode } from 'lucide-react';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { BarcodeScanner } from '../components/BarcodeScanner';
+import { LabelSnap } from '../components/LabelSnap';
 import { Stepper, TagInput } from '../components/Inputs';
 import { PhotoPicker } from '../components/PhotoPicker';
 import { RatingPicker } from '../components/Rating';
@@ -9,6 +10,8 @@ import { useToast } from '../components/Toast';
 import { createWine, db, emptyDraft, updateWine } from '../db';
 import { useWines } from '../hooks';
 import { COMMON_COUNTRIES, COMMON_GRAPES, STYLES } from '../lib/constants';
+import { photoFromFile } from '../lib/image';
+import { readingToDraft } from '../lib/labelReader';
 import { tally } from '../lib/filters';
 import type { WineDraft } from '../types';
 
@@ -132,6 +135,35 @@ export function WineFormPage() {
       {error && (
         <div className="form-error" role="alert">
           {error}
+        </div>
+      )}
+
+      {!editing && (
+        <div className="callout info" style={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <span>Snap the front label and Claude fills in the details for you.</span>
+          <LabelSnap
+            className="btn btn-dark btn-sm"
+            label="Snap label"
+            onRead={async (reading, file) => {
+              if (!reading.is_wine_label) return;
+              const found = readingToDraft(reading);
+              const photo = draft.photo ?? (await photoFromFile(file, { name: 'Your photo' }));
+              // Fill only what's still empty, so nothing you typed is overwritten.
+              setDraft((d) => {
+                if (!d) return d;
+                const next = { ...d, photo: d.photo ?? photo };
+                for (const [k, v] of Object.entries(found) as [keyof WineDraft, never][]) {
+                  const cur = next[k] as unknown;
+                  const empty = cur === '' || cur === null || (Array.isArray(cur) && cur.length === 0);
+                  const has = !(v === '' || v === null || (Array.isArray(v) && (v as unknown[]).length === 0));
+                  if (empty && has) (next as Record<string, unknown>)[k] = v;
+                }
+                return next;
+              });
+              if (!vintageText && found.vintage != null) setVintageText(String(found.vintage));
+              toast(reading.confidence === 'high' ? 'Filled in from the label' : 'Filled in from the label — please double-check');
+            }}
+          />
         </div>
       )}
 

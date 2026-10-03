@@ -1,11 +1,13 @@
-import { Download, HardDrive, Upload } from 'lucide-react';
+import { Download, HardDrive, KeyRound, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useToast } from '../components/Toast';
 import { useWines } from '../hooks';
 import { downloadBlob, exportBackup, importBackup } from '../lib/backup';
 import { STYLE_LABEL } from '../lib/constants';
 import { tally } from '../lib/filters';
 import { formatPrice } from '../lib/format';
+import { getApiKey, setApiKey, testApiKey } from '../lib/labelReader';
 import type { Wine } from '../types';
 
 function Bars({ title, rows, empty }: { title: string; rows: { value: string; count: number }[]; empty: string }) {
@@ -28,6 +30,106 @@ function Bars({ title, rows, empty }: { title: string; rows: { value: string; co
           ))}
         </div>
       )}
+    </section>
+  );
+}
+
+function LabelReadingSettings() {
+  const location = useLocation();
+  const focusKey = (location.state as { focusKey?: number } | null)?.focusKey;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const boxRef = useRef<HTMLElement>(null);
+  const [saved, setSaved] = useState(getApiKey);
+  const [draft, setDraft] = useState('');
+  const [status, setStatus] = useState<{ kind: 'ok' | 'error' | 'busy'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!focusKey) return;
+    boxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    inputRef.current?.focus({ preventScroll: true });
+  }, [focusKey]);
+
+  const save = async () => {
+    const key = draft.trim();
+    if (!key) return;
+    setStatus({ kind: 'busy', text: 'Checking key…' });
+    const result = await testApiKey(key);
+    if (result === true) {
+      setApiKey(key);
+      setSaved(key);
+      setDraft('');
+      setStatus({ kind: 'ok', text: 'Key works. You can snap labels now.' });
+    } else {
+      setStatus({ kind: 'error', text: result });
+    }
+  };
+
+  return (
+    <section className="card-box" ref={boxRef}>
+      <h2 className="section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <KeyRound size={14} /> Label reading with Claude
+      </h2>
+      <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
+        “Snap the label” sends the photo to Anthropic’s Claude, which reads the producer, wine, vintage, region and grapes. It uses your own Anthropic
+        API key, billed to your Anthropic account — typically around a cent per label. Create a key at{' '}
+        <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">
+          console.anthropic.com
+        </a>
+        .
+      </p>
+      {saved ? (
+        <div className="row-between">
+          <span className="small">
+            Key saved on this device: <code>{`${saved.slice(0, 10)}…${saved.slice(-4)}`}</code>
+          </span>
+          <button
+            type="button"
+            className="btn btn-danger btn-sm"
+            onClick={() => {
+              setApiKey('');
+              setSaved('');
+              setStatus(null);
+            }}
+          >
+            Remove
+          </button>
+        </div>
+      ) : (
+        <form
+          className="url-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save();
+          }}
+        >
+          <label htmlFor="api-key" className="sr-only">
+            Anthropic API key
+          </label>
+          <input
+            id="api-key"
+            ref={inputRef}
+            className="input"
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="sk-ant-…"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+          />
+          <button type="submit" className="btn btn-dark" style={{ height: 50 }} disabled={!draft.trim() || status?.kind === 'busy'}>
+            Save
+          </button>
+        </form>
+      )}
+      {status && (
+        <p className="small" role="status" style={{ margin: 0, color: status.kind === 'error' ? 'var(--danger)' : status.kind === 'ok' ? 'var(--good)' : 'var(--ink-3)' }}>
+          {status.text}
+        </p>
+      )}
+      <p className="small muted" style={{ margin: 0 }}>
+        The key is stored only in this browser and sent only to Anthropic. Anyone using this device and browser could use it, so consider setting a
+        monthly spend limit for it in the Anthropic Console.
+      </p>
     </section>
   );
 }
@@ -109,6 +211,7 @@ export function ProfilePage() {
       </div>
 
       <div className="profile-grid">
+        <LabelReadingSettings />
         <section className="card-box">
           <h2 className="section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
             <HardDrive size={14} /> Your data

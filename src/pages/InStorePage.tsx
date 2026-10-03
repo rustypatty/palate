@@ -1,14 +1,17 @@
-import { Barcode, Heart, Plus, ScanLine, Search, Sparkles, Tag, X } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { Barcode, Camera, Heart, Plus, ScanLine, Search, Sparkles, Tag, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarcodeScanner } from '../components/BarcodeScanner';
+import { LabelSnap } from '../components/LabelSnap';
 import { useToast } from '../components/Toast';
 import { WineRow } from '../components/WineCard';
 import { useDebounced, useWines } from '../hooks';
 import { STYLES } from '../lib/constants';
 import { formatPrice } from '../lib/format';
 import { lookupBarcode } from '../lib/imageSearch';
+import { photoFromFile } from '../lib/image';
 import { advise, describeCounts, detectStyle, type Signal } from '../lib/insights';
+import { readingToDraft, readingToQuery, type LabelReading } from '../lib/labelReader';
 import { tokens } from '../lib/text';
 import type { WineDraft, WineStyle } from '../types';
 import type { AddPrefill } from './WineFormPage';
@@ -46,6 +49,9 @@ export function InStorePage() {
   const [barcode, setBarcode] = useState('');
   const [scanning, setScanning] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
+  const [label, setLabel] = useState<{ reading: LabelReading | null; photo: File } | null>(null);
+  const labelUrl = useMemo(() => (label ? URL.createObjectURL(label.photo) : null), [label?.photo]);
+  useEffect(() => () => void (labelUrl && URL.revokeObjectURL(labelUrl)), [labelUrl]);
   const inputRef = useRef<HTMLInputElement>(null);
   const q = useDebounced(query, 150);
   const price = priceText ? Number(priceText) : null;
@@ -91,7 +97,14 @@ export function InStorePage() {
     [wines, navigate, toast],
   );
 
-  const saveBottle = () => {
+  const saveBottle = async () => {
+    if (label?.reading) {
+      const photo = await photoFromFile(label.photo, { name: 'Your photo' });
+      const draft: Partial<WineDraft> = { ...readingToDraft(label.reading), price, barcode, owned: 0, photo };
+      if (style) draft.style = style;
+      navigate('/add', { state: { draft } satisfies AddPrefill });
+      return;
+    }
     const producerSignal = advice?.signals.find((s) => s.kind === 'producer');
     let name = query.trim();
     let producer = '';
@@ -151,6 +164,7 @@ export function InStorePage() {
                   onClick={() => {
                     setQuery('');
                     setBarcode('');
+                    setLabel(null);
                   }}
                   aria-label="Clear"
                 >
@@ -162,6 +176,56 @@ export function InStorePage() {
               <Barcode size={20} />
             </button>
           </div>
+
+          <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
+            <LabelSnap
+              className="btn btn-dark"
+              onStart={(photo) => setLabel({ reading: null, photo })}
+              onRead={(reading, photo) => {
+                setLabel({ reading, photo });
+                if (!reading.is_wine_label) return;
+                setQuery(readingToQuery(reading));
+                setBarcode('');
+                if (reading.style !== 'unknown') setStyle(reading.style);
+              }}
+            />
+          </div>
+
+          {label && labelUrl && (
+            <div className="label-card" aria-live="polite">
+              <div className="tile">
+                <img className="bottle" src={labelUrl} alt="Your label photo" style={{ mixBlendMode: 'normal' }} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                {!label.reading ? (
+                  <p className="muted small" style={{ margin: 0 }}>
+                    Reading the label…
+                  </p>
+                ) : !label.reading.is_wine_label ? (
+                  <p className="small" style={{ margin: 0 }}>
+                    That didn’t look like a wine label. Try again, filling the frame with the front label.
+                  </p>
+                ) : (
+                  <>
+                    <div className="section-title" style={{ marginBottom: 4 }}>
+                      From the label
+                    </div>
+                    <div style={{ fontWeight: 700 }}>
+                      {[label.reading.producer, label.reading.wine_name].filter(Boolean).join(' · ') || 'Name not readable'}
+                    </div>
+                    <div className="muted small">
+                      {[label.reading.vintage, label.reading.region, label.reading.country, label.reading.grapes.join(', ')].filter(Boolean).join(' · ')}
+                    </div>
+                    {(label.reading.confidence !== 'high' || label.reading.uncertain) && (
+                      <div className="small" style={{ color: 'var(--warn)', marginTop: 4 }}>
+                        {label.reading.uncertain || 'Some details may be guesses — check the label.'}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="chips" role="group" aria-label="Style">
             {STYLES.map((s) => (
@@ -246,9 +310,16 @@ export function InStorePage() {
           {!hasInput && !lookingUp && (
             <div className="tips">
               <div className="tip">
+                <Camera size={20} />
+                <div>
+                  <strong>Snap the label</strong>
+                  Claude reads producer, wine, vintage and region from a photo, then Palate checks your history and similar bottles.
+                </div>
+              </div>
+              <div className="tip">
                 <ScanLine size={20} />
                 <div>
-                  <strong>Type what’s on the label</strong>
+                  <strong>Or type what’s on the label</strong>
                   Producer, grape or region — e.g. “Ridge zinfandel” or “Sancerre”. Palate checks how you rated similar bottles.
                 </div>
               </div>
