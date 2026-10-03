@@ -1,0 +1,36 @@
+{
+  "name": "palate",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "barcode-detector": "^3.2.2",
+    "dexie": "^4.4.6",
+    "dexie-react-hooks": "^4.4.0",
+    "lucide-react": "^1.51.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.4",
+    "zod": "^4.6.5",
+    "zxing-wasm": "3.1.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^29.1.1",
+    "playwright": "^1.63.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  }
+}

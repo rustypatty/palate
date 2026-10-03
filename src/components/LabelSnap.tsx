@@ -1,0 +1,56 @@
+import { Sparkles } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { hasApiKey, LabelReadError, readLabel, type LabelReading } from '../lib/labelReader';
+import { useToast } from './Toast';
+
+/** "Snap the label" — takes a photo and has Claude read it. */
+export function LabelSnap({
+  onRead,
+  onStart,
+  label = 'Snap the label',
+  className = 'btn btn-dark',
+}: {
+  onRead: (reading: LabelReading, photo: File) => void;
+  onStart?: (photo: File) => void;
+  label?: string;
+  className?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const navigate = useNavigate();
+
+  const start = () => {
+    if (!hasApiKey()) {
+      toast('Add your Anthropic API key to read labels');
+      navigate('/profile', { state: { focusKey: Date.now() } });
+      return;
+    }
+    inputRef.current?.click();
+  };
+
+  const onFile = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    onStart?.(file);
+    try {
+      const reading = await readLabel(file);
+      if (!reading.is_wine_label) toast('That doesn’t look like a wine label. Try again closer up.');
+      onRead(reading, file);
+    } catch (e) {
+      toast(e instanceof LabelReadError ? e.message : 'Couldn’t read the label. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <button type="button" className={className} onClick={start} disabled={busy} aria-busy={busy}>
+        <Sparkles size={18} /> {busy ? 'Reading label…' : label}
+      </button>
+      <input ref={inputRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => (onFile(e.target.files?.[0]), (e.target.value = ''))} />
+    </>
+  );
+}
