@@ -1,6 +1,7 @@
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Barcode } from 'lucide-react';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { BarcodeScanner } from '../components/BarcodeScanner';
 import { Stepper, TagInput } from '../components/Inputs';
 import { PhotoPicker } from '../components/PhotoPicker';
 import { RatingPicker } from '../components/Rating';
@@ -31,6 +32,7 @@ export function WineFormPage() {
   const [priceText, setPriceText] = useState(prefill?.price != null ? String(prefill.price) : '');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -299,8 +301,23 @@ export function WineFormPage() {
 
       <div className="field">
         <label htmlFor="barcode">Barcode</label>
-        <input id="barcode" className="input" inputMode="numeric" value={draft.barcode} onChange={(e) => set({ barcode: e.target.value.replace(/\s/g, '') })} placeholder="Optional — lets you scan it in the store" />
+        <div className="url-row">
+          <input id="barcode" className="input" inputMode="numeric" value={draft.barcode} onChange={(e) => set({ barcode: e.target.value.replace(/\s/g, '') })} placeholder="Optional — lets you scan it in the store" />
+          <button type="button" className="icon-btn" style={{ width: 50, height: 50 }} onClick={() => setScanning(true)} aria-label="Scan barcode">
+            <Barcode size={20} />
+          </button>
+        </div>
       </div>
+      {scanning && (
+        <BarcodeScanner
+          onDetected={(barcode) => {
+            set({ barcode });
+            setScanning(false);
+            toast('Barcode added');
+          }}
+          onClose={() => setScanning(false)}
+        />
+      )}
 
       <div className="form-actions">
         <button type="button" className="btn btn-secondary" onClick={() => navigate(-1)}>

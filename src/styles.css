@@ -1720,6 +1720,14 @@ details.more > .more-body {
   color: var(--ink-2);
 }
 
+button.tip {
+  border: 0;
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+  cursor: pointer;
+}
+
 .tip svg {
   flex: none;
   color: var(--wine);

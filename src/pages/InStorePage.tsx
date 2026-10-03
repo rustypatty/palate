@@ -1,7 +1,7 @@
 import { Barcode, Heart, Plus, ScanLine, Search, Sparkles, Tag, X } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarcodeScanner, barcodeScanSupported } from '../components/BarcodeScanner';
+import { BarcodeScanner } from '../components/BarcodeScanner';
 import { useToast } from '../components/Toast';
 import { WineRow } from '../components/WineCard';
 import { useDebounced, useWines } from '../hooks';
@@ -158,11 +158,9 @@ export function InStorePage() {
                 </button>
               )}
             </label>
-            {barcodeScanSupported() && (
-              <button type="button" className="icon-btn" style={{ width: 48, height: 48 }} onClick={() => setScanning(true)} aria-label="Scan barcode">
-                <Barcode size={20} />
-              </button>
-            )}
+            <button type="button" className="icon-btn" style={{ width: 48, height: 48 }} onClick={() => setScanning(true)} aria-label="Scan barcode">
+              <Barcode size={20} />
+            </button>
           </div>
 
           <div className="chips" role="group" aria-label="Style">
@@ -254,15 +252,13 @@ export function InStorePage() {
                   Producer, grape or region — e.g. “Ridge zinfandel” or “Sancerre”. Palate checks how you rated similar bottles.
                 </div>
               </div>
-              {barcodeScanSupported() ? (
-                <div className="tip">
-                  <Barcode size={20} />
-                  <div>
-                    <strong>Or scan the barcode</strong>
-                    Bottles you’ve saved with a barcode open straight away.
-                  </div>
+              <button type="button" className="tip" onClick={() => setScanning(true)}>
+                <Barcode size={20} />
+                <div>
+                  <strong>Or scan the barcode</strong>
+                  Works on iPhone and Android. Bottles you’ve saved with a barcode open straight away.
                 </div>
-              ) : null}
+              </button>
               <div className="tip">
                 <Sparkles size={20} />
                 <div>
