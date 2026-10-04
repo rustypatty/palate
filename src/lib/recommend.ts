@@ -179,12 +179,76 @@ export function itemAsWine(item: Candidate & { country?: string }): Wine {
   };
 }
 
-/** Store listings most like this wine (same place, grapes, colour). */
-export function similarItems<C extends Candidate & { country?: string }>(target: Wine, items: C[], n = 4): C[] {
-  return items
-    .map((item) => ({ item, s: similarity(target, itemAsWine(item)) }))
-    .filter((x) => x.s >= 3)
-    .sort((a, b) => b.s - a.s)
+/** Why a store bottle is "like" this wine, in a few words. */
+export function likeReason(target: Wine, item: Candidate & { country?: string }): string {
+  if (isSameWine(target, tokens(item.title), false)) return 'This wine';
+  const a = wineFacts(target);
+  const other = itemAsWine(item);
+  const b = wineFacts(other);
+  const same = (x: string, y: string) => Boolean(x && y && fold(x) === fold(y));
+  const parts: string[] = [];
+  if (target.producer && mentioned(target.producer, tokens(item.title), false)) parts.push('Same producer');
+  if (same(target.region, other.region)) parts.push(`Also ${other.region}`);
+  else if (same(a.area, b.area)) parts.push(`Also ${b.area}`);
+  const grape = b.grapes.find((g) => a.grapes.some((h) => same(g, h)));
+  if (grape && parts.length < 2) {
+    const named = factsFromText(`${item.title} ${item.context ?? ''}`).namedGrapes.length > 0;
+    parts.push(named ? `${grape} too` : `Usually ${grape}`);
+  }
+  return parts.slice(0, 2).join(' · ') || 'Similar style';
+}
+
+export interface LikeThis<C> {
+  storeId: string;
+  item: C;
+  reason: string;
+}
+
+/**
+ * Bottles at your stores most like this wine: the wine itself first if a store has it,
+ * then the closest matches. Leaves out anything your ratings say you'd skip and
+ * anything marked "Not for me".
+ */
+export function bottlesLikeThis<C extends Candidate & { country?: string }>(
+  target: Wine,
+  entries: { storeId: string; item: C }[],
+  advisor: Advisor,
+  passed: Wine[] = [],
+  n = 10,
+  budget: number | null = null,
+): LikeThis<C>[] {
+  const scored: { e: { storeId: string; item: C }; s: number }[] = [];
+  for (const e of entries) {
+    const { item } = e;
+    if (passed.some((w) => w.suggestion?.key === item.key)) continue;
+    if (budget !== null && (item.price === null || item.price > budget)) continue;
+    let s = similarity(target, itemAsWine(item));
+    const isIt = isSameWine(target, tokens(item.title), false);
+    if (isIt) s += 10;
+    if (s < 3) continue;
+    const advice = advisor.advise({ query: `${item.title} ${item.context ?? ''}`, style: item.style, price: item.price, partial: false });
+    if (!isIt && (advice.verdict.level === 'skip' || advice.exact.some((w) => w.rating === 'wouldnt'))) continue;
+    // Among equally similar bottles, the ones your history favours come first.
+    scored.push({ e, s: Math.round((s + (advice.verdict.score ?? 0) * 0.5) * 4) / 4 });
+  }
+  // Equally close bottles: nearest this wine's price, or cheapest first when it has none.
+  const ref = target.price;
+  const cost = (c: C) => (c.price === null ? Infinity : ref !== null ? Math.abs(c.price - ref) : c.price);
+  const seen = new Set<string>();
+  const perRegion = new Map<string, number>();
+  return scored
+    .sort((a, b) => b.s - a.s || cost(a.e.item) - cost(b.e.item))
+    .filter(({ e }) => {
+      const k = fold(e.item.title);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      // Leave room for neighbours (Gigondas next to Châteauneuf): at most 6 per appellation.
+      const r = fold(itemAsWine(e.item).region) || k;
+      const c = perRegion.get(r) ?? 0;
+      if (c >= 6) return false;
+      perRegion.set(r, c + 1);
+      return true;
+    })
     .slice(0, n)
-    .map((x) => x.item);
+    .map(({ e }) => ({ storeId: e.storeId, item: e.item, reason: likeReason(target, e.item) }));
 }

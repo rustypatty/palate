@@ -2278,3 +2278,18 @@ button.tip {
 .suggestion-note a {
   color: var(--wine);
 }
+
+/* On a wine's page there's room for wider cards, so the reasons read in full. */
+.detail .shelf-scroll {
+  grid-auto-columns: 124px;
+}
+
+@media (min-width: 900px) {
+  .detail .shelf-scroll {
+    grid-auto-columns: 140px;
+  }
+}
+
+.detail .pick-card .pick-reason {
+  -webkit-line-clamp: 3;
+}

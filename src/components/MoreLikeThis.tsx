@@ -1,53 +1,105 @@
-import { ExternalLink } from 'lucide-react';
-import { useMemo } from 'react';
-import { useLists, useWines } from '../hooks';
+import { ExternalLink, Store as StoreIcon } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useLists } from '../hooks';
 import { markNotForMe, saveToWant } from '../lib/lists';
-import { moreLikeThis, scoreCandidate, similarItems } from '../lib/recommend';
-import { storeById, possessive } from '../lib/stores';
-import { useAdvisor, useStoreChoice, useStorePicks } from '../lib/usePicks';
+import { bottlesLikeThis } from '../lib/recommend';
+import { possessive, refreshPogos, storeById, type StoreId } from '../lib/stores';
+import { useAdvisor, useAllStoreItems, useBudget } from '../lib/usePicks';
 import type { Wine } from '../types';
-import { MiniWineCard, PickCard, ShelfRow, type PickLike } from './Shelf';
+import { PickCard, ShelfRow } from './Shelf';
 import { useToast } from './Toast';
 
-/** Your wines like this one, plus similar bottles at the store you last picked. */
+/** Bottles you could buy that are like this one, from every store list saved on this device. */
 export function MoreLikeThis({ wine }: { wine: Wine }) {
-  const wines = useWines();
   const lists = useLists();
   const advisor = useAdvisor();
-  const [storeId] = useStoreChoice();
-  const store = storeById(storeId);
-  const { items, saved } = useStorePicks(storeId, null, 0);
+  const entries = useAllStoreItems();
   const toast = useToast();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [budget] = useBudget();
 
-  const own = useMemo(() => (wines && lists ? moreLikeThis(wine, [...wines, ...lists.want], 8) : []), [wine, wines, lists]);
-  const fromStore = useMemo(() => {
-    if (!advisor) return [];
-    return similarItems(wine, items, 6)
-      .map((item) => {
-        const p = scoreCandidate(advisor, item, { passed: lists?.passed });
-        // A bottle you'd skip isn't "like this" in a useful way.
-        if (!p && advisor.advise({ query: item.title, style: item.style, partial: false }).verdict.level === 'skip') return null;
-        return p ?? { item, reason: `Similar to this one, at ${store.name}` };
-      })
-      .filter((p): p is PickLike => p !== null)
-      .slice(0, 4);
-  }, [wine, items, advisor, lists, store.name]);
+  const like = useMemo(
+    () => (advisor && entries && lists ? bottlesLikeThis(wine, entries, advisor, lists.passed, 10, budget) : undefined),
+    [wine, entries, advisor, lists, budget],
+  );
+  const saved = useMemo(() => new Set((lists?.want ?? []).map((w) => w.suggestion?.key).filter(Boolean)), [lists]);
+  const stores = useMemo(() => [...new Set((entries ?? []).map((e) => e.storeId))].map((id) => storeById(id).name), [entries]);
 
-  if (!own.length && !fromStore.length) return null;
+  if (!like || !entries) return null;
+
+  if (!entries.length) {
+    return (
+      <section className="shelf">
+        <div className="shelf-head">
+          <div>
+            <h2>Bottles like this to buy</h2>
+            <p>From the stores you shop at, ranked for your taste</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="cta-card"
+          style={{ width: '100%', border: 0, cursor: 'pointer', textAlign: 'left', font: 'inherit' }}
+          disabled={loading}
+          onClick={async () => {
+            setLoading(true);
+            setError(null);
+            try {
+              await refreshPogos();
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'Couldn’t load the list. Try again.');
+            } finally {
+              setLoading(false);
+            }
+          }}
+        >
+          <StoreIcon size={18} />
+          <span>
+            <strong>{loading ? 'Loading Pogo’s list…' : 'Find bottles like this at Pogo’s'}</strong>
+            <span className="small muted"> Free · about 1 MB. Store lists you make in In store show up here too.</span>
+          </span>
+        </button>
+        {error && (
+          <p className="small" role="alert" style={{ color: 'var(--danger)', margin: '6px 0 0' }}>
+            {error}
+          </p>
+        )}
+      </section>
+    );
+  }
+
+  if (!like.length) {
+    return (
+      <section className="shelf">
+        <div className="shelf-head">
+          <div>
+            <h2>Bottles like this to buy</h2>
+            <p>
+              Nothing close at {stores.join(' or ')}
+              {budget ? ` under $${budget}` : ''} right now.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <ShelfRow title="More like this" sub={fromStore.length ? `From your wines and ${store.name}` : 'From your wines'}>
-      {own.map((w) => (
-        <MiniWineCard key={w.id} wine={w} note={w.list === 'want' ? 'Want to try' : undefined} />
-      ))}
-      {fromStore.map((p) => (
-        <PickCard
-          key={p.item.key}
-          pick={p}
-          saved={saved.has(p.item.key)}
-          onWant={async () => (await saveToWant(p.item, store, p.reason), toast('Saved to Want to try'))}
-          onPass={async () => (await markNotForMe(p.item, store, p.reason), toast('Hidden — it won’t be suggested again'))}
-        />
-      ))}
+    <ShelfRow title="Bottles like this to buy" sub={`At ${stores.join(', ')}${budget ? ` · under $${budget}` : ''} · closest first`}>
+      {like.map(({ storeId, item, reason }) => {
+        const store = storeById(storeId as StoreId);
+        return (
+          <PickCard
+            key={item.key}
+            pick={{ item, reason }}
+            storeName={store.name}
+            saved={saved.has(item.key)}
+            onWant={async () => (await saveToWant(item, store, reason), toast('Saved to Want to try'))}
+            onPass={async () => (await markNotForMe(item, store, reason), toast('Hidden — it won’t be suggested again'))}
+          />
+        );
+      })}
     </ShelfRow>
   );
 }
