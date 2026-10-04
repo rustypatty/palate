@@ -1,6 +1,6 @@
 import { Cloud, RefreshCw } from 'lucide-react';
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { cloudStatus, sendCode, signOut, syncNow, verifyCode } from '../lib/cloud';
+import { cloudStatus, sendLink, signOut, syncNow } from '../lib/cloud';
 
 export function useCloudStatus() {
   return useSyncExternalStore(cloudStatus.subscribe, cloudStatus.get);
@@ -20,8 +20,7 @@ function ago(t: number, now: number): string {
 export function CloudSync() {
   const status = useCloudStatus();
   const [email, setEmail] = useState(() => localStorage.getItem('palate.email') ?? '');
-  const [code, setCode] = useState('');
-  const [step, setStep] = useState<'email' | 'code'>('email');
+  const [step, setStep] = useState<'email' | 'sent'>('email');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
   const [now, setNow] = useState(Date.now);
@@ -81,7 +80,7 @@ export function CloudSync() {
     }
     setBusy(true);
     setMessage(null);
-    const err = await sendCode(e);
+    const err = await sendLink(e);
     setBusy(false);
     if (err) {
       setMessage({ kind: 'error', text: err });
@@ -89,84 +88,64 @@ export function CloudSync() {
     }
     localStorage.setItem('palate.email', e);
     setEmail(e);
-    setCode('');
-    setStep('code');
-    setMessage({ kind: 'info', text: `We emailed a code to ${e}. It can take a minute to arrive.` });
+    setStep('sent');
   };
 
-  const verify = async () => {
-    setBusy(true);
-    setMessage(null);
-    const err = await verifyCode(email, code.replace(/\s/g, ''));
-    setBusy(false);
-    if (err) setMessage({ kind: 'error', text: err });
-  };
+  const shown = message ?? (status.message ? { kind: 'error' as const, text: status.message } : null);
 
   return (
     <section className="card-box">
       <Title />
-      <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
-        Sign in to save your wines online and see them on your phone and computer. You only sign in once on each device.
-      </p>
       {step === 'email' ? (
-        <form
-          className="url-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void send();
-          }}
-        >
-          <label htmlFor="cloud-email" className="sr-only">
-            Email
-          </label>
-          <input
-            id="cloud-email"
-            className="input"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <button type="submit" className="btn btn-dark" style={{ height: 50 }} disabled={busy || !email.trim()}>
-            {busy ? 'Sending…' : 'Email me a code'}
-          </button>
-        </form>
+        <>
+          <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
+            Sign in to save your wines online and see them on your phone and computer. You only sign in once on each device.
+          </p>
+          <form
+            className="url-row"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void send();
+            }}
+          >
+            <label htmlFor="cloud-email" className="sr-only">
+              Email
+            </label>
+            <input
+              id="cloud-email"
+              className="input"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <button type="submit" className="btn btn-dark" style={{ height: 50 }} disabled={busy || !email.trim()}>
+              {busy ? 'Sending…' : 'Email me a link'}
+            </button>
+          </form>
+        </>
       ) : (
-        <form
-          className="url-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void verify();
-          }}
-        >
-          <label htmlFor="cloud-code" className="sr-only">
-            Code from the email
-          </label>
-          <input
-            id="cloud-code"
-            className="input"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="Code from the email"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
-          <button type="submit" className="btn btn-dark" style={{ height: 50 }} disabled={busy || code.replace(/\D/g, '').length < 6}>
-            {busy ? 'Checking…' : 'Sign in'}
-          </button>
-        </form>
+        <>
+          <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
+            We emailed a sign-in link to <strong>{email}</strong>. It can take a minute to arrive.
+          </p>
+          <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
+            Open the email <strong>on this device</strong> and tap <strong>Sign in</strong>. If it opens inside your email app instead of
+            Safari, use its menu to open it in Safari.
+          </p>
+        </>
       )}
-      {message && (
-        <p className="small" role="status" style={{ margin: 0, color: message.kind === 'error' ? 'var(--danger)' : 'var(--ink-2)' }}>
-          {message.text}
+      {shown && (
+        <p className="small" role="status" style={{ margin: 0, color: shown.kind === 'error' ? 'var(--danger)' : 'var(--ink-2)' }}>
+          {shown.text}
         </p>
       )}
-      {step === 'code' && (
+      {step === 'sent' && (
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void send()}>
-            Send a new code
+            Send it again
           </button>
           <button
             type="button"

@@ -4,7 +4,7 @@ import type { Wine } from '../types';
 import { syncOnce, type Remote, type RemoteRow } from './sync';
 
 /**
- * Online storage (Supabase): sign in once per device with an emailed code,
+ * Online storage (Supabase): sign in once per device with an emailed link,
  * then wines and photos sync in the background whenever something changes,
  * the app is opened or comes back to the foreground.
  */
@@ -15,7 +15,7 @@ export const cloudConfigured = Boolean(URL_ && KEY);
 
 export type CloudStatus =
   | { state: 'off' }
-  | { state: 'signed-out' }
+  | { state: 'signed-out'; message?: string }
   | { state: 'syncing'; email: string; lastSyncedAt: number | null }
   | { state: 'synced'; email: string; lastSyncedAt: number }
   | { state: 'error'; email: string; lastSyncedAt: number | null; message: string };
@@ -34,13 +34,48 @@ export const cloudStatus = {
   },
 };
 
+let listening = false;
+let pendingLink: { access_token: string; refresh_token: string } | { error: string } | null = null;
+
+/**
+ * The sign-in email's link comes back as …/#access_token=…&refresh_token=… (or #error=…).
+ * Take it out of the address before the app's router sees it. Call before rendering.
+ */
+export function captureSignInLink() {
+  if (!listening) {
+    // Also when the link lands in a tab that already has Palate open (no reload).
+    listening = true;
+    window.addEventListener('hashchange', () => {
+      captureSignInLink();
+      if (pendingLink && clientPromise) void clientPromise.then(applySignInLink);
+    });
+  }
+  const hash = window.location.hash.slice(1);
+  if (!/(^|&)(access_token|error_description)=/.test(hash)) return;
+  const p = new URLSearchParams(hash);
+  const access_token = p.get('access_token');
+  const refresh_token = p.get('refresh_token');
+  if (access_token && refresh_token) pendingLink = { access_token, refresh_token };
+  else {
+    const code = p.get('error_code') ?? '';
+    pendingLink = {
+      error: /expired|invalid/i.test(`${code} ${p.get('error_description')}`)
+        ? 'That sign-in link has expired or was already used. Send a new one.'
+        : (p.get('error_description') ?? 'That sign-in link didn’t work. Send a new one.').replace(/\+/g, ' '),
+    };
+  }
+  // Same page, new #route: no reload, and the router is told (unlike history.replaceState).
+  window.location.replace(`${window.location.pathname}${window.location.search}#/profile`);
+}
+
 let clientPromise: Promise<SupabaseClient> | null = null;
 function client(): Promise<SupabaseClient> {
   if (!cloudConfigured) throw new Error('Online storage isn’t set up.');
   clientPromise ??= import('@supabase/supabase-js').then(({ createClient }) =>
     createClient(URL_!, KEY!, {
-      // Stay signed in on this device; codes are typed in, not links, so ignore the URL.
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'palate.auth' },
+      // Stay signed in on this device. Sign-in links are picked up by captureSignInLink
+      // (the app's own #/routes would otherwise swallow the tokens in the URL).
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, flowType: 'implicit', storageKey: 'palate.auth' },
     }),
   );
   return clientPromise;
@@ -143,6 +178,21 @@ function scheduleSync(ms = 1500) {
   timer = setTimeout(() => void syncNow(), ms);
 }
 
+/** Sign in with the captured link, if any. True when there was one. */
+async function applySignInLink(sb: SupabaseClient): Promise<boolean> {
+  const link = pendingLink;
+  pendingLink = null;
+  if (!link) return false;
+  if ('error' in link) {
+    setStatus({ state: 'signed-out', message: link.error });
+    return true;
+  }
+  // Success fires SIGNED_IN, which starts the sync.
+  const { error } = await sb.auth.setSession(link);
+  if (error) setStatus({ state: 'signed-out', message: 'That sign-in link didn’t work. Send a new one.' });
+  return true;
+}
+
 /** Start background syncing. Call once at startup. */
 export function startCloud() {
   if (!cloudConfigured) return;
@@ -155,34 +205,26 @@ export function startCloud() {
   window.addEventListener('online', () => scheduleSync(300));
   // Pick up changes from other devices while the app stays open.
   setInterval(() => document.visibilityState === 'visible' && scheduleSync(0), 3 * 60_000);
-  void client().then((sb) => {
+  void client().then(async (sb) => {
     sb.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN') void syncNow();
       if (event === 'SIGNED_OUT') setStatus({ state: 'signed-out' });
     });
-    void syncNow();
+    if (!(await applySignInLink(sb))) void syncNow();
   });
 }
 
-export async function sendCode(email: string): Promise<string | null> {
+/** Email a sign-in link that brings the user back to this page, signed in. */
+export async function sendLink(email: string): Promise<string | null> {
   try {
     const sb = await client();
-    const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+    const { error } = await sb.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}${window.location.pathname}` },
+    });
     if (!error) return null;
-    if (/rate limit|security purposes/i.test(error.message)) return 'Too many codes requested. Wait a minute and try again.';
+    if (/rate limit|security purposes/i.test(error.message)) return 'Too many emails requested. Wait a few minutes and try again.';
     if (/signups not allowed/i.test(error.message)) return 'That email isn’t allowed to sign in here.';
-    return error.message;
-  } catch (e) {
-    return friendly(e);
-  }
-}
-
-export async function verifyCode(email: string, code: string): Promise<string | null> {
-  try {
-    const sb = await client();
-    const { error } = await sb.auth.verifyOtp({ email, token: code, type: 'email' });
-    if (!error) return null;
-    if (/expired|invalid/i.test(error.message)) return 'That code didn’t work. Check it, or send a new one.';
     return error.message;
   } catch (e) {
     return friendly(e);
