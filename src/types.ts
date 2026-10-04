@@ -28,6 +28,35 @@ export interface PhotoSource {
 
 export type WineList = 'want' | 'passed';
 
+export interface StoreOffer {
+  /** A store id from lib/stores, e.g. "totalwine". */
+  storeId: string;
+  url: string;
+  price: number | null;
+}
+
+export interface LikeBottle {
+  key: string;
+  producer: string;
+  wine: string;
+  vintage: string;
+  region: string;
+  country: string;
+  grapes: string[];
+  style: WineStyle;
+  /** Where it's sold, cheapest first. Every URL turned up in a search of that store's site. */
+  offers: StoreOffer[];
+  /** A product photo of the same producer and cuvée from another shop, or null. */
+  image: { url: string; pageUrl: string; siteName: string } | null;
+  reason: string;
+}
+
+export interface LikeThisCache {
+  at: number;
+  bottles: LikeBottle[];
+  tips: string[];
+}
+
 export interface Suggestion {
   reason: string;
   /** Store or source it was suggested from, e.g. "Pogo's". */
@@ -75,6 +104,8 @@ export interface Wine {
   list?: WineList | null;
   /** Why and where this wine was suggested, kept after it joins the collection. */
   suggestion?: Suggestion | null;
+  /** Bottles like this one found at your stores, saved so reopening the page is free. */
+  likeThis?: LikeThisCache | null;
   createdAt: number;
   updatedAt: number;
 }

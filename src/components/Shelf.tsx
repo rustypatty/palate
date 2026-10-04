@@ -2,8 +2,9 @@ import { Bookmark, BookmarkCheck, ExternalLink, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { formatPrice, vintageLabel } from '../lib/format';
+import { offerLabel } from '../lib/likeThis';
 import { possessive, type StoreItem, type SuggestedItem } from '../lib/stores';
-import type { Wine } from '../types';
+import type { StoreOffer, Wine } from '../types';
 import { BottleImage, BottlePlaceholder } from './BottleImage';
 import { RatingBadge } from './Rating';
 
@@ -56,7 +57,7 @@ export interface PickLike {
   reason: string;
 }
 
-export function PickCard({ pick, saved, onWant, onPass, storeName }: { pick: PickLike; storeName?: string } & PickActions) {
+export function PickCard({ pick, saved, onWant, onPass, storeName, offers }: { pick: PickLike; storeName?: string; offers?: StoreOffer[] } & PickActions) {
   const { item } = pick;
   return (
     <div className="mini-card pick-card">
@@ -64,7 +65,17 @@ export function PickCard({ pick, saved, onWant, onPass, storeName }: { pick: Pic
         {itemPhoto(item)}
       </a>
       <div className="mini-t">{item.title}</div>
-      <div className="mini-s">{[item.price !== null ? formatPrice(item.price) : '', storeName].filter(Boolean).join(' · ') || ' '}</div>
+      {offers?.length ? (
+        <div className="offers">
+          {offers.slice(0, 3).map((o) => (
+            <a key={o.storeId} href={o.url} target="_blank" rel="noreferrer">
+              {offerLabel(o)}
+            </a>
+          ))}
+        </div>
+      ) : (
+        <div className="mini-s">{[item.price !== null ? formatPrice(item.price) : '', storeName].filter(Boolean).join(' · ') || ' '}</div>
+      )}
       <div className="pick-reason">{pick.reason}</div>
       <div className="pick-actions">
         <button type="button" className={`pick-btn${saved ? ' on' : ''}`} onClick={onWant} disabled={saved} aria-label={saved ? 'On your Want to try list' : 'Want to try'}>

@@ -34,6 +34,8 @@ export interface StoreItem extends Candidate {
   url: string;
   /** The store's own product photo, if it has one. */
   image: string | null;
+  /** When the photo comes from another shop's page for the same wine. */
+  imageSource?: { name: string; pageUrl: string };
   vintage: number | 'NV' | null;
   country: string;
   sizeMl: number | null;
