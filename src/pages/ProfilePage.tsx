@@ -1,6 +1,7 @@
 import { Download, HardDrive, KeyRound, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { CloudSync, useCloudStatus } from '../components/CloudSync';
 import { useToast } from '../components/Toast';
 import { useWines } from '../hooks';
 import { downloadBlob, exportBackup, importBackup } from '../lib/backup';
@@ -152,6 +153,8 @@ export function ProfilePage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [usage, setUsage] = useState<string | null>(null);
+  const cloud = useCloudStatus();
+  const online = cloud.state === 'syncing' || cloud.state === 'synced' || cloud.state === 'error';
 
   useEffect(() => {
     navigator.storage?.persisted?.().then(setPersisted).catch(() => {});
@@ -216,16 +219,18 @@ export function ProfilePage() {
       </div>
 
       <div className="profile-grid">
+        <CloudSync />
         <LabelReadingSettings />
         <section className="card-box">
           <h2 className="section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
             <HardDrive size={14} /> Your data
           </h2>
           <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
-            Your wines and photos are stored privately on this device{usage ? ` (${usage})` : ''}. Export a backup now and then, and use it to move
-            your collection to another phone or computer.
+            {online
+              ? `Your wines and photos are stored on this device${usage ? ` (${usage})` : ''} and saved online. A backup file is an extra copy you keep yourself.`
+              : `Your wines and photos are stored privately on this device${usage ? ` (${usage})` : ''}. Export a backup now and then, and use it to move your collection to another phone or computer.`}
           </p>
-          {persisted === false && (
+          {persisted === false && !online && (
             <p className="small muted" style={{ margin: 0 }}>
               Tip: add Palate to your home screen so your browser keeps the data safe long-term.
             </p>

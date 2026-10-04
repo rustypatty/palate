@@ -28,6 +28,11 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
       - run: npm test
       - run: npm run build
+        env:
+          # Online storage. Both values are public by design (each user's data is
+          # protected by the row-level security in supabase/setup.sql).
+          VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
