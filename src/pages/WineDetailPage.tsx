@@ -1,7 +1,8 @@
-import { ArrowLeft, Globe, Pencil, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowLeft, BookmarkX, Globe, Pencil, ShoppingBag, Sparkles, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AboutWine } from '../components/AboutWine';
+import { MoreLikeThis, SuggestionNote } from '../components/MoreLikeThis';
 import { BottleImage } from '../components/BottleImage';
 import { Stepper } from '../components/Inputs';
 import { RatingPicker } from '../components/Rating';
@@ -126,11 +127,45 @@ export function WineDetailPage() {
           </div>
         </div>
 
+        <SuggestionNote wine={wine} />
+
+        {wine.list === 'want' && (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={async () => {
+                await updateWine(wine.id, { list: null, owned: Math.max(1, wine.owned) });
+                toast('Added to your wines');
+              }}
+            >
+              <ShoppingBag size={16} /> I bought it
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={async () => {
+                await deleteWine(wine.id);
+                toast('Removed from Want to try');
+                navigate(-1);
+              }}
+            >
+              <BookmarkX size={16} /> Remove from list
+            </button>
+          </div>
+        )}
+
         <div>
+          {wine.list === 'want' && <div className="muted small" style={{ marginBottom: 6 }}>Tried it already? Rate it and it moves into your wines.</div>}
           <RatingPicker
             value={wine.rating}
             onChange={async (rating) => {
-              await updateWine(wine.id, { rating, tastedOn: wine.tastedOn ?? (rating ? new Date().toISOString().slice(0, 10) : null) });
+              await updateWine(wine.id, {
+                rating,
+                tastedOn: wine.tastedOn ?? (rating ? new Date().toISOString().slice(0, 10) : null),
+                // Rated a Want to try wine: it's part of the collection now (keeping its suggestion).
+                ...(rating && wine.list === 'want' ? { list: null } : {}),
+              });
               toast(rating ? RATING_LABEL[rating] : 'Rating cleared');
             }}
           />
@@ -185,6 +220,8 @@ export function WineDetailPage() {
             </dl>
           </div>
         )}
+
+        <MoreLikeThis wine={wine} />
 
         <div className="detail-footer section">
           <Link to={`/wine/${wine.id}/edit`} className="btn btn-dark">

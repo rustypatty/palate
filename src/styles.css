@@ -1939,3 +1939,342 @@ button.tip {
     transition: none !important;
   }
 }
+
+/* ---------- Suggestion rows ---------- */
+
+.home-rows {
+  display: grid;
+  gap: 14px;
+  margin: 2px 0 14px;
+}
+
+.shelf {
+  min-width: 0;
+}
+
+.shelf-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.shelf-head h2 {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.shelf-head p {
+  margin: 1px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.shelf-link {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--wine);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.shelf-scroll {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 92px;
+  gap: 10px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.shelf-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .shelf-scroll {
+    grid-auto-columns: 132px;
+    gap: 14px;
+  }
+}
+
+.mini-card {
+  display: block;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+  scroll-snap-align: start;
+}
+
+.mini-card .tile {
+  display: block;
+  border-radius: var(--radius);
+  aspect-ratio: 4 / 5;
+}
+
+.mini-card .tile .rating-badge {
+  top: 6px;
+  left: 6px;
+  transform: scale(0.85);
+  transform-origin: top left;
+}
+
+.mini-t {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mini-s {
+  font-size: 12px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pick-reason {
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--wine);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pick-card .pick-reason {
+  margin-top: 2px;
+  font-size: 11.5px;
+  -webkit-line-clamp: 2;
+}
+
+.pick-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.pick-btn {
+  width: 34px;
+  height: 28px;
+  border-radius: var(--pill);
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-2);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.pick-btn.on {
+  background: var(--wine-soft);
+  border-color: transparent;
+  color: var(--wine);
+}
+
+.cta-card,
+.rate-prompt,
+.want-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--wine-soft);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.cta-card svg,
+.rate-prompt svg,
+.want-banner svg {
+  color: var(--wine);
+  flex: none;
+}
+
+.want-banner {
+  margin-top: 14px;
+}
+
+/* ---------- Store picks (In store) ---------- */
+
+.store-picks {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+@media (min-width: 900px) {
+  .store-picks {
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xl);
+  }
+}
+
+.store-picks .chips {
+  margin: 0;
+  padding: 0;
+}
+
+.chips-sm .chip {
+  height: 32px;
+  font-size: 13px;
+}
+
+.picks-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.picks-status > span {
+  flex: 1 1 180px;
+}
+
+.pick-list {
+  display: grid;
+  gap: 4px;
+}
+
+.pick-row {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.pick-row .tile {
+  display: block;
+  border-radius: var(--radius);
+  align-self: start;
+}
+
+.pick-row .t {
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.pick-row .s {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin: 1px 0 3px;
+}
+
+.pick-row .pick-reason {
+  font-size: 13px;
+}
+
+.pick-row-actions {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  margin: 6px 0 0 -6px;
+}
+
+.pick-row-actions .btn {
+  height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+  gap: 5px;
+}
+
+.tips-box {
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.tips-box ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 14px;
+  display: grid;
+  gap: 4px;
+}
+
+/* ---------- Your taste ---------- */
+
+.taste-card {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 18px;
+  border-radius: var(--radius-xl);
+  background: var(--wine-soft);
+}
+
+.taste-line {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.4;
+  font-weight: 560;
+  letter-spacing: -0.005em;
+}
+
+.taste-line:not(:nth-of-type(1)) {
+  font-size: 15px;
+  font-weight: 450;
+  color: var(--ink-2);
+}
+
+.taste-quote {
+  margin: 0;
+  font-size: 15px;
+  font-style: italic;
+  color: var(--ink-2);
+}
+
+.taste-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.taste-tags .tag {
+  height: 28px;
+  padding: 0 11px;
+  border-radius: var(--pill);
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tag-good {
+  background: #fff;
+  color: var(--wine);
+}
+
+.tag-bad {
+  background: transparent;
+  color: var(--ink-3);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.suggestion-note {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--wine-soft);
+}
+
+.suggestion-note a {
+  color: var(--wine);
+}

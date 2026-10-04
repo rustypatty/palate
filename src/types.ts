@@ -26,6 +26,18 @@ export interface PhotoSource {
   title?: string;
 }
 
+export type WineList = 'want' | 'passed';
+
+export interface Suggestion {
+  reason: string;
+  /** Store or source it was suggested from, e.g. "Pogo's". */
+  source: string;
+  url?: string;
+  /** The store listing it came from, so "Not for me" hides exactly that listing. */
+  key?: string;
+  at: number;
+}
+
 export interface AboutWine {
   text: string;
   sourceName: string;
@@ -56,6 +68,13 @@ export interface Wine {
   photo: Photo | null;
   /** Published tasting notes (winery/shop), summarised — kept apart from the user's own notes. */
   about?: AboutWine | null;
+  /**
+   * Not part of the collection: a wine saved to try later ('want') or a suggestion
+   * dismissed as "Not for me" ('passed'). Stored as wines so they sync like the rest.
+   */
+  list?: WineList | null;
+  /** Why and where this wine was suggested, kept after it joins the collection. */
+  suggestion?: Suggestion | null;
   createdAt: number;
   updatedAt: number;
 }

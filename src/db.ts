@@ -1,11 +1,14 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { Deletion, StoredPhoto, Wine, WineDraft } from './types';
+import type { StoreCache } from './lib/stores';
 
 export class PalateDB extends Dexie {
   wines!: EntityTable<Wine, 'id'>;
   photos!: EntityTable<StoredPhoto, 'id'>;
   /** Wines deleted on this device that other devices haven't heard about yet. */
   deletions!: EntityTable<Deletion, 'id'>;
+  /** Store wine lists and suggestion lists, saved on this device so they open offline. */
+  stores!: EntityTable<StoreCache, 'id'>;
 
   constructor(name = 'palate') {
     super(name);
@@ -14,6 +17,7 @@ export class PalateDB extends Dexie {
       photos: 'id',
     });
     this.version(2).stores({ deletions: 'id' });
+    this.version(3).stores({ stores: 'id' });
   }
 }
 

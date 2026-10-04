@@ -1,18 +1,20 @@
-import { Barcode, Camera, Heart, Plus, ScanLine, Search, Sparkles, Tag, X } from 'lucide-react';
+import { Barcode, Bookmark, Camera, Heart, Plus, ScanLine, Search, Sparkles, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { LabelSnap } from '../components/LabelSnap';
 import { PhotoChoices } from '../components/PhotoChoices';
 import { useToast } from '../components/Toast';
+import { StorePicksPanel } from '../components/StorePicks';
 import { WineRow } from '../components/WineCard';
-import { useDebounced, useWines } from '../hooks';
+import { useDebounced, useLists, useWines } from '../hooks';
 import { STYLES } from '../lib/constants';
 import { formatPrice } from '../lib/format';
 import { lookupBarcode } from '../lib/imageSearch';
 import { photoFromFile, photoFromUrl } from '../lib/image';
 import { advise, describeCounts, detectStyle, type Signal } from '../lib/insights';
 import { LabelReadError, lookUpWine, readingToDraft, readingToQuery, withLookup, type LabelReading, type WineLookup } from '../lib/labelReader';
+import { matchesWant } from '../lib/lists';
 import { tokens } from '../lib/text';
 import type { WineDraft, WineStyle } from '../types';
 import type { AddPrefill } from './WineFormPage';
@@ -21,6 +23,7 @@ const KIND_LABEL: Record<Signal['kind'], string> = {
   producer: 'Producer',
   grape: 'Grape',
   region: 'Region',
+  area: 'Area',
   country: 'Country',
   style: 'Style',
 };
@@ -67,6 +70,10 @@ export function InStorePage() {
     () => (wines && (q.trim() || style) ? advise(wines, { query: q, style, price }, formatPrice) : null),
     [wines, q, style, price],
   );
+
+  const lists = useLists();
+  // Is the bottle in front of you one you saved to try?
+  const wanted = useMemo(() => (q.trim() ? lists?.want.find((w) => matchesWant(w, q)) : undefined), [lists, q]);
 
   const safeBets = useMemo(
     () => (wines ?? []).filter((w) => w.rating === 'loved').sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6),
@@ -151,10 +158,15 @@ export function InStorePage() {
         <div>
           <h1 style={{ margin: 0, fontSize: 30, letterSpacing: '-0.02em' }}>In the store</h1>
           <p className="muted" style={{ margin: '4px 0 0' }}>
-            Check a bottle against everything you’ve tasted.
+            Bottles here that fit your taste, and a quick check for any one bottle.
           </p>
 
-          <div className="search-row" style={{ paddingTop: 16 }}>
+          <StorePicksPanel />
+
+          <h2 className="section-title" style={{ margin: '28px 0 0' }}>
+            Check one bottle
+          </h2>
+          <div className="search-row" style={{ paddingTop: 8 }}>
             <label className="search">
               <Search size={20} />
               <span className="sr-only">Wine on the shelf</span>
@@ -298,6 +310,16 @@ export function InStorePage() {
 
           {lookingUp && <div className="status-line">Looking up barcode…</div>}
 
+          {wanted && (
+            <Link to={`/wine/${wanted.id}`} className="want-banner" aria-live="polite">
+              <Bookmark size={18} />
+              <span>
+                <strong>On your Want to try list</strong>
+                {wanted.suggestion?.reason && <span className="small"> · {wanted.suggestion.reason}</span>}
+              </span>
+            </Link>
+          )}
+
           {advice && (
             <>
               <div className={`verdict ${advice.verdict.level}`} aria-live="polite">
@@ -341,7 +363,7 @@ export function InStorePage() {
                     {advice.signals.map((s) => (
                       <li key={`${s.kind}-${s.value}`} className="signal">
                         <div style={{ minWidth: 0 }}>
-                          <div className="kind">{KIND_LABEL[s.kind]}</div>
+                          <div className="kind">{s.inferred ? 'Usual grape' : KIND_LABEL[s.kind]}</div>
                           <div className="value">{s.value}</div>
                           <div className="counts">{describeCounts(s.counts)}</div>
                         </div>
@@ -406,6 +428,18 @@ export function InStorePage() {
             </div>
           ) : (
             <p className="muted small">Wines you mark “Loved it” show up here for quick reference.</p>
+          )}
+          {lists && lists.want.length > 0 && (
+            <>
+              <h3 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 24 }}>
+                <Bookmark size={14} /> Want to try
+              </h3>
+              <div className="list">
+                {lists.want.slice(0, 8).map((w) => (
+                  <WineRow key={w.id} wine={w} />
+                ))}
+              </div>
+            </>
           )}
         </aside>
       </div>
