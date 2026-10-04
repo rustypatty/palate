@@ -26,6 +26,12 @@ export interface PhotoSource {
   title?: string;
 }
 
+export interface AboutWine {
+  text: string;
+  sourceName: string;
+  sourceUrl: string;
+}
+
 export interface Wine {
   id: string;
   producer: string;
@@ -48,6 +54,8 @@ export interface Wine {
   tastedOn: string | null;
   barcode: string;
   photo: Photo | null;
+  /** Published tasting notes (winery/shop), summarised — kept apart from the user's own notes. */
+  about?: AboutWine | null;
   createdAt: number;
   updatedAt: number;
 }

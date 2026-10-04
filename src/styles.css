@@ -1208,6 +1208,12 @@ details.more > .more-body {
   padding-top: 18px;
 }
 
+.about-wine {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
 /* ---------- Photo picker ---------- */
 
 .photo-picker {

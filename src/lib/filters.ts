@@ -36,6 +36,7 @@ export function searchableText(w: Wine): string {
       w.style ? STYLE_LABEL[w.style] : '',
       w.store,
       w.notes,
+      w.about?.text ?? '',
       w.barcode,
     ].join(' '),
   );
