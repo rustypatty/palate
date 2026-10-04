@@ -63,6 +63,17 @@ describe('advise', () => {
     expect(b.signals.map((s) => s.kind)).toEqual(['style']);
   });
 
+  it('counts wines matching a partial name like "chateauneuf"', () => {
+    const cdp = [
+      wine({ producer: 'Domaine La Millière', name: 'Châteauneuf-du-Pape Vieilles Vignes', region: 'Châteauneuf-du-Pape', country: 'France', rating: 'liked' }),
+      wine({ producer: 'Clos Saint Michel', name: 'Châteauneuf-du-Pape', region: 'Châteauneuf-du-Pape', country: 'France', rating: 'liked' }),
+      wine({ producer: 'Clos Saint Michel', name: 'Châteauneuf-du-Pape Cuvée Réservée', region: 'Châteauneuf-du-Pape', country: 'France', rating: 'liked' }),
+    ];
+    const a = advise(cdp, { query: 'chateauneuf' });
+    expect(a.related).toHaveLength(3);
+    expect(a.verdict.level).toBe('good');
+  });
+
   it('has no opinion with no history', () => {
     const a = advise(history, { query: 'Gramercy Cellars Syrah' });
     expect(a.verdict.level).toBe('unknown');
