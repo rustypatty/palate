@@ -192,7 +192,7 @@ export function WineFormPage() {
                   if (clean && samePhoto(d.photo, photo)) next.photo = clean;
                   return next;
                 });
-                toast(clean ? `Checked online and swapped in a clean photo from ${l.photo!.siteName}` : `Details checked online (${l.sourceName})`);
+                toast(clean ? `Checked online and swapped in a clean photo from ${l.photo!.siteName}` : `Details checked online (${l.sourceName}). ${l.photoNote} Keeping your photo.`);
               } catch (e) {
                 if (e instanceof LabelReadError) toast(e.message);
               } finally {

@@ -251,6 +251,7 @@ export function InStorePage() {
                           {label.found.sourceName}
                         </a>
                         {label.found.photo ? ' · clean photo found' : ''}
+                        {!label.found.photo && label.found.photoNote && <div className="muted">{label.found.photoNote} Keeping your photo.</div>}
                       </div>
                     )}
                     {label.lookup === 'none' && <div className="small muted" style={{ marginTop: 4 }}>Couldn’t confirm details online — check style and grapes.</div>}
