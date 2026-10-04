@@ -5,6 +5,7 @@ import { AboutWine } from '../components/AboutWine';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { LabelSnap } from '../components/LabelSnap';
 import { Stepper, TagInput } from '../components/Inputs';
+import { PhotoChoices } from '../components/PhotoChoices';
 import { PhotoPicker } from '../components/PhotoPicker';
 import { RatingPicker } from '../components/Rating';
 import { useToast } from '../components/Toast';
@@ -12,7 +13,7 @@ import { createWine, db, emptyDraft, updateWine } from '../db';
 import { useWines } from '../hooks';
 import { COMMON_COUNTRIES, COMMON_GRAPES, STYLES } from '../lib/constants';
 import { photoFromFile, photoFromUrl } from '../lib/image';
-import { LabelReadError, lookUpWine, readingToDraft } from '../lib/labelReader';
+import { LabelReadError, lookUpWine, readingToDraft, type WineLookup } from '../lib/labelReader';
 import { tally } from '../lib/filters';
 import type { Photo, WineDraft } from '../types';
 
@@ -46,6 +47,9 @@ export function WineFormPage() {
   // The user's own label snap, kept so they can switch back from an online photo.
   const [snapPhoto, setSnapPhoto] = useState<Photo | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
+  // Result of the online check, kept on screen (not just a pop-up).
+  const [lookupNote, setLookupNote] = useState<string | null>(null);
+  const [photoChoices, setPhotoChoices] = useState<WineLookup['candidates']>([]);
   const snapFill = useRef<{ style: WineDraft['style']; grapes: string[] } | null>(null);
 
   useEffect(() => {
@@ -179,10 +183,12 @@ export function WineFormPage() {
               if (usedSnap) setSnapPhoto(photo);
               snapFill.current = { style: found.style ?? null, grapes: found.grapes ?? [] };
               setLookingUp(true);
+              setLookupNote(null);
+              setPhotoChoices([]);
               try {
                 const outcome = await lookUpWine(reading, file);
                 if (!outcome.ok) {
-                  toast(`Couldn’t confirm colour and grapes online (${outcome.reason}). Left blank — check the label.`);
+                  setLookupNote(`Couldn’t confirm colour and grapes online (${outcome.reason}). Left blank — check the label.`);
                   return;
                 }
                 const l = outcome.lookup;
@@ -198,9 +204,11 @@ export function WineFormPage() {
                   if (l.about && !d.about) next.about = l.about;
                   return next;
                 });
-                toast(clean ? `Checked online and swapped in a clean photo from ${l.photo!.siteName}` : `Details checked online (${l.sourceName}). ${l.photoNote} Keeping your photo.`);
+                toast(clean ? `Checked online and swapped in a clean photo from ${l.photo!.siteName}` : `Details checked online (${l.sourceName})`);
+                if (!clean && l.photoNote) setLookupNote(`${l.photoNote} Keeping your photo.`);
+                if (!clean && usedSnap) setPhotoChoices(l.candidates);
               } catch (e) {
-                if (e instanceof LabelReadError) toast(e.message);
+                if (e instanceof LabelReadError) setLookupNote(e.message);
               } finally {
                 setLookingUp(false);
               }
@@ -210,6 +218,18 @@ export function WineFormPage() {
       )}
 
       {lookingUp && <div className="callout info">Checking the details online and looking for a clean photo of this bottle…</div>}
+      {lookupNote && <div className="callout">{lookupNote}</div>}
+      <PhotoChoices
+        candidates={photoChoices}
+        onPick={async (c) => {
+          setPhotoChoices([]);
+          setLookupNote(`Getting the photo from ${c.siteName}…`);
+          const p = await photoFromUrl(c.url, { name: c.siteName, pageUrl: c.pageUrl, title: c.title });
+          set({ photo: p });
+          setLookupNote(null);
+          toast(`Using the photo from ${c.siteName}`);
+        }}
+      />
       {snapPhoto && draft.photo && !samePhoto(draft.photo, snapPhoto) && draft.photo.source?.name !== 'Your photo' && (
         <div className="row-between small">
           <span className="muted">Using a matching photo from {draft.photo.source?.name ?? 'the web'}.</span>

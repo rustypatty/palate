@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { LabelSnap } from '../components/LabelSnap';
+import { PhotoChoices } from '../components/PhotoChoices';
 import { useToast } from '../components/Toast';
 import { WineRow } from '../components/WineCard';
 import { useDebounced, useWines } from '../hooks';
@@ -254,6 +255,12 @@ export function InStorePage() {
                         </a>
                         {label.found.photo ? ' · clean photo found' : ''}
                         {!label.found.photo && label.found.photoNote && <div className="muted">{label.found.photoNote} Keeping your photo.</div>}
+                        {!label.found.photo && (
+                          <PhotoChoices
+                            candidates={label.found.candidates}
+                            onPick={(c) => setLabel((cur) => (cur?.found ? { ...cur, found: { ...cur.found, photo: c, candidates: [] } } : cur))}
+                          />
+                        )}
                         {label.found.about && <div style={{ color: 'var(--ink-2)', marginTop: 4 }}>{label.found.about.text}</div>}
                       </div>
                     )}

@@ -1224,6 +1224,8 @@ details.more > .more-body {
 }
 
 .photo-picker .tile {
+  width: 100%;
+  align-self: start;
   aspect-ratio: 3 / 4;
   border-radius: var(--radius-lg);
 }
@@ -1756,6 +1758,28 @@ button.tip {
 .tip strong {
   color: var(--ink);
   display: block;
+}
+
+.photo-choices {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.photo-choices-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.photo-choices .tile {
+  border-radius: var(--radius);
+  background: #fff;
+  border: 1px solid var(--line);
+}
+
+.photo-choices .candidate .sub {
+  font-size: 11px;
 }
 
 .label-card {
