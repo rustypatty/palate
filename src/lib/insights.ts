@@ -58,6 +58,8 @@ const WEIGHT: Record<SignalKind, number> = {
   country: 0.5,
 };
 
+const RELATED_WEIGHT = 2;
+
 const STYLE_WORDS: Record<string, WineStyle> = {
   red: 'red',
   rouge: 'red',
@@ -208,12 +210,12 @@ export function advise(
     exact,
     related,
     signals: deduped,
-    verdict: verdictFor(exact, deduped),
+    verdict: verdictFor(exact, deduped, related),
     price: priceContext(wines, input.price ?? null, fmt),
   };
 }
 
-export function verdictFor(exact: Wine[], signals: Signal[]): Verdict {
+export function verdictFor(exact: Wine[], signals: Signal[], related: Wine[] = []): Verdict {
   // A wine you've already rated is the strongest evidence there is.
   const ratedExact = exact.find((w) => w.rating !== null);
   if (ratedExact) {
@@ -237,11 +239,20 @@ export function verdictFor(exact: Wine[], signals: Signal[]): Verdict {
     total += s.score * w;
     weight += w;
   }
+  // Wines that match everything you typed (e.g. "chateauneuf") count too, even
+  // when the words don't name a whole producer, grape or region.
+  const relatedScore = scoreOf(related);
+  if (relatedScore !== null) {
+    const rated = related.filter((w) => w.rating !== null).length;
+    const w = RELATED_WEIGHT * Math.min(rated, 3) / 3;
+    total += relatedScore * w;
+    weight += w;
+  }
   if (weight === 0) {
     return {
       level: 'unknown',
       title: 'No history yet',
-      detail: signals.length
+      detail: signals.length || related.length
         ? 'You have related bottles, but none are rated yet.'
         : 'Nothing in your collection matches this producer, grape, or region.',
     };
