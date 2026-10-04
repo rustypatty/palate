@@ -1,6 +1,7 @@
-import { ArrowLeft, Globe, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Globe, Pencil, Sparkles, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { AboutWine } from '../components/AboutWine';
 import { BottleImage } from '../components/BottleImage';
 import { Stepper } from '../components/Inputs';
 import { RatingPicker } from '../components/Rating';
@@ -10,6 +11,7 @@ import { deleteWine, updateWine } from '../db';
 import { useWine } from '../hooks';
 import { RATING_LABEL, STYLE_LABEL } from '../lib/constants';
 import { formatDate, formatPrice, fullName, placeLabel } from '../lib/format';
+import { hasApiKey, LabelReadError, lookUpWine } from '../lib/labelReader';
 
 export function WineDetailPage() {
   const { id } = useParams();
@@ -17,6 +19,7 @@ export function WineDetailPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [fetching, setFetching] = useState(false);
 
   if (wine === undefined) return null;
   if (wine === null) {
@@ -30,6 +33,44 @@ export function WineDetailPage() {
       </div>
     );
   }
+
+  const canLookUp = hasApiKey() && Boolean(wine.producer || wine.name);
+
+  const fetchNotes = async () => {
+    setFetching(true);
+    try {
+      const l = await lookUpWine(
+        {
+          is_wine_label: true,
+          producer: wine.producer,
+          wine_name: wine.name,
+          vintage: wine.vintage === null ? '' : String(wine.vintage),
+          country: wine.country,
+          region: wine.region,
+          grapes: wine.grapes,
+          style: wine.style ?? 'unknown',
+          confidence: 'high',
+          uncertain: '',
+        },
+        null,
+      );
+      if (!l?.about) {
+        toast('Couldn’t find published tasting notes for this wine.');
+        return;
+      }
+      await updateWine(wine.id, {
+        about: l.about,
+        // Fill in only what's missing; never overwrite what's already there.
+        ...(wine.grapes.length === 0 && l.grapes.length ? { grapes: l.grapes } : {}),
+        ...(wine.style === null && l.style !== 'unknown' ? { style: l.style } : {}),
+      });
+      toast(`Tasting notes added from ${l.about.sourceName}`);
+    } catch (e) {
+      toast(e instanceof LabelReadError ? e.message : 'Couldn’t look up this wine. Try again.');
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const back = () => (window.history.length > 1 ? navigate(-1) : navigate('/'));
   const title = wine.name || wine.producer || 'Untitled wine';
@@ -99,8 +140,26 @@ export function WineDetailPage() {
         </div>
 
         <div className="section">
+          <h2>About this wine</h2>
+          {wine.about ? (
+            <AboutWine about={wine.about} />
+          ) : (
+            <div className="row-between">
+              <p className="notes muted" style={{ margin: 0 }}>
+                {canLookUp ? 'No published tasting notes yet.' : 'Add your Anthropic API key in My palate to fetch published tasting notes.'}
+              </p>
+              {canLookUp && (
+                <button type="button" className="btn btn-outline btn-sm" onClick={fetchNotes} disabled={fetching}>
+                  <Sparkles size={14} /> {fetching ? 'Looking up…' : 'Get tasting notes'}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="section">
           <div className="row-between" style={{ marginBottom: 12 }}>
-            <h2 style={{ margin: 0 }}>Tasting notes</h2>
+            <h2 style={{ margin: 0 }}>My tasting notes</h2>
             <Link to={`/wine/${wine.id}/edit`} className="btn btn-ghost btn-sm">
               <Pencil size={14} /> Edit
             </Link>

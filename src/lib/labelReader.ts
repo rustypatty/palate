@@ -68,7 +68,7 @@ export async function readLabel(photo: Blob, signal?: AbortSignal): Promise<Labe
 export type { WineLookup } from './labelClient';
 
 /** Confirms style and grapes online and finds a matching clean bottle photo. Never throws for API problems; returns null. */
-export async function lookUpWine(reading: LabelReading, photo: Blob, signal?: AbortSignal) {
+export async function lookUpWine(reading: LabelReading, photo: Blob | null, signal?: AbortSignal) {
   const apiKey = getApiKey();
   if (!apiKey || !reading.is_wine_label || !(reading.producer || reading.wine_name)) return null;
   return (await import('./labelClient')).lookUpWineWithClaude(apiKey, reading, photo, signal);

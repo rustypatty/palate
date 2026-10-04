@@ -108,7 +108,7 @@ export function InStorePage() {
       const photo = clean
         ? await photoFromUrl(clean.url, { name: clean.siteName, pageUrl: clean.pageUrl, title: clean.title })
         : await photoFromFile(label.photo, { name: 'Your photo' });
-      const draft: Partial<WineDraft> = { ...readingToDraft(label.reading), price, barcode, owned: 0, photo };
+      const draft: Partial<WineDraft> = { ...readingToDraft(label.reading), price, barcode, owned: 0, photo, about: label.found?.about ?? null };
       if (style) draft.style = style;
       navigate('/add', { state: { draft } satisfies AddPrefill });
       return;
@@ -252,6 +252,7 @@ export function InStorePage() {
                         </a>
                         {label.found.photo ? ' · clean photo found' : ''}
                         {!label.found.photo && label.found.photoNote && <div className="muted">{label.found.photoNote} Keeping your photo.</div>}
+                        {label.found.about && <div style={{ color: 'var(--ink-2)', marginTop: 4 }}>{label.found.about.text}</div>}
                       </div>
                     )}
                     {label.lookup === 'none' && <div className="small muted" style={{ marginTop: 4 }}>Couldn’t confirm details online — check style and grapes.</div>}

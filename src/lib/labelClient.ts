@@ -115,6 +115,8 @@ export interface WineLookup {
   photo: { url: string; pageUrl: string; siteName: string; title: string } | null;
   /** Why no photo was used, when none was (shown to the user). */
   photoNote: string;
+  /** Published tasting notes, summarised in Claude's own words. */
+  about: { text: string; sourceName: string; sourceUrl: string } | null;
 }
 
 const REPORT_TOOL = {
@@ -124,13 +126,20 @@ const REPORT_TOOL = {
   input_schema: {
     type: 'object' as const,
     additionalProperties: false,
-    required: ['found', 'style', 'grapes', 'source_url', 'source_name', 'product_pages'],
+    required: ['found', 'style', 'grapes', 'source_url', 'source_name', 'tasting_notes', 'notes_source_name', 'notes_source_url', 'product_pages'],
     properties: {
       found: { type: 'boolean', description: 'True only if you found this exact wine (same producer and cuvée/appellation).' },
       style: { type: 'string', enum: ['red', 'white', 'rose', 'sparkling', 'orange', 'dessert', 'fortified', 'unknown'] },
       grapes: { type: 'array', items: { type: 'string' }, description: 'Grape varieties of this wine, from the source page.' },
       source_url: { type: 'string', description: 'The page that confirmed style and grapes (winery, importer or shop).' },
       source_name: { type: 'string', description: 'Short name of that site, e.g. "Domaine de la Bressande" or "Total Wine".' },
+      tasting_notes: {
+        type: 'string',
+        description:
+          'One to three sentences, in your own words, summarising published tasting notes for this wine (aromas, palate, tannins/acidity, body) from the winery, a critic or a shop. Do not copy text verbatim. Empty string if none found.',
+      },
+      notes_source_name: { type: 'string', description: 'Site the tasting notes came from, e.g. "Domaine de la Bressande". Empty if none.' },
+      notes_source_url: { type: 'string', description: 'URL of the page the tasting notes came from. Empty if none.' },
       product_pages: {
         type: 'array',
         description: 'Up to 5 URLs of web shop (or winery) product pages selling this exact wine, best first. These are used to get a bottle photo.',
@@ -154,6 +163,9 @@ const ReportSchema = z.object({
   grapes: z.array(z.string()),
   source_url: z.string(),
   source_name: z.string(),
+  tasting_notes: z.string(),
+  notes_source_name: z.string(),
+  notes_source_url: z.string(),
   product_pages: z.array(z.object({ page_url: z.string(), site_name: z.string() })),
 });
 
@@ -211,9 +223,10 @@ async function checkPhoto(client: Anthropic, userPhoto: string, imageUrl: string
  * Claude compare each candidate photo with the user's picture. Returns null if
  * the exact wine couldn't be found.
  */
-export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading, photo: Blob, signal?: AbortSignal): Promise<WineLookup | null> {
+export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading, photo: Blob | null, signal?: AbortSignal): Promise<WineLookup | null> {
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 1, timeout: 180_000 });
-  const userPhoto = await toBase64Jpeg(photo);
+  // Without the user's own photo there's nothing to compare against, so no photo is picked.
+  const userPhoto = photo ? await toBase64Jpeg(photo) : null;
 
   const messages: Anthropic.Beta.BetaMessageParam[] = [
     {
@@ -223,6 +236,7 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
           type: 'text',
           text: `Here is what was read from a wine label:\n${describeReading(reading)}\n\n` +
             'Search the web for this exact wine. From a reliable page (the winery, its importer, or a wine shop), confirm whether it is red, white, rosé, etc., and its grape varieties. ' +
+            'Also summarise its published tasting notes in one to three sentences of your own words (aromas, palate, structure), noting where they came from. ' +
             'Also list up to 5 product pages from web shops that sell this exact wine (same producer and cuvée), plus the winery’s page for it if there is one — their main images are used as the bottle photo. ' +
             'Prefer independent wine shops; skip totalwine.com, vivino.com, wine.com and wine-searcher.com, which block page previews. ' +
             'Then call report_wine once. If you cannot find this exact wine, call report_wine with found=false.',
@@ -283,25 +297,29 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
   let match: WineLookup['photo'] = null;
   let previews = 0;
   let checked = 0;
-  for (const p of report.product_pages.slice(0, 5)) {
+  for (const p of userPhoto ? report.product_pages.slice(0, 5) : []) {
     if (!/^https:\/\//.test(p.page_url)) continue;
     const img = await pagePreviewImage(p.page_url, signal);
     if (!img) continue;
     previews++;
     checked++;
-    if (await checkPhoto(client, userPhoto, img.url, signal)) {
+    if (userPhoto && (await checkPhoto(client, userPhoto, img.url, signal))) {
       match = { url: img.url, pageUrl: p.page_url, siteName: p.site_name, title: img.title };
       break;
     }
   }
 
+  const notes = report.tasting_notes.trim();
   return {
     style: report.style,
     grapes: report.grapes,
     sourceUrl: report.source_url,
     sourceName: report.source_name,
+    about: notes
+      ? { text: notes, sourceName: report.notes_source_name || report.source_name, sourceUrl: report.notes_source_url || report.source_url }
+      : null,
     photo: match,
-    photoNote: match
+    photoNote: match || !userPhoto
       ? ''
       : report.product_pages.length === 0
         ? 'No shop pages for this wine were found.'

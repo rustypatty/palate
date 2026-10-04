@@ -1,6 +1,7 @@
 import { ArrowLeft, Barcode } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { AboutWine } from '../components/AboutWine';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { LabelSnap } from '../components/LabelSnap';
 import { Stepper, TagInput } from '../components/Inputs';
@@ -190,6 +191,7 @@ export function WineFormPage() {
                   if (l.style !== 'unknown' && (d.style === null || d.style === filled?.style)) next.style = l.style;
                   if (l.grapes.length && (d.grapes.length === 0 || d.grapes.join() === filled?.grapes.join())) next.grapes = l.grapes;
                   if (clean && samePhoto(d.photo, photo)) next.photo = clean;
+                  if (l.about && !d.about) next.about = l.about;
                   return next;
                 });
                 toast(clean ? `Checked online and swapped in a clean photo from ${l.photo!.siteName}` : `Details checked online (${l.sourceName}). ${l.photoNote} Keeping your photo.`);
@@ -351,8 +353,15 @@ export function WineFormPage() {
         <TagInput id="grapes" value={draft.grapes} onChange={(grapes) => set({ grapes })} suggestions={suggestions.grapes} placeholder="Type a grape and press Enter" />
       </div>
 
+      {draft.about && (
+        <div className="field">
+          <span className="label">About this wine</span>
+          <AboutWine about={draft.about} onRemove={() => set({ about: null })} />
+        </div>
+      )}
+
       <div className="field">
-        <label htmlFor="notes">Tasting notes</label>
+        <label htmlFor="notes">My tasting notes</label>
         <textarea
           id="notes"
           className="textarea"
