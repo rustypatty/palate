@@ -83,3 +83,12 @@ export function useStorePicks(id: StoreId, budget: number | null, n = 12): Store
     return { fetchedAt: cache.fetchedAt, picks: explainSuggestions(advisor, items, opts).slice(0, n), tips: cache.list?.tips ?? [], saved, items };
   }, [cache, advisor, lists, taste, budget, id, n]);
 }
+
+/** Every store bottle saved on this device (Pogo's list and any Claude lists), with its store. */
+export function useAllStoreItems(): { storeId: StoreId; item: StoreItem | SuggestedItem }[] | undefined {
+  const caches = useLiveQuery(() => db.stores.toArray(), []);
+  return useMemo(
+    () => caches?.flatMap((c) => [...(c.items ?? []), ...(c.list?.picks ?? [])].map((item) => ({ storeId: c.id, item }))),
+    [caches],
+  );
+}

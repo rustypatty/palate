@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { wine } from '../test/fixtures';
 import { makeAdvisor } from './insights';
-import { buyAgain, fromCellar, moreLikeThis, rankCandidates, reasonFor } from './recommend';
+import { bottlesLikeThis, buyAgain, fromCellar, moreLikeThis, rankCandidates, reasonFor } from './recommend';
 import { buildTaste, MIN_RATED, noteWords } from './taste';
 
 // Shaped like Rusty's real list.
@@ -137,5 +137,35 @@ describe('lessons from the real list', () => {
     expect(t.notesDisliked).not.toContain('fruity');
     expect(t.wishes).toEqual(['Want a hint of fruit without being super fruity or sweet.']);
     expect(t.summary.at(-1)).toBe('In your words: “Want a hint of fruit without being super fruity or sweet.”');
+  });
+});
+
+describe('bottles like this to buy', () => {
+  const advisor = makeAdvisor(mine);
+  const cuvee = mine.find((w) => w.name.includes('Cuvée Réservée'))!;
+  const at = (title: string, style: 'red' | 'white' = 'red', price = 40) => ({ storeId: 'pogos', item: { key: title, title, style, price } });
+  const entries = [
+    at('Domaine de la Janasse Chateauneuf-du-Pape Tradition 2021', 'red', 59),
+    at('Clos Saint Michel Chateauneuf-du-Pape Cuvée Réservée 2021', 'red', 65),
+    at('Domaine Santa Duc Gigondas 2021', 'red', 38),
+    at('Clos des Papes Chateauneuf-du-Pape Blanc 2022', 'white', 90),
+    at('Château Puy d’Amour Côtes de Bourg 2022', 'red', 18),
+    at('Rombauer Chardonnay Carneros', 'white', 40),
+  ];
+
+  it('puts this exact wine first, then the closest bottles', () => {
+    const like = bottlesLikeThis(cuvee, entries, advisor);
+    expect(like[0]).toMatchObject({ reason: 'This wine' });
+    expect(like[0].item.title).toMatch(/Clos Saint Michel/);
+    expect(like[1].item.title).toMatch(/Janasse/);
+    expect(like[1].reason).toMatch(/^Also Châteauneuf-du-Pape/);
+    expect(like.map((l) => l.item.title)).toContain('Domaine Santa Duc Gigondas 2021');
+  });
+
+  it('never suggests another colour, a wine you’d skip, or one marked Not for me', () => {
+    const titles = bottlesLikeThis(cuvee, entries, advisor).map((l) => l.item.title);
+    expect(titles.some((t) => /Blanc|Chardonnay|Puy d’Amour/.test(t))).toBe(false);
+    const passed = [wine({ name: 'x', list: 'passed', suggestion: { key: 'Domaine Santa Duc Gigondas 2021', reason: '', source: 'Pogo’s', at: 1 } })];
+    expect(bottlesLikeThis(cuvee, entries, advisor, passed).map((l) => l.item.title)).not.toContain('Domaine Santa Duc Gigondas 2021');
   });
 });

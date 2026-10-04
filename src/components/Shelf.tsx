@@ -56,7 +56,7 @@ export interface PickLike {
   reason: string;
 }
 
-export function PickCard({ pick, saved, onWant, onPass }: { pick: PickLike } & PickActions) {
+export function PickCard({ pick, saved, onWant, onPass, storeName }: { pick: PickLike; storeName?: string } & PickActions) {
   const { item } = pick;
   return (
     <div className="mini-card pick-card">
@@ -64,7 +64,7 @@ export function PickCard({ pick, saved, onWant, onPass }: { pick: PickLike } & P
         {itemPhoto(item)}
       </a>
       <div className="mini-t">{item.title}</div>
-      <div className="mini-s">{item.price !== null ? formatPrice(item.price) : ' '}</div>
+      <div className="mini-s">{[item.price !== null ? formatPrice(item.price) : '', storeName].filter(Boolean).join(' · ') || ' '}</div>
       <div className="pick-reason">{pick.reason}</div>
       <div className="pick-actions">
         <button type="button" className={`pick-btn${saved ? ' on' : ''}`} onClick={onWant} disabled={saved} aria-label={saved ? 'On your Want to try list' : 'Want to try'}>
