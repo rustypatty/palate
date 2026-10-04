@@ -123,6 +123,8 @@ export interface WineLookup {
 
 const REPORT_TOOL = {
   name: 'report_wine',
+  // Streamed request: send the report's input as it's written (it's validated with zod below).
+  eager_input_streaming: true,
   description: 'Report what you found about this exact wine. Call this exactly once, at the end.',
   strict: true,
   input_schema: {
@@ -144,7 +146,7 @@ const REPORT_TOOL = {
       notes_source_url: { type: 'string', description: 'URL of the page the tasting notes came from. Empty if none.' },
       product_pages: {
         type: 'array',
-        description: 'Up to 5 URLs of web shop (or winery) product pages selling this exact wine, best first. These are used to get a bottle photo.',
+        description: 'Up to 4 URLs of web shop (or winery) product pages selling this exact wine, best first. These are used to get a bottle photo.',
         items: {
           type: 'object',
           additionalProperties: false,
@@ -228,7 +230,9 @@ async function checkPhoto(client: Anthropic, userPhoto: string, imageUrl: string
 export type LookupOutcome = { ok: true; lookup: WineLookup } | { ok: false; reason: string };
 
 export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading, photo: Blob | null, signal?: AbortSignal): Promise<LookupOutcome> {
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 1, timeout: 180_000 });
+  // No automatic retries: a retried lookup is billed twice. Generous timeout: searching and
+  // reading pages can take a few minutes, and the response streams so the connection stays alive.
+  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 600_000 });
   // Without the user's own photo there's nothing to compare against, so no photo is picked.
   const userPhoto = photo ? await toBase64Jpeg(photo) : null;
 
@@ -241,7 +245,7 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
           text: `Here is what was read from a wine label:\n${describeReading(reading)}\n\n` +
             'Search the web for this exact wine. From a reliable page (the winery, its importer, or a wine shop), confirm whether it is red, white, rosé, etc., and its grape varieties. ' +
             'Also summarise its published tasting notes in one to three sentences of your own words (aromas, palate, structure), noting where they came from. ' +
-            'Also list up to 5 product pages from web shops that sell this exact wine (same producer and cuvée), plus the winery’s page for it if there is one — their main images are used as the bottle photo. ' +
+            'Also list up to 4 product pages from web shops that sell this exact wine (same producer and cuvée), plus the winery’s page for it if there is one — their main images are used as the bottle photo. ' +
             'Prefer independent wine shops; skip totalwine.com, vivino.com, wine.com and wine-searcher.com, which block page previews. ' +
             'Then call report_wine once. If you cannot find this exact wine, call report_wine with found=false.',
         },
@@ -253,22 +257,24 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
   let stopNote = '';
   try {
     for (let turn = 0; turn < 6 && !report; turn++) {
-      const res = await client.beta.messages.create(
+      const res = await client.beta.messages.stream(
         {
           model: MODEL,
           max_tokens: 16000,
           betas: ['server-side-fallback-2026-07-01'],
           fallbacks: 'default',
-          output_config: { effort: 'medium' },
+          // Finding a wine and its notes is straightforward: low effort and a few
+          // searches/reads keep it quick (typically under a minute) and cheap.
+          output_config: { effort: 'low' },
           tools: [
-            { type: 'web_search_20260209', name: 'web_search', max_uses: 4 },
-            { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 3, max_content_tokens: 8000 },
+            { type: 'web_search_20260209', name: 'web_search', max_uses: 3 },
+            { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 2, max_content_tokens: 6000 },
             REPORT_TOOL,
           ],
           messages,
         },
         { signal },
-      );
+      ).finalMessage();
       const call = res.content.find((b) => b.type === 'tool_use' && b.name === 'report_wine');
       if (call && call.type === 'tool_use') {
         const parsed = ReportSchema.safeParse(call.input);
@@ -293,7 +299,9 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
     if (e instanceof Anthropic.BadRequestError && /web (search|fetch).*not enabled|not enabled.*web (search|fetch)/i.test(e.message)) {
       throw new LabelReadError('Online checking is switched off for your Anthropic account. An admin can turn on web search and web fetch under Settings → Capabilities at console.anthropic.com.');
     }
-    if (e instanceof Anthropic.APIConnectionError) return { ok: false, reason: 'no connection to Anthropic' };
+    if (e instanceof Anthropic.APIConnectionTimeoutError) return { ok: false, reason: 'the online check took too long' };
+    if (e instanceof Anthropic.APIUserAbortError) return { ok: false, reason: 'cancelled' };
+    if (e instanceof Anthropic.APIConnectionError) return { ok: false, reason: 'lost connection to Anthropic (check your signal)' };
     if (e instanceof Anthropic.APIError) return { ok: false, reason: `Anthropic error ${e.status ?? ''}: ${e.message}`.slice(0, 300) };
     throw e;
   }
@@ -305,7 +313,7 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
   let match: WineLookup['photo'] = null;
   let previews = 0;
   let checked = 0;
-  for (const p of userPhoto ? report.product_pages.slice(0, 5) : []) {
+  for (const p of userPhoto ? report.product_pages.slice(0, 4) : []) {
     if (!/^https:\/\//.test(p.page_url)) continue;
     const img = await pagePreviewImage(p.page_url, signal);
     if (!img) continue;
