@@ -68,7 +68,9 @@ export async function readLabelWithClaude(apiKey: string, photo: Blob, signal?: 
     );
     if (response.stop_reason === 'refusal') throw new LabelReadError('Claude couldn’t read this photo. Try another angle.');
     if (response.stop_reason === 'max_tokens' || !response.parsed_output) throw new LabelReadError('Couldn’t make sense of the label. Try a closer photo.');
-    return response.parsed_output;
+    // Colour and grapes from a label photo alone are unreliable (e.g. a red Mercurey read as
+    // a white Chardonnay), so they're dropped here and only filled in once confirmed online.
+    return { ...response.parsed_output, style: 'unknown', grapes: [] };
   } catch (e) {
     if (e instanceof LabelReadError) throw e;
     if (e instanceof Anthropic.AuthenticationError) throw new LabelReadError('Your Anthropic API key was rejected. Check it on the My palate page.');
@@ -223,7 +225,9 @@ async function checkPhoto(client: Anthropic, userPhoto: string, imageUrl: string
  * Claude compare each candidate photo with the user's picture. Returns null if
  * the exact wine couldn't be found.
  */
-export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading, photo: Blob | null, signal?: AbortSignal): Promise<WineLookup | null> {
+export type LookupOutcome = { ok: true; lookup: WineLookup } | { ok: false; reason: string };
+
+export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading, photo: Blob | null, signal?: AbortSignal): Promise<LookupOutcome> {
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 1, timeout: 180_000 });
   // Without the user's own photo there's nothing to compare against, so no photo is picked.
   const userPhoto = photo ? await toBase64Jpeg(photo) : null;
@@ -246,6 +250,7 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
   ];
 
   let report: z.infer<typeof ReportSchema> | null = null;
+  let stopNote = '';
   try {
     for (let turn = 0; turn < 6 && !report; turn++) {
       const res = await client.beta.messages.create(
@@ -281,16 +286,19 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
         messages.push({ role: 'user', content: 'Please call report_wine now with what you found.' });
         continue;
       }
+      stopNote = `stopped early (${res.stop_reason ?? 'unknown'})`;
       break; // refusal, max_tokens, or anything unexpected
     }
   } catch (e) {
     if (e instanceof Anthropic.BadRequestError && /web (search|fetch).*not enabled|not enabled.*web (search|fetch)/i.test(e.message)) {
       throw new LabelReadError('Online checking is switched off for your Anthropic account. An admin can turn on web search and web fetch under Settings → Capabilities at console.anthropic.com.');
     }
-    if (e instanceof Anthropic.APIError || e instanceof Anthropic.APIConnectionError) return null;
+    if (e instanceof Anthropic.APIConnectionError) return { ok: false, reason: 'no connection to Anthropic' };
+    if (e instanceof Anthropic.APIError) return { ok: false, reason: `Anthropic error ${e.status ?? ''}: ${e.message}`.slice(0, 300) };
     throw e;
   }
-  if (!report || !report.found) return null;
+  if (!report) return { ok: false, reason: stopNote || 'Claude didn’t report a result' };
+  if (!report.found) return { ok: false, reason: 'Claude couldn’t find this exact wine online' };
 
   // Web fetch only returns page text, so get each page's main product image from a
   // page-preview service, then have Claude compare it with the user's photo.
@@ -310,7 +318,7 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
   }
 
   const notes = report.tasting_notes.trim();
-  return {
+  return { ok: true, lookup: {
     style: report.style,
     grapes: report.grapes,
     sourceUrl: report.source_url,
@@ -326,7 +334,7 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
         : previews === 0
           ? 'Couldn’t load photos from the shop pages found.'
           : `None of the ${checked} photo${checked === 1 ? '' : 's'} found matched your bottle.`,
-  };
+  } };
 }
 
 /**

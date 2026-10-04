@@ -65,12 +65,13 @@ export async function readLabel(photo: Blob, signal?: AbortSignal): Promise<Labe
   return (await import('./labelClient')).readLabelWithClaude(apiKey, photo, signal);
 }
 
-export type { WineLookup } from './labelClient';
+export type { LookupOutcome, WineLookup } from './labelClient';
 
-/** Confirms style and grapes online and finds a matching clean bottle photo. Never throws for API problems; returns null. */
+/** Confirms style and grapes online and finds a matching clean bottle photo. Says why when it can't. */
 export async function lookUpWine(reading: LabelReading, photo: Blob | null, signal?: AbortSignal) {
   const apiKey = getApiKey();
-  if (!apiKey || !reading.is_wine_label || !(reading.producer || reading.wine_name)) return null;
+  if (!apiKey) return { ok: false as const, reason: 'no Anthropic API key saved' };
+  if (!reading.is_wine_label || !(reading.producer || reading.wine_name)) return { ok: false as const, reason: 'the producer or wine name couldn’t be read' };
   return (await import('./labelClient')).lookUpWineWithClaude(apiKey, reading, photo, signal);
 }
 
