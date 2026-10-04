@@ -177,7 +177,11 @@ export function StorePicksPanel() {
 
           {fetchedAt && !busy && picks.length === 0 && (
             <p className="small muted" style={{ margin: 0 }}>
-              {budget ? 'Nothing here fits your taste at this budget. Try a higher one.' : 'Nothing here matches your taste closely yet.'}
+              {store.kind === 'search' && tips.length
+                ? `Claude couldn’t confirm specific bottles on ${possessive(store.name)} website this time — see what to look for below.`
+                : budget
+                  ? 'Nothing here fits your taste at this budget. Try a higher one.'
+                  : 'Nothing here matches your taste closely yet.'}
             </p>
           )}
           {picks.length > 0 && (
