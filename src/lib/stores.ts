@@ -9,7 +9,7 @@ import type { Candidate } from './recommend';
  * store's own website, with links to check your location.
  */
 
-export type StoreId = 'pogos' | 'totalwine' | 'wholefoods' | 'twin' | 'specs';
+export type StoreId = 'pogos' | 'totalwine' | 'wholefoods' | 'twin' | 'specs' | 'centralmarket';
 
 export interface Store {
   id: StoreId;
@@ -25,6 +25,7 @@ export const STORES: Store[] = [
   { id: 'wholefoods', name: 'Whole Foods', kind: 'search', domain: 'wholefoodsmarket.com' },
   { id: 'twin', name: 'Twin Liquors', kind: 'search', domain: 'twinliquors.com' },
   { id: 'specs', name: 'Spec’s', kind: 'search', domain: 'specsonline.com' },
+  { id: 'centralmarket', name: 'Central Market', kind: 'search', domain: 'centralmarket.com' },
 ];
 
 export const storeById = (id: StoreId) => STORES.find((s) => s.id === id)!;

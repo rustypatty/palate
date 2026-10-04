@@ -99,3 +99,14 @@ describe('Claude store lists: only bottles whose page was really found', () => {
     expect(verifyReport({ picks: [pick({}), pick({ url: 'https://totalwine.com/wine/red-wine/rhone-blend/santa-duc-gigondas/p/123/' })], tips: [] }, store, seen, null).picks).toHaveLength(1);
   });
 });
+
+describe('Central Market', () => {
+  it('is a search store on its own domain, and only its own pages count', () => {
+    const cm = storeById('centralmarket');
+    expect(cm).toMatchObject({ name: 'Central Market', kind: 'search', domain: 'centralmarket.com' });
+    const url = 'https://www.centralmarket.com/product/clos-des-papes-chateauneuf-du-pape-750-ml/123';
+    const pick = { producer: 'Clos des Papes', wine: 'Châteauneuf-du-Pape', vintage: '2021', region: 'Châteauneuf-du-Pape', country: 'France', grapes: [], style: 'red' as const, price_usd: 129.99, url, reason: '' };
+    expect(verifyReport({ picks: [pick], tips: [] }, cm, new Set([normalizeUrl(url)]), null).picks).toHaveLength(1);
+    expect(verifyReport({ picks: [{ ...pick, url: 'https://www.heb.com/product/1' }], tips: [] }, cm, new Set(['heb.com/product/1']), null).picks).toHaveLength(0);
+  });
+});
