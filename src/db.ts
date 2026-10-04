@@ -1,9 +1,11 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { StoredPhoto, Wine, WineDraft } from './types';
+import type { Deletion, StoredPhoto, Wine, WineDraft } from './types';
 
 export class PalateDB extends Dexie {
   wines!: EntityTable<Wine, 'id'>;
   photos!: EntityTable<StoredPhoto, 'id'>;
+  /** Wines deleted on this device that other devices haven't heard about yet. */
+  deletions!: EntityTable<Deletion, 'id'>;
 
   constructor(name = 'palate') {
     super(name);
@@ -11,6 +13,7 @@ export class PalateDB extends Dexie {
       wines: 'id, updatedAt, createdAt, rating, country, style, producer, barcode',
       photos: 'id',
     });
+    this.version(2).stores({ deletions: 'id' });
   }
 }
 
@@ -68,10 +71,11 @@ export async function updateWine(
 }
 
 export async function deleteWine(id: string, database: PalateDB = db): Promise<void> {
-  await database.transaction('rw', database.wines, database.photos, async () => {
+  await database.transaction('rw', database.wines, database.photos, database.deletions, async () => {
     const wine = await database.wines.get(id);
     if (wine?.photo?.kind === 'local') await database.photos.delete(wine.photo.blobId);
     await database.wines.delete(id);
+    await database.deletions.put({ id, deletedAt: Date.now() });
   });
 }
 

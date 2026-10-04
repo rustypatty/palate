@@ -67,4 +67,11 @@ export interface StoredPhoto {
   blob: Blob;
   width: number;
   height: number;
+  /** True once the photo is stored online. */
+  uploaded?: boolean;
+}
+
+export interface Deletion {
+  id: string;
+  deletedAt: number;
 }
