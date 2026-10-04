@@ -9,9 +9,9 @@ import { useDebounced, useWines } from '../hooks';
 import { STYLES } from '../lib/constants';
 import { formatPrice } from '../lib/format';
 import { lookupBarcode } from '../lib/imageSearch';
-import { photoFromFile } from '../lib/image';
+import { photoFromFile, photoFromUrl } from '../lib/image';
 import { advise, describeCounts, detectStyle, type Signal } from '../lib/insights';
-import { readingToDraft, readingToQuery, type LabelReading } from '../lib/labelReader';
+import { LabelReadError, lookUpWine, readingToDraft, readingToQuery, withLookup, type LabelReading, type WineLookup } from '../lib/labelReader';
 import { tokens } from '../lib/text';
 import type { WineDraft, WineStyle } from '../types';
 import type { AddPrefill } from './WineFormPage';
@@ -49,7 +49,12 @@ export function InStorePage() {
   const [barcode, setBarcode] = useState('');
   const [scanning, setScanning] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
-  const [label, setLabel] = useState<{ reading: LabelReading | null; photo: File } | null>(null);
+  const [label, setLabel] = useState<{
+    reading: LabelReading | null;
+    photo: File;
+    lookup?: 'pending' | 'done' | 'none';
+    found?: WineLookup | null;
+  } | null>(null);
   const labelUrl = useMemo(() => (label ? URL.createObjectURL(label.photo) : null), [label?.photo]);
   useEffect(() => () => void (labelUrl && URL.revokeObjectURL(labelUrl)), [labelUrl]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -99,7 +104,10 @@ export function InStorePage() {
 
   const saveBottle = async () => {
     if (label?.reading) {
-      const photo = await photoFromFile(label.photo, { name: 'Your photo' });
+      const clean = label.found?.photo;
+      const photo = clean
+        ? await photoFromUrl(clean.url, { name: clean.siteName, pageUrl: clean.pageUrl, title: clean.title })
+        : await photoFromFile(label.photo, { name: 'Your photo' });
       const draft: Partial<WineDraft> = { ...readingToDraft(label.reading), price, barcode, owned: 0, photo };
       if (style) draft.style = style;
       navigate('/add', { state: { draft } satisfies AddPrefill });
@@ -182,8 +190,19 @@ export function InStorePage() {
               className="btn btn-dark"
               onStart={(photo) => setLabel({ reading: null, photo })}
               onRead={(reading, photo) => {
-                setLabel({ reading, photo });
+                setLabel({ reading, photo, lookup: 'pending' });
                 if (!reading.is_wine_label) return;
+                // Confirm style/grapes online and find a clean photo, without holding up the verdict.
+                lookUpWine(reading, photo)
+                  .catch((e: unknown) => {
+                    if (e instanceof LabelReadError) toast(e.message);
+                    return null;
+                  })
+                  .then((found) => {
+                    setLabel((cur) => (cur?.photo === photo && cur.reading ? { ...cur, reading: withLookup(cur.reading, found), lookup: found ? 'done' : 'none', found } : cur));
+                    if (found && found.style !== 'unknown') setStyle(found.style);
+                    if (found?.grapes.length) setQuery((q) => (q === readingToQuery(reading) ? readingToQuery(withLookup(reading, found)) : q));
+                  });
                 setQuery(readingToQuery(reading));
                 setBarcode('');
                 if (reading.style !== 'unknown') setStyle(reading.style);
@@ -194,7 +213,7 @@ export function InStorePage() {
           {label && labelUrl && (
             <div className="label-card" aria-live="polite">
               <div className="tile">
-                <img className="bottle" src={labelUrl} alt="Your label photo" style={{ mixBlendMode: 'normal' }} />
+                <img className="bottle" src={label.found?.photo?.url ?? labelUrl} alt="Bottle photo" style={{ mixBlendMode: 'normal' }} />
               </div>
               <div style={{ minWidth: 0 }}>
                 {!label.reading ? (
@@ -214,8 +233,27 @@ export function InStorePage() {
                       {[label.reading.producer, label.reading.wine_name].filter(Boolean).join(' · ') || 'Name not readable'}
                     </div>
                     <div className="muted small">
-                      {[label.reading.vintage, label.reading.region, label.reading.country, label.reading.grapes.join(', ')].filter(Boolean).join(' · ')}
+                      {[
+                        label.reading.style !== 'unknown' ? STYLES.find((st) => st.value === label.reading!.style)?.label : null,
+                        label.reading.vintage,
+                        label.reading.region,
+                        label.reading.country,
+                        label.reading.grapes.join(', '),
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </div>
+                    {label.lookup === 'pending' && <div className="small muted" style={{ marginTop: 4 }}>Checking details online…</div>}
+                    {label.lookup === 'done' && label.found && (
+                      <div className="small" style={{ marginTop: 4, color: 'var(--good)' }}>
+                        Confirmed online:{' '}
+                        <a href={label.found.sourceUrl} target="_blank" rel="noreferrer">
+                          {label.found.sourceName}
+                        </a>
+                        {label.found.photo ? ' · clean photo found' : ''}
+                      </div>
+                    )}
+                    {label.lookup === 'none' && <div className="small muted" style={{ marginTop: 4 }}>Couldn’t confirm details online — check style and grapes.</div>}
                     {(label.reading.confidence !== 'high' || label.reading.uncertain) && (
                       <div className="small" style={{ color: 'var(--warn)', marginTop: 4 }}>
                         {label.reading.uncertain || 'Some details may be guesses — check the label.'}
