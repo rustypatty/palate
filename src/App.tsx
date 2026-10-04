@@ -6,6 +6,7 @@ import { CollectionPage } from './pages/CollectionPage';
 import { InStorePage } from './pages/InStorePage';
 import { ProfilePage } from './pages/ProfilePage';
 import { WineDetailPage } from './pages/WineDetailPage';
+import { WantPage } from './pages/WantPage';
 import { WineFormPage } from './pages/WineFormPage';
 
 export function App() {
@@ -21,6 +22,7 @@ export function App() {
             <Route path="wine/:id" element={<WineDetailPage />} />
             <Route path="wine/:id/edit" element={<WineFormPage key="edit" />} />
             <Route path="profile" element={<ProfilePage />} />
+            <Route path="want" element={<WantPage />} />
             <Route path="*" element={<CollectionPage />} />
           </Route>
         </Routes>

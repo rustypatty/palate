@@ -1,4 +1,5 @@
 import type { Rating, Wine, WineStyle } from '../types';
+import { canonicalGrape, factsFromText } from './appellations';
 import { STYLE_LABEL } from './constants';
 import { matchesQuery } from './filters';
 import { fold, tokens } from './text';
@@ -8,7 +9,7 @@ import { fold, tokens } from './text';
  * look back at your own history with that producer, grape, region, country and style.
  */
 
-export type SignalKind = 'producer' | 'grape' | 'region' | 'country' | 'style';
+export type SignalKind = 'producer' | 'grape' | 'region' | 'area' | 'country' | 'style';
 
 export interface Counts {
   loved: number;
@@ -24,6 +25,8 @@ export interface Signal {
   counts: Counts;
   /** -1 (you dislike these) … 1 (you love these); null if none are rated. */
   score: number | null;
+  /** True when the match rests on what the appellation is usually made from, not a named grape. */
+  inferred?: boolean;
 }
 
 export type VerdictLevel = 'strong' | 'good' | 'mixed' | 'skip' | 'unknown';
@@ -32,6 +35,10 @@ export interface Verdict {
   level: VerdictLevel;
   title: string;
   detail: string;
+  /** -1 … 1, the weighted average behind the verdict; null with no rated evidence. */
+  score: number | null;
+  /** How much rated evidence there is (0 = none, ~3+ = plenty). */
+  weight: number;
 }
 
 export interface Advice {
@@ -48,12 +55,13 @@ export interface PriceContext {
   note: string | null;
 }
 
-const RATING_VALUE: Record<Rating, number> = { loved: 1, liked: 0.5, wouldnt: -1 };
+export const RATING_VALUE: Record<Rating, number> = { loved: 1, liked: 0.5, wouldnt: -1 };
 
-const WEIGHT: Record<SignalKind, number> = {
+export const WEIGHT: Record<SignalKind, number> = {
   producer: 3,
   grape: 2,
   region: 1.5,
+  area: 1,
   style: 0.75,
   country: 0.5,
 };
@@ -86,11 +94,13 @@ const STYLE_WORDS: Record<string, WineStyle> = {
   sauternes: 'dessert',
 };
 
-export function isSameWine(w: Wine, queryTokens: string[]): boolean {
+export function isSameWine(w: Wine, queryTokens: string[], partial = true): boolean {
   const name = w.name.trim();
   const producer = w.producer.trim();
-  if (!name) return producer ? mentioned(producer, queryTokens) && queryTokens.length <= tokens(producer).length + 1 : false;
-  return mentioned(name, queryTokens) && (!producer || mentioned(producer, queryTokens));
+  // Without a producer it can't be told apart from any other "Riesling".
+  if (!producer) return false;
+  if (!name) return mentioned(producer, queryTokens, partial) && queryTokens.length <= tokens(producer).length + 1;
+  return mentioned(name, queryTokens, partial) && mentioned(producer, queryTokens, partial);
 }
 
 export function countRatings(wines: Wine[]): Counts {
@@ -113,17 +123,17 @@ const GENERIC = new Set([
 ]);
 
 /** True when every distinctive word of `value` appears in the query (query words may be partial, ≥3 chars). */
-export function mentioned(value: string, queryTokens: string[]): boolean {
-  const all = tokens(value);
+export function mentioned(value: string, queryTokens: string[], partial = true): boolean {
+  // "Clos Saint Michel (Mousset)": the bracketed part is optional.
+  const all = tokens(value.replace(/\([^)]*\)/g, ' '));
   const distinctive = all.filter((t) => !GENERIC.has(t));
   const v = distinctive.length ? distinctive : all;
   if (v.length === 0) return false;
-  return v.every((vt) =>
-    queryTokens.some((qt) => qt === vt || (qt.length >= 3 && vt.startsWith(qt))),
-  );
+  // Partial words ("chateaun") help when typing; store listings use whole words only.
+  return v.every((vt) => queryTokens.some((qt) => qt === vt || (partial && qt.length >= 3 && vt.startsWith(qt))));
 }
 
-function groupBy(wines: Wine[], key: (w: Wine) => string[]): Map<string, { value: string; wines: Wine[] }> {
+export function groupBy(wines: Wine[], key: (w: Wine) => string[]): Map<string, { value: string; wines: Wine[] }> {
   const m = new Map<string, { value: string; wines: Wine[] }>();
   for (const w of wines) {
     for (const raw of key(w)) {
@@ -165,54 +175,108 @@ export function priceContext(wines: Wine[], price: number | null, fmt: (n: numbe
   return { lovedMedian, wouldntMedian, note };
 }
 
-export function advise(
-  wines: Wine[],
-  input: { query: string; style?: WineStyle | null; price?: number | null },
-  fmt: (n: number) => string = (n) => `$${Math.round(n)}`,
-): Advice {
-  const q = tokens(input.query);
-  const byRating = (a: Wine, b: Wine) => (b.rating ? RATING_VALUE[b.rating] : -2) - (a.rating ? RATING_VALUE[a.rating] : -2);
-  // The same wine: its cuvée name and producer are both on the label you typed.
-  const exact = q.length ? wines.filter((w) => isSameWine(w, q)).sort(byRating) : [];
-  // Looser: everything you typed appears somewhere in the wine (e.g. "ridge zin").
-  const related = q.length
-    ? wines.filter((w) => !exact.includes(w) && matchesQuery(w, input.query)).sort(byRating)
-    : [];
-
-  const signals: Signal[] = [];
-  const add = (kind: SignalKind, groups: Map<string, { value: string; wines: Wine[] }>) => {
-    for (const { value, wines: ws } of groups.values()) {
-      if (mentioned(value, q)) {
-        signals.push({ kind, value, wines: ws, counts: countRatings(ws), score: scoreOf(ws) });
-      }
-    }
-  };
-  if (q.length) {
-    add('producer', groupBy(wines, (w) => [w.producer]));
-    add('grape', groupBy(wines, (w) => w.grapes));
-    add('region', groupBy(wines, (w) => [w.region]));
-    add('country', groupBy(wines, (w) => [w.country]));
-  }
-  const style = input.style ?? detectStyle(input.query);
-  if (style) {
-    const ws = wines.filter((w) => w.style === style);
-    if (ws.length) {
-      signals.push({ kind: 'style', value: STYLE_LABEL[style], wines: ws, counts: countRatings(ws), score: scoreOf(ws) });
-    }
-  }
-  // Drop a region that just repeats a country name (region left as "Portugal").
-  const countries = new Set(signals.filter((s) => s.kind === 'country').map((s) => fold(s.value)));
-  const deduped = signals.filter((s) => !(s.kind === 'region' && countries.has(fold(s.value))));
-  const order: SignalKind[] = ['producer', 'grape', 'region', 'style', 'country'];
-  deduped.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || b.wines.length - a.wines.length);
-
+/** What your wines imply beyond their own fields: wider area, and grapes canonicalised (or the appellation's usual ones). */
+export function wineFacts(w: Wine): { area: string; country: string; grapes: string[]; grapesInferred: boolean } {
+  const f = factsFromText(`${w.region} ${w.name}`);
+  const own = w.grapes.map(canonicalGrape).filter(Boolean);
   return {
-    exact,
-    related,
-    signals: deduped,
-    verdict: verdictFor(exact, deduped, related),
-    price: priceContext(wines, input.price ?? null, fmt),
+    area: f.area,
+    country: w.country || f.country,
+    grapes: own.length ? own : f.grapes,
+    grapesInferred: own.length === 0 && f.grapes.length > 0,
   };
+}
+
+export interface Groups {
+  producer: Map<string, { value: string; wines: Wine[] }>;
+  grape: Map<string, { value: string; wines: Wine[] }>;
+  region: Map<string, { value: string; wines: Wine[] }>;
+  area: Map<string, { value: string; wines: Wine[] }>;
+  country: Map<string, { value: string; wines: Wine[] }>;
+}
+
+export function groupWines(wines: Wine[]): Groups {
+  const facts = new Map(wines.map((w) => [w, wineFacts(w)]));
+  return {
+    producer: groupBy(wines, (w) => [w.producer]),
+    grape: groupBy(wines, (w) => facts.get(w)!.grapes),
+    region: groupBy(wines, (w) => [w.region]),
+    area: groupBy(wines, (w) => [facts.get(w)!.area]),
+    country: groupBy(wines, (w) => [facts.get(w)!.country]),
+  };
+}
+
+export interface AdviceInput {
+  query: string;
+  style?: WineStyle | null;
+  price?: number | null;
+  /** Match partial words (typing in the store). Off for store listings. Default on. */
+  partial?: boolean;
+}
+
+/**
+ * Precomputes your history once, then judges any number of bottles the same way:
+ * the in-store check, store picks and the taste summary all go through this.
+ */
+export function makeAdvisor(wines: Wine[], fmt: (n: number) => string = (n) => `$${Math.round(n)}`) {
+  const groups = groupWines(wines);
+  const byRating = (a: Wine, b: Wine) => (b.rating ? RATING_VALUE[b.rating] : -2) - (a.rating ? RATING_VALUE[a.rating] : -2);
+  const price = (p: number | null) => priceContext(wines, p, fmt);
+
+  function advise(input: AdviceInput): Advice {
+    const partial = input.partial ?? true;
+    const q = tokens(input.query);
+    const facts = factsFromText(input.query);
+    const has = (value: string) => mentioned(value, q, partial);
+    // The same wine: its cuvée name and producer are both on the label you typed.
+    const exact = q.length ? wines.filter((w) => isSameWine(w, q, partial)).sort(byRating) : [];
+    // Looser: everything you typed appears somewhere in the wine (e.g. "ridge zin").
+    const related = q.length && partial ? wines.filter((w) => !exact.includes(w) && matchesQuery(w, input.query)).sort(byRating) : [];
+
+    // Your reds say nothing about a white from the same place: when the colour is
+    // known, only wines of that colour (or unknown colour) count as evidence.
+    const style = input.style ?? detectStyle(input.query) ?? facts.style;
+    const sameStyle = (ws: Wine[]) => (style ? ws.filter((w) => !w.style || w.style === style) : ws);
+
+    const signals: Signal[] = [];
+    const push = (kind: SignalKind, value: string, all: Wine[], inferred = false) => {
+      const ws = kind === 'style' ? all : sameStyle(all);
+      if (ws.length) signals.push({ kind, value, wines: ws, counts: countRatings(ws), score: scoreOf(ws), ...(inferred ? { inferred } : {}) });
+    };
+    if (q.length) {
+      for (const { value, wines: ws } of groups.producer.values()) if (has(value)) push('producer', value, ws);
+      const namedGrapes = new Set(facts.namedGrapes.map(fold));
+      const usualGrapes = new Set(facts.grapesInferred ? facts.grapes.map(fold) : []);
+      for (const [key, { value, wines: ws }] of groups.grape) {
+        if (namedGrapes.has(key) || has(value)) push('grape', value, ws);
+        else if (usualGrapes.has(key)) push('grape', value, ws, true);
+      }
+      for (const { value, wines: ws } of groups.region.values()) if (has(value)) push('region', value, ws);
+      for (const [key, { value, wines: ws }] of groups.area) if (key === fold(facts.area) || has(value)) push('area', value, ws);
+      for (const [key, { value, wines: ws }] of groups.country) if (key === fold(facts.country) || has(value)) push('country', value, ws);
+    }
+    if (style) {
+      const ws = wines.filter((w) => w.style === style);
+      if (ws.length) push('style', STYLE_LABEL[style], ws);
+    }
+    // Drop a region that just repeats a country name (region left as "Portugal"),
+    // and an area that adds no wines beyond the matching regions.
+    const countries = new Set(signals.filter((s) => s.kind === 'country').map((s) => fold(s.value)));
+    const inRegions = new Set(signals.filter((s) => s.kind === 'region').flatMap((s) => s.wines));
+    const deduped = signals.filter(
+      (s) => !(s.kind === 'region' && countries.has(fold(s.value))) && !(s.kind === 'area' && s.wines.every((w) => inRegions.has(w))),
+    );
+    const order: SignalKind[] = ['producer', 'grape', 'region', 'area', 'style', 'country'];
+    deduped.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || b.wines.length - a.wines.length);
+
+    return { exact, related, signals: deduped, verdict: verdictFor(exact, deduped, related), price: price(input.price ?? null) };
+  }
+
+  return { advise, groups };
+}
+
+export function advise(wines: Wine[], input: AdviceInput, fmt: (n: number) => string = (n) => `$${Math.round(n)}`): Advice {
+  return makeAdvisor(wines, fmt).advise(input);
 }
 
 export function verdictFor(exact: Wine[], signals: Signal[], related: Wine[] = []): Verdict {
@@ -222,11 +286,11 @@ export function verdictFor(exact: Wine[], signals: Signal[], related: Wine[] = [
     const label = [ratedExact.producer, ratedExact.name].filter(Boolean).join(' ');
     switch (ratedExact.rating) {
       case 'loved':
-        return { level: 'strong', title: 'You loved this one', detail: `${label} is already in your collection as “Loved it”.` };
+        return { level: 'strong', title: 'You loved this one', detail: `${label} is already in your collection as “Loved it”.`, score: 1, weight: 3 };
       case 'liked':
-        return { level: 'good', title: 'You liked this one', detail: `${label} is in your collection as “Liked it”.` };
+        return { level: 'good', title: 'You liked this one', detail: `${label} is in your collection as “Liked it”.`, score: 0.5, weight: 3 };
       default:
-        return { level: 'skip', title: 'You said you wouldn’t buy it again', detail: `${label} is marked “Wouldn’t buy again”.` };
+        return { level: 'skip', title: 'You said you wouldn’t buy it again', detail: `${label} is marked “Wouldn’t buy again”.`, score: -1, weight: 3 };
     }
   }
 
@@ -255,15 +319,18 @@ export function verdictFor(exact: Wine[], signals: Signal[], related: Wine[] = [
       detail: signals.length || related.length
         ? 'You have related bottles, but none are rated yet.'
         : 'Nothing in your collection matches this producer, grape, or region.',
+      score: null,
+      weight: 0,
     };
   }
   const score = total / weight;
   // Thin evidence (e.g. one country match) shouldn't sound confident.
   const thin = weight < 1;
-  if (score >= 0.6 && !thin) return { level: 'strong', title: 'Strong match', detail: 'Your history with similar bottles is very positive.' };
-  if (score >= 0.25) return { level: 'good', title: thin ? 'Leaning yes' : 'Good bet', detail: 'You’ve mostly enjoyed bottles like this.' };
-  if (score >= -0.2) return { level: 'mixed', title: 'Mixed record', detail: 'You’ve had hits and misses with bottles like this.' };
-  return { level: 'skip', title: 'Probably skip', detail: 'Bottles like this haven’t worked for you.' };
+  const v = { score, weight };
+  if (score >= 0.6 && !thin) return { level: 'strong', title: 'Strong match', detail: 'Your history with similar bottles is very positive.', ...v };
+  if (score >= 0.25) return { level: 'good', title: thin ? 'Leaning yes' : 'Good bet', detail: 'You’ve mostly enjoyed bottles like this.', ...v };
+  if (score >= -0.2) return { level: 'mixed', title: 'Mixed record', detail: 'You’ve had hits and misses with bottles like this.', ...v };
+  return { level: 'skip', title: 'Probably skip', detail: 'Bottles like this haven’t worked for you.', ...v };
 }
 
 export function describeCounts(c: Counts): string {

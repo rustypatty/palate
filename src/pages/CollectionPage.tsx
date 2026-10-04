@@ -3,11 +3,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { BottlePlaceholder } from '../components/BottleImage';
 import { FilterSheet, SORTS } from '../components/FilterSheet';
+import { MiniWineCard, ShelfRow } from '../components/Shelf';
+import { RatePrompt, StorePicksRow } from '../components/StorePicks';
 import { Wordmark } from '../components/Layout';
 import { WineCard } from '../components/WineCard';
-import { useDebounced, useWines } from '../hooks';
+import { useDebounced, useLists, useWines } from '../hooks';
 import { PRICE_BANDS, STYLE_LABEL } from '../lib/constants';
 import { activeFilterCount, applyFilters, DEFAULT_FILTERS, type Filters, type Shelf } from '../lib/filters';
+import { buyAgain, fromCellar } from '../lib/recommend';
+import { useTaste } from '../lib/usePicks';
+import type { Wine } from '../types';
 
 const SHELVES: { value: Shelf; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -27,6 +32,51 @@ function loadFilters(): Filters {
   } catch {
     return DEFAULT_FILTERS;
   }
+}
+
+function since(w: Wine): string {
+  const t = w.tastedOn ? Date.parse(w.tastedOn) : w.createdAt;
+  const d = new Date(t).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  return w.tastedOn ? `Cellar · tasted ${d}` : `Cellar · since ${d}`;
+}
+
+/** Compact suggestion rows above the collection, shown only while browsing: at most two. */
+function HomeRows({ wines }: { wines: Wine[] }) {
+  const taste = useTaste();
+  const lists = useLists();
+  // One "shortlist" row: saved to try, loved-but-none-at-home, and forgotten bottles at home.
+  const shortlist = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { wine: Wine; note: string }[] = [];
+    const add = (w: Wine, note: string) => !seen.has(w.id) && (seen.add(w.id), out.push({ wine: w, note }));
+    (lists?.want ?? []).slice(0, 8).forEach((w) => add(w, 'Want to try'));
+    buyAgain(wines).slice(0, 8).forEach((w) => add(w, 'Buy again'));
+    fromCellar(wines).slice(0, 6).forEach((w) => add(w, since(w)));
+    return out;
+  }, [wines, lists]);
+  const parts = [lists?.want.length ? 'Want to try' : '', buyAgain(wines).length ? 'Buy again' : '', fromCellar(wines).length ? 'From your cellar' : ''].filter(Boolean);
+  return (
+    <div className="home-rows">
+      {taste && !taste.enough ? <RatePrompt rated={taste.rated} /> : <StorePicksRow />}
+      {shortlist.length > 0 && (
+        <ShelfRow
+          title="Your shortlist"
+          sub={parts.join(' · ')}
+          action={
+            lists && lists.want.length > 0 ? (
+              <Link to="/want" className="shelf-link">
+                Want to try ({lists.want.length})
+              </Link>
+            ) : undefined
+          }
+        >
+          {shortlist.map(({ wine, note }) => (
+            <MiniWineCard key={wine.id} wine={wine} note={note} />
+          ))}
+        </ShelfRow>
+      )}
+    </div>
+  );
 }
 
 export function CollectionPage() {
@@ -133,6 +183,8 @@ export function CollectionPage() {
           {nFilters > 0 && <span className="badge-dot">{nFilters}</span>}
         </button>
       </div>
+
+      {!filters.query && nFilters === 0 && filters.shelf === 'all' && <HomeRows wines={wines} />}
 
       <div className="chips" role="group" aria-label="Show">
         {SHELVES.map((s) => (

@@ -10,6 +10,7 @@ import { PhotoPicker } from '../components/PhotoPicker';
 import { RatingPicker } from '../components/Rating';
 import { useToast } from '../components/Toast';
 import { createWine, db, emptyDraft, updateWine } from '../db';
+import { adoptWant } from '../lib/lists';
 import { useWines } from '../hooks';
 import { COMMON_COUNTRIES, COMMON_GRAPES, STYLES } from '../lib/constants';
 import { photoFromFile, photoFromUrl } from '../lib/image';
@@ -126,7 +127,10 @@ export function WineFormPage() {
         toast('Changes saved');
         navigate(`/wine/${id}`, { replace: true });
       } else {
-        const newId = await createWine(clean);
+        // On the Want to try list? Fill in that entry so it keeps where it was suggested.
+        const adopted = await adoptWant(clean);
+        if (adopted) toast('Moved from your Want to try list');
+        const newId = adopted ?? (await createWine(clean));
         toast('Added to your wines');
         navigate(`/wine/${newId}`, { replace: true });
       }

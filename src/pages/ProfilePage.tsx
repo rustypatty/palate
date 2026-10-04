@@ -2,6 +2,7 @@ import { Download, HardDrive, KeyRound, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { CloudSync, useCloudStatus } from '../components/CloudSync';
+import { TasteCard } from '../components/TasteCard';
 import { useToast } from '../components/Toast';
 import { useWines } from '../hooks';
 import { downloadBlob, exportBackup, importBackup } from '../lib/backup';
@@ -9,6 +10,7 @@ import { STYLE_LABEL } from '../lib/constants';
 import { tally } from '../lib/filters';
 import { formatPrice } from '../lib/format';
 import { apiKeyProblem, getApiKey, normalizeApiKey, setApiKey, testApiKey } from '../lib/labelReader';
+import { buildTaste } from '../lib/taste';
 import type { Wine } from '../types';
 
 function Bars({ title, rows, empty }: { title: string; rows: { value: string; count: number }[]; empty: string }) {
@@ -164,6 +166,7 @@ export function ProfilePage() {
       .catch(() => {});
   }, [wines?.length]);
 
+  const taste = useMemo(() => (wines ? buildTaste(wines) : null), [wines]);
   const stats = useMemo(() => {
     const all: Wine[] = wines ?? [];
     const loved = all.filter((w) => w.rating === 'loved');
@@ -192,7 +195,9 @@ export function ProfilePage() {
         </div>
       </div>
 
-      <div className="stats" style={{ marginTop: 8 }}>
+      {taste && <TasteCard taste={taste} />}
+
+      <div className="stats" style={{ marginTop: 16 }}>
         <div className="stat">
           <div className="n">{stats.total}</div>
           <div className="l">Wines</div>

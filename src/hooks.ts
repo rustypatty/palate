@@ -1,10 +1,33 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { db } from './db';
 import type { Photo, Wine } from './types';
 
-export function useWines(): Wine[] | undefined {
+/** Wines in the collection (not the Want to try / Not for me lists). */
+export function inCollection(w: Wine): boolean {
+  return !w.list;
+}
+
+export function useAllWines(): Wine[] | undefined {
   return useLiveQuery(() => db.wines.toArray(), []);
+}
+
+export function useWines(): Wine[] | undefined {
+  const all = useAllWines();
+  return useMemo(() => all?.filter(inCollection), [all]);
+}
+
+/** Want to try (newest first) and Not for me lists. */
+export function useLists(): { want: Wine[]; passed: Wine[] } | undefined {
+  const all = useAllWines();
+  return useMemo(
+    () =>
+      all && {
+        want: all.filter((w) => w.list === 'want').sort((a, b) => b.updatedAt - a.updatedAt),
+        passed: all.filter((w) => w.list === 'passed'),
+      },
+    [all],
+  );
 }
 
 export function useWine(id: string | undefined): Wine | null | undefined {
