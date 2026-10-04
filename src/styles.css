@@ -2293,3 +2293,46 @@ button.tip {
 .detail .pick-card .pick-reason {
   -webkit-line-clamp: 3;
 }
+
+/* Store and price lines on a "Bottles like this" card. */
+.offers {
+  display: grid;
+  gap: 1px;
+  margin-top: 2px;
+}
+
+.offers a {
+  font-size: 12px;
+  color: var(--ink-2);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.offers a:first-child {
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.mini-card.skeleton .tile {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.mini-card.skeleton .mini-t {
+  height: 12px;
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mini-card.skeleton .tile {
+    animation: none;
+  }
+}

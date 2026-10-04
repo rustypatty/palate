@@ -78,15 +78,8 @@ const ReportSchema = z.object({
   tips: z.array(z.string()),
 });
 
-/** Same page regardless of tracking parameters, "www." or a trailing slash. */
-export function normalizeUrl(u: string): string {
-  try {
-    const url = new URL(u.trim());
-    return `${url.hostname.replace(/^www\./, '').toLowerCase()}${url.pathname.replace(/\/+$/, '')}`;
-  } catch {
-    return '';
-  }
-}
+export { normalizeUrl } from './likeThis';
+import { normalizeUrl } from './likeThis';
 
 /**
  * Turn Claude's report into what the app shows: a bottle is a pick only if its page

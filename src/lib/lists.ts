@@ -21,7 +21,9 @@ export function draftFromItem(item: StoreItem | SuggestedItem, store: Store, rea
     price: item.price,
     store: store.name,
     // The store's own product photo of this listing, or none (never a lookalike).
-    photo: item.image ? { kind: 'remote', url: item.image, source: { name: store.name, pageUrl: item.url, title: item.title } } : null,
+    photo: item.image
+      ? { kind: 'remote', url: item.image, source: { name: item.imageSource?.name ?? store.name, pageUrl: item.imageSource?.pageUrl ?? item.url, title: item.title } }
+      : null,
     suggestion: { reason, source: store.name, url: item.url, key: item.key, at: Date.now() },
   };
 }
