@@ -15,9 +15,26 @@ export function getApiKey(): string {
   }
 }
 
+/** Remove anything a copy-paste can drag along: spaces, line breaks, invisible characters, quotes. */
+export function normalizeApiKey(raw: string): string {
+  return raw.replace(/[\s\u200B-\u200D\u2060\uFEFF]+/g, '').replace(/^["'“”‘’]+|["'“”‘’]+$/g, '');
+}
+
+/** Catch common mix-ups before asking Anthropic, so the message says what's actually wrong. */
+export function apiKeyProblem(key: string): string | null {
+  if (/…|\.\.\.|\*{3,}/.test(key)) {
+    return 'That’s the shortened key shown in the Anthropic Console list, not the full key. Create a new key and tap Copy right away — the full key is only shown once.';
+  }
+  if (key.startsWith('sk-ant-admin')) return 'That’s an Admin key. Create a regular API key (Settings → API keys) instead.';
+  if (/^sk-ant-o[a-z]t/.test(key)) return 'That’s a sign-in token, not an API key. Create an API key at console.anthropic.com (Settings → API keys).';
+  if (!key.startsWith('sk-ant-api')) return 'That doesn’t look like an Anthropic API key — they start with “sk-ant-api”.';
+  if (key.length < 80) return 'That key looks cut off — part of it may not have been copied. Copy the whole key again.';
+  return null;
+}
+
 export function setApiKey(key: string): void {
   try {
-    if (key) localStorage.setItem(KEY_STORAGE, key.trim());
+    if (key) localStorage.setItem(KEY_STORAGE, normalizeApiKey(key));
     else localStorage.removeItem(KEY_STORAGE);
   } catch {
     /* storage unavailable */
