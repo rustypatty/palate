@@ -117,6 +117,8 @@ export interface WineLookup {
   photo: { url: string; pageUrl: string; siteName: string; title: string } | null;
   /** Why no photo was used, when none was (shown to the user). */
   photoNote: string;
+  /** Photos found online that weren't confirmed as a match, for the user to pick from. */
+  candidates: { url: string; pageUrl: string; siteName: string; title: string }[];
   /** Published tasting notes, summarised in Claude's own words. */
   about: { text: string; sourceName: string; sourceUrl: string } | null;
 }
@@ -189,7 +191,7 @@ function describeReading(r: LabelReading): string {
   ].join('\n');
 }
 
-async function checkPhoto(client: Anthropic, userPhoto: string, imageUrl: string, signal?: AbortSignal): Promise<boolean> {
+async function checkPhoto(client: Anthropic, userPhoto: string, candidate: string, signal?: AbortSignal): Promise<boolean> {
   try {
     const res = await client.beta.messages.parse(
       {
@@ -203,7 +205,7 @@ async function checkPhoto(client: Anthropic, userPhoto: string, imageUrl: string
               { type: 'text', text: 'Image 1 — the bottle the user photographed:' },
               { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: userPhoto } },
               { type: 'text', text: 'Image 2 — a product photo found online:' },
-              { type: 'image', source: { type: 'url', url: imageUrl } },
+              { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: candidate } },
               {
                 type: 'text',
                 text: 'Is image 2 the same wine as image 1? Compare producer, cuvée and appellation on the labels. A different vintage is fine if the label is otherwise the same design; a different cuvée, colour or older label design is not.',
@@ -311,18 +313,24 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
   // Web fetch only returns page text, so get each page's main product image from a
   // page-preview service, then have Claude compare it with the user's photo.
   let match: WineLookup['photo'] = null;
+  const candidates: WineLookup['candidates'] = [];
   let previews = 0;
-  let checked = 0;
   for (const p of userPhoto ? report.product_pages.slice(0, 4) : []) {
     if (!/^https:\/\//.test(p.page_url)) continue;
     const img = await pagePreviewImage(p.page_url, signal);
     if (!img) continue;
+    // Download the image ourselves (through a CORS-friendly relay) rather than having
+    // Anthropic fetch it: many shop sites block automated downloads.
+    const url = relayedImageUrl(img.url);
+    const data = await imageAsBase64(url, signal);
+    if (!data) continue;
     previews++;
-    checked++;
-    if (userPhoto && (await checkPhoto(client, userPhoto, img.url, signal))) {
-      match = { url: img.url, pageUrl: p.page_url, siteName: p.site_name, title: img.title };
+    const found = { url, pageUrl: p.page_url, siteName: p.site_name, title: img.title };
+    if (userPhoto && (await checkPhoto(client, userPhoto, data, signal))) {
+      match = found;
       break;
     }
+    candidates.push(found);
   }
 
   const notes = report.tasting_notes.trim();
@@ -335,14 +343,37 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
       ? { text: notes, sourceName: report.notes_source_name || report.source_name, sourceUrl: report.notes_source_url || report.source_url }
       : null,
     photo: match,
+    candidates: match ? [] : candidates,
     photoNote: match || !userPhoto
       ? ''
       : report.product_pages.length === 0
         ? 'No shop pages for this wine were found.'
         : previews === 0
           ? 'Couldn’t load photos from the shop pages found.'
-          : `None of the ${checked} photo${checked === 1 ? '' : 's'} found matched your bottle.`,
+          : previews === 1
+            ? 'Couldn’t confirm the photo found is your bottle.'
+            : `Couldn’t confirm any of the ${previews} photos found is your bottle.`,
   } };
+}
+
+/** An image URL routed through images.weserv.nl: CORS-enabled, resized (never enlarged), JPEG. */
+export function relayedImageUrl(url: string): string {
+  return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=1400&h=1400&fit=inside&we&output=jpg&q=88`;
+}
+
+async function imageAsBase64(url: string, signal?: AbortSignal): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    if (!blob.type.startsWith('image/')) return null;
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  } catch {
+    return null;
+  }
 }
 
 /**
