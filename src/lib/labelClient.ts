@@ -72,6 +72,9 @@ export async function readLabelWithClaude(apiKey: string, photo: Blob, signal?: 
     if (e instanceof Anthropic.PermissionDeniedError) throw new LabelReadError('Your API key doesn’t have access to this model.');
     if (e instanceof Anthropic.RateLimitError) throw new LabelReadError('Too many requests right now — try again in a moment.');
     if (e instanceof Anthropic.APIConnectionError) throw new LabelReadError('No connection. Reading labels needs internet — type the name instead.');
+    if (e instanceof Anthropic.BadRequestError && /credit/i.test(e.message)) {
+      throw new LabelReadError('Your Anthropic account is out of credit. Add credit under Plans & Billing at console.anthropic.com.');
+    }
     if (e instanceof Anthropic.APIError) throw new LabelReadError(`Anthropic API error (${e.status ?? 'unknown'}). Try again.`);
     throw e;
   }
@@ -84,7 +87,10 @@ export async function testApiKey(key: string): Promise<true | string> {
     await client.messages.countTokens({ model: MODEL, messages: [{ role: 'user', content: 'hi' }] });
     return true;
   } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) return 'That key was rejected.';
+    if (e instanceof Anthropic.AuthenticationError) {
+      return 'Anthropic says this key isn’t valid — it may have been deleted or not copied completely. Create a new key in the Anthropic Console and tap Copy right away.';
+    }
+    if (e instanceof Anthropic.PermissionDeniedError) return 'This key isn’t allowed to use Claude. Check the key’s workspace permissions in the Anthropic Console.';
     if (e instanceof Anthropic.APIConnectionError) return 'Couldn’t reach Anthropic. Check your connection.';
     if (e instanceof Anthropic.APIError) return `Anthropic returned an error (${e.status ?? 'unknown'}).`;
     return 'Couldn’t check the key.';

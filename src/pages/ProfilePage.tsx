@@ -7,7 +7,7 @@ import { downloadBlob, exportBackup, importBackup } from '../lib/backup';
 import { STYLE_LABEL } from '../lib/constants';
 import { tally } from '../lib/filters';
 import { formatPrice } from '../lib/format';
-import { getApiKey, setApiKey, testApiKey } from '../lib/labelReader';
+import { apiKeyProblem, getApiKey, normalizeApiKey, setApiKey, testApiKey } from '../lib/labelReader';
 import type { Wine } from '../types';
 
 function Bars({ title, rows, empty }: { title: string; rows: { value: string; count: number }[]; empty: string }) {
@@ -50,8 +50,13 @@ function LabelReadingSettings() {
   }, [focusKey]);
 
   const save = async () => {
-    const key = draft.trim();
+    const key = normalizeApiKey(draft);
     if (!key) return;
+    const problem = apiKeyProblem(key);
+    if (problem) {
+      setStatus({ kind: 'error', text: problem });
+      return;
+    }
     setStatus({ kind: 'busy', text: 'Checking key…' });
     const result = await testApiKey(key);
     if (result === true) {
