@@ -1,5 +1,5 @@
 import { ArrowLeft, Barcode } from 'lucide-react';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { LabelSnap } from '../components/LabelSnap';
@@ -10,12 +10,17 @@ import { useToast } from '../components/Toast';
 import { createWine, db, emptyDraft, updateWine } from '../db';
 import { useWines } from '../hooks';
 import { COMMON_COUNTRIES, COMMON_GRAPES, STYLES } from '../lib/constants';
-import { photoFromFile } from '../lib/image';
-import { readingToDraft } from '../lib/labelReader';
+import { photoFromFile, photoFromUrl } from '../lib/image';
+import { LabelReadError, lookUpWine, readingToDraft } from '../lib/labelReader';
 import { tally } from '../lib/filters';
-import type { WineDraft } from '../types';
+import type { Photo, WineDraft } from '../types';
 
 const THIS_YEAR = new Date().getFullYear();
+
+function samePhoto(a: Photo | null, b: Photo | null): boolean {
+  if (!a || !b || a.kind !== b.kind) return false;
+  return a.kind === 'local' ? a.blobId === (b as typeof a).blobId : a.url === (b as typeof a).url;
+}
 
 export interface AddPrefill {
   draft?: Partial<WineDraft>;
@@ -37,6 +42,10 @@ export function WineFormPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
+  // The user's own label snap, kept so they can switch back from an online photo.
+  const [snapPhoto, setSnapPhoto] = useState<Photo | null>(null);
+  const [lookingUp, setLookingUp] = useState(false);
+  const snapFill = useRef<{ style: WineDraft['style']; grapes: string[] } | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -163,8 +172,44 @@ export function WineFormPage() {
               });
               if (!vintageText && found.vintage != null) setVintageText(String(found.vintage));
               toast(reading.confidence === 'high' ? 'Filled in from the label' : 'Filled in from the label — please double-check');
+
+              // Then confirm style/grapes online and look for a clean photo of the same bottle.
+              const usedSnap = !draft.photo;
+              if (usedSnap) setSnapPhoto(photo);
+              snapFill.current = { style: found.style ?? null, grapes: found.grapes ?? [] };
+              setLookingUp(true);
+              try {
+                const l = await lookUpWine(reading, file);
+                if (!l) return;
+                const clean = usedSnap && l.photo ? await photoFromUrl(l.photo.url, { name: l.photo.siteName, pageUrl: l.photo.pageUrl, title: l.photo.title }) : null;
+                setDraft((d) => {
+                  if (!d) return d;
+                  const next = { ...d };
+                  const filled = snapFill.current;
+                  // Only replace values the label reading put there (or left empty), never your own edits.
+                  if (l.style !== 'unknown' && (d.style === null || d.style === filled?.style)) next.style = l.style;
+                  if (l.grapes.length && (d.grapes.length === 0 || d.grapes.join() === filled?.grapes.join())) next.grapes = l.grapes;
+                  if (clean && samePhoto(d.photo, photo)) next.photo = clean;
+                  return next;
+                });
+                toast(clean ? `Checked online and swapped in a clean photo from ${l.photo!.siteName}` : `Details checked online (${l.sourceName})`);
+              } catch (e) {
+                if (e instanceof LabelReadError) toast(e.message);
+              } finally {
+                setLookingUp(false);
+              }
             }}
           />
+        </div>
+      )}
+
+      {lookingUp && <div className="callout info">Checking the details online and looking for a clean photo of this bottle…</div>}
+      {snapPhoto && draft.photo && !samePhoto(draft.photo, snapPhoto) && draft.photo.source?.name !== 'Your photo' && (
+        <div className="row-between small">
+          <span className="muted">Using a matching photo from {draft.photo.source?.name ?? 'the web'}.</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => set({ photo: snapPhoto })}>
+            Use my photo instead
+          </button>
         </div>
       )}
 

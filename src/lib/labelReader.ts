@@ -65,6 +65,21 @@ export async function readLabel(photo: Blob, signal?: AbortSignal): Promise<Labe
   return (await import('./labelClient')).readLabelWithClaude(apiKey, photo, signal);
 }
 
+export type { WineLookup } from './labelClient';
+
+/** Confirms style and grapes online and finds a matching clean bottle photo. Never throws for API problems; returns null. */
+export async function lookUpWine(reading: LabelReading, photo: Blob, signal?: AbortSignal) {
+  const apiKey = getApiKey();
+  if (!apiKey || !reading.is_wine_label || !(reading.producer || reading.wine_name)) return null;
+  return (await import('./labelClient')).lookUpWineWithClaude(apiKey, reading, photo, signal);
+}
+
+/** The reading with style and grapes replaced by what was confirmed online. */
+export function withLookup(r: LabelReading, l: { style: LabelReading['style']; grapes: string[] } | null): LabelReading {
+  if (!l) return r;
+  return { ...r, style: l.style !== 'unknown' ? l.style : r.style, grapes: l.grapes.length ? l.grapes : r.grapes };
+}
+
 export async function testApiKey(key: string): Promise<true | string> {
   return (await import('./labelClient')).testApiKey(key);
 }
