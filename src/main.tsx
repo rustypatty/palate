@@ -2,8 +2,11 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { prunePhotos } from './db';
-import { startCloud } from './lib/cloud';
+import { captureSignInLink, startCloud } from './lib/cloud';
 import './styles.css';
+
+// A sign-in link from the email: take its tokens out of the address first.
+captureSignInLink();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
