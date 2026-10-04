@@ -39,7 +39,7 @@ export function WineDetailPage() {
   const fetchNotes = async () => {
     setFetching(true);
     try {
-      const l = await lookUpWine(
+      const outcome = await lookUpWine(
         {
           is_wine_label: true,
           producer: wine.producer,
@@ -54,7 +54,12 @@ export function WineDetailPage() {
         },
         null,
       );
-      if (!l?.about) {
+      if (!outcome.ok) {
+        toast(`Couldn’t look this wine up (${outcome.reason}).`);
+        return;
+      }
+      const l = outcome.lookup;
+      if (!l.about) {
         toast('Couldn’t find published tasting notes for this wine.');
         return;
       }

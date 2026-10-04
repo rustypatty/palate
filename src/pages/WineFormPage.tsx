@@ -180,8 +180,12 @@ export function WineFormPage() {
               snapFill.current = { style: found.style ?? null, grapes: found.grapes ?? [] };
               setLookingUp(true);
               try {
-                const l = await lookUpWine(reading, file);
-                if (!l) return;
+                const outcome = await lookUpWine(reading, file);
+                if (!outcome.ok) {
+                  toast(`Couldn’t confirm colour and grapes online (${outcome.reason}). Left blank — check the label.`);
+                  return;
+                }
+                const l = outcome.lookup;
                 const clean = usedSnap && l.photo ? await photoFromUrl(l.photo.url, { name: l.photo.siteName, pageUrl: l.photo.pageUrl, title: l.photo.title }) : null;
                 setDraft((d) => {
                   if (!d) return d;

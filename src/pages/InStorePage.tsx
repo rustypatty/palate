@@ -54,6 +54,7 @@ export function InStorePage() {
     photo: File;
     lookup?: 'pending' | 'done' | 'none';
     found?: WineLookup | null;
+    failReason?: string;
   } | null>(null);
   const labelUrl = useMemo(() => (label ? URL.createObjectURL(label.photo) : null), [label?.photo]);
   useEffect(() => () => void (labelUrl && URL.revokeObjectURL(labelUrl)), [labelUrl]);
@@ -194,18 +195,19 @@ export function InStorePage() {
                 if (!reading.is_wine_label) return;
                 // Confirm style/grapes online and find a clean photo, without holding up the verdict.
                 lookUpWine(reading, photo)
-                  .catch((e: unknown) => {
-                    if (e instanceof LabelReadError) toast(e.message);
-                    return null;
-                  })
-                  .then((found) => {
-                    setLabel((cur) => (cur?.photo === photo && cur.reading ? { ...cur, reading: withLookup(cur.reading, found), lookup: found ? 'done' : 'none', found } : cur));
+                  .catch((e: unknown) => ({ ok: false as const, reason: e instanceof LabelReadError ? e.message : 'unexpected error' }))
+                  .then((outcome) => {
+                    const found = outcome.ok ? outcome.lookup : null;
+                    setLabel((cur) =>
+                      cur?.photo === photo && cur.reading
+                        ? { ...cur, reading: withLookup(cur.reading, found), lookup: found ? 'done' : 'none', found, failReason: outcome.ok ? undefined : outcome.reason }
+                        : cur,
+                    );
                     if (found && found.style !== 'unknown') setStyle(found.style);
                     if (found?.grapes.length) setQuery((q) => (q === readingToQuery(reading) ? readingToQuery(withLookup(reading, found)) : q));
                   });
                 setQuery(readingToQuery(reading));
                 setBarcode('');
-                if (reading.style !== 'unknown') setStyle(reading.style);
               }}
             />
           </div>
@@ -255,7 +257,11 @@ export function InStorePage() {
                         {label.found.about && <div style={{ color: 'var(--ink-2)', marginTop: 4 }}>{label.found.about.text}</div>}
                       </div>
                     )}
-                    {label.lookup === 'none' && <div className="small muted" style={{ marginTop: 4 }}>Couldn’t confirm details online — check style and grapes.</div>}
+                    {label.lookup === 'none' && (
+                      <div className="small" style={{ marginTop: 4, color: 'var(--warn)' }}>
+                        Couldn’t confirm colour and grapes online ({label.failReason}). Left blank — check the label.
+                      </div>
+                    )}
                     {(label.reading.confidence !== 'high' || label.reading.uncertain) && (
                       <div className="small" style={{ color: 'var(--warn)', marginTop: 4 }}>
                         {label.reading.uncertain || 'Some details may be guesses — check the label.'}
