@@ -2,10 +2,10 @@ import { Heart, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { RATINGS } from '../lib/constants';
 import type { Rating } from '../types';
 
-export function RatingIcon({ rating, size = 14 }: { rating: Rating; size?: number }) {
-  if (rating === 'loved') return <Heart size={size} fill="currentColor" strokeWidth={2} />;
-  if (rating === 'liked') return <ThumbsUp size={size} strokeWidth={2.2} />;
-  return <ThumbsDown size={size} strokeWidth={2.2} />;
+export function RatingIcon({ rating, size = 14, filled = true }: { rating: Rating; size?: number; filled?: boolean }) {
+  if (rating === 'loved') return <Heart size={size} fill={filled ? 'currentColor' : 'none'} strokeWidth={filled ? 0 : 1.7} />;
+  if (rating === 'liked') return <ThumbsUp size={size} strokeWidth={1.7} fill={filled ? 'currentColor' : 'none'} fillOpacity={filled ? 0.25 : 0} />;
+  return <ThumbsDown size={size} strokeWidth={1.7} fill={filled ? 'currentColor' : 'none'} fillOpacity={filled ? 0.25 : 0} />;
 }
 
 const BADGE_TEXT: Record<Rating, string> = { loved: 'Loved', liked: 'Liked', wouldnt: 'Wouldn’t buy' };
@@ -14,17 +14,17 @@ export function RatingBadge({ rating }: { rating: Rating }) {
   const full = RATINGS.find((r) => r.value === rating)!.label;
   return (
     <span className={`rating-badge ${rating}`} title={full}>
-      <RatingIcon rating={rating} size={12} />
+      {rating === 'loved' && <Heart size={11} fill="currentColor" strokeWidth={0} />}
       <span aria-hidden="true">{BADGE_TEXT[rating]}</span>
       <span className="sr-only">{full}</span>
     </span>
   );
 }
 
-/** Three big, one-tap rating buttons. Tapping the active rating clears it. */
-export function RatingPicker({ value, onChange }: { value: Rating | null; onChange: (r: Rating | null) => void }) {
+/** Three big, one-tap rating tiles. Tapping the chosen rating again clears it. */
+export function RatingPicker({ value, onChange, compact = false }: { value: Rating | null; onChange: (r: Rating | null) => void; compact?: boolean }) {
   return (
-    <div className="rating-picker" role="group" aria-label="Rating">
+    <div className={`rating-picker${compact ? ' compact' : ''}`} role="group" aria-label="Rating">
       {RATINGS.map((r) => (
         <button
           key={r.value}
@@ -33,7 +33,7 @@ export function RatingPicker({ value, onChange }: { value: Rating | null; onChan
           aria-pressed={value === r.value}
           onClick={() => onChange(value === r.value ? null : r.value)}
         >
-          <RatingIcon rating={r.value} size={22} />
+          <RatingIcon rating={r.value} size={20} filled={value === r.value} />
           {r.label}
         </button>
       ))}

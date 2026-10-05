@@ -1,11 +1,13 @@
-import { Barcode, Bookmark, Camera, Heart, Plus, ScanLine, Search, Sparkles, Tag, X } from 'lucide-react';
+import { Barcode, Bookmark, Heart, Plus, Search, Tag, Type, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BarcodeScanner } from '../components/BarcodeScanner';
-import { LabelSnap } from '../components/LabelSnap';
+import { BottleImage } from '../components/BottleImage';
+import { LabelSnap, snapTile } from '../components/LabelSnap';
+import { MiniWineCard, ShelfRow } from '../components/Shelf';
 import { PhotoChoices } from '../components/PhotoChoices';
 import { useToast } from '../components/Toast';
-import { StorePicksPanel } from '../components/StorePicks';
+import { StoreChooser, StorePicksPanel } from '../components/StorePicks';
 import { WineRow } from '../components/WineCard';
 import { useDebounced, useLists, useWines } from '../hooks';
 import { STYLES } from '../lib/constants';
@@ -15,6 +17,8 @@ import { photoFromFile, photoFromUrl } from '../lib/image';
 import { advise, describeCounts, detectStyle, type Signal } from '../lib/insights';
 import { LabelReadError, lookUpWine, readingToDraft, readingToQuery, withLookup, type LabelReading, type WineLookup } from '../lib/labelReader';
 import { matchesWant } from '../lib/lists';
+import { storeById } from '../lib/stores';
+import { useStoreChoice } from '../lib/usePicks';
 import { tokens } from '../lib/text';
 import type { WineDraft, WineStyle } from '../types';
 import type { AddPrefill } from './WineFormPage';
@@ -53,6 +57,9 @@ export function InStorePage() {
   const [barcode, setBarcode] = useState('');
   const [scanning, setScanning] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
+  const [typing, setTyping] = useState(false);
+  const [storeId] = useStoreChoice();
+  const store = storeById(storeId);
   const [label, setLabel] = useState<{
     reading: LabelReading | null;
     photo: File;
@@ -76,7 +83,7 @@ export function InStorePage() {
   const wanted = useMemo(() => (q.trim() ? lists?.want.find((w) => matchesWant(w, q)) : undefined), [lists, q]);
 
   const safeBets = useMemo(
-    () => (wines ?? []).filter((w) => w.rating === 'loved').sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6),
+    () => (wines ?? []).filter((w) => w.rating === 'loved').sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8),
     [wines],
   );
 
@@ -151,30 +158,90 @@ export function InStorePage() {
 
   if (wines === undefined) return null;
   const hasInput = Boolean(query.trim() || style);
+  const showInput = typing || hasInput || Boolean(label);
+
+  const labelSnap = (
+    <LabelSnap
+      className="snap-tile"
+      onStart={(photo) => setLabel({ reading: null, photo })}
+      onRead={(reading, photo) => {
+        setLabel({ reading, photo, lookup: 'pending' });
+        if (!reading.is_wine_label) return;
+        // Confirm style/grapes online and find a clean photo, without holding up the verdict.
+        lookUpWine(reading, photo)
+          .catch((e: unknown) => ({ ok: false as const, reason: e instanceof LabelReadError ? e.message : 'unexpected error' }))
+          .then((outcome) => {
+            const found = outcome.ok ? outcome.lookup : null;
+            setLabel((cur) =>
+              cur?.photo === photo && cur.reading
+                ? { ...cur, reading: withLookup(cur.reading, found), lookup: found ? 'done' : 'none', found, failReason: outcome.ok ? undefined : outcome.reason }
+                : cur,
+            );
+            if (found && found.style !== 'unknown') setStyle(found.style);
+            if (found?.grapes.length) setQuery((q) => (q === readingToQuery(reading) ? readingToQuery(withLookup(reading, found)) : q));
+          });
+        setQuery(readingToQuery(reading));
+        setBarcode('');
+      }}
+    >
+      {snapTile('Claude reads it, Palate checks your history')}
+    </LabelSnap>
+  );
 
   return (
-    <div className="store-hero">
-      <div className="store-layout">
-        <div>
-          <h1 style={{ margin: 0, fontSize: 30, letterSpacing: '-0.02em' }}>In the store</h1>
-          <p className="muted" style={{ margin: '4px 0 0' }}>
-            Bottles here that fit your taste, and a quick check for any one bottle.
-          </p>
+    <div className="store-page">
+      <div className="store-main">
+        <header className="store-intro">
+          <div className="eyebrow">In store</div>
+          <h1 className="headline store-headline">
+            Your sommelier, <br className="mobile-only" />
+            <em>at {store.name}.</em>
+          </h1>
+          <p className="lede mobile-only">Bottles on the shelf that fit your taste.</p>
+        </header>
+        <div className="mobile-only">
+          <StoreChooser />
+        </div>
+        <StorePicksPanel />
+      </div>
 
-          <StorePicksPanel />
+      <aside className="store-side">
+        <div className="side-card desktop-only">
+          <StoreChooser variant="list" />
+        </div>
 
-          <h2 className="section-title" style={{ margin: '28px 0 0' }}>
-            Check one bottle
-          </h2>
-          <div className="search-row" style={{ paddingTop: 8 }}>
+        <section className="check" aria-label="Check one bottle">
+          <div className="check-head">
+            <h2 className="title-lg">Check one bottle</h2>
+            <p className="footnote mobile-only">Would I like this? Ask before you buy.</p>
+          </div>
+          {labelSnap}
+          <div className="check-tiles mobile-only">
+            <button
+              type="button"
+              className="tone-tile"
+              onClick={() => {
+                setTyping(true);
+                window.setTimeout(() => inputRef.current?.focus(), 0);
+              }}
+            >
+              <Type size={20} strokeWidth={1.6} />
+              <span>Type it in</span>
+            </button>
+            <button type="button" className="tone-tile" onClick={() => setScanning(true)}>
+              <Barcode size={20} strokeWidth={1.6} />
+              <span>Scan barcode</span>
+            </button>
+          </div>
+          <div className={`check-input search-row${showInput ? ' open' : ''}`}>
             <label className="search">
-              <Search size={20} />
+              <Search size={18} strokeWidth={1.7} />
               <span className="sr-only">Wine on the shelf</span>
               <input
                 ref={inputRef}
                 type="search"
                 enterKeyHint="search"
-                placeholder="Type producer, grape or region"
+                placeholder="Type producer or grape"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 autoComplete="off"
@@ -194,35 +261,9 @@ export function InStorePage() {
                 </button>
               )}
             </label>
-            <button type="button" className="icon-btn" style={{ width: 48, height: 48 }} onClick={() => setScanning(true)} aria-label="Scan barcode">
-              <Barcode size={20} />
+            <button type="button" className="icon-btn lg white" onClick={() => setScanning(true)} aria-label="Scan barcode">
+              <Barcode size={20} strokeWidth={1.6} />
             </button>
-          </div>
-
-          <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
-            <LabelSnap
-              className="btn btn-dark"
-              onStart={(photo) => setLabel({ reading: null, photo })}
-              onRead={(reading, photo) => {
-                setLabel({ reading, photo, lookup: 'pending' });
-                if (!reading.is_wine_label) return;
-                // Confirm style/grapes online and find a clean photo, without holding up the verdict.
-                lookUpWine(reading, photo)
-                  .catch((e: unknown) => ({ ok: false as const, reason: e instanceof LabelReadError ? e.message : 'unexpected error' }))
-                  .then((outcome) => {
-                    const found = outcome.ok ? outcome.lookup : null;
-                    setLabel((cur) =>
-                      cur?.photo === photo && cur.reading
-                        ? { ...cur, reading: withLookup(cur.reading, found), lookup: found ? 'done' : 'none', found, failReason: outcome.ok ? undefined : outcome.reason }
-                        : cur,
-                    );
-                    if (found && found.style !== 'unknown') setStyle(found.style);
-                    if (found?.grapes.length) setQuery((q) => (q === readingToQuery(reading) ? readingToQuery(withLookup(reading, found)) : q));
-                  });
-                setQuery(readingToQuery(reading));
-                setBarcode('');
-              }}
-            />
           </div>
 
           {label && labelUrl && (
@@ -241,10 +282,10 @@ export function InStorePage() {
                   </p>
                 ) : (
                   <>
-                    <div className="section-title" style={{ marginBottom: 4 }}>
+                    <div className="eyebrow" style={{ marginBottom: 4 }}>
                       From the label
                     </div>
-                    <div style={{ fontWeight: 700 }}>
+                    <div className="label-name">
                       {[label.reading.producer, label.reading.wine_name].filter(Boolean).join(' · ') || 'Name not readable'}
                     </div>
                     <div className="muted small">
@@ -292,21 +333,24 @@ export function InStorePage() {
             </div>
           )}
 
-          <div className="chips" role="group" aria-label="Style">
-            {STYLES.map((s) => (
-              <button key={s.value} type="button" className="chip" aria-pressed={style === s.value} onClick={() => setStyle(style === s.value ? null : s.value)}>
-                {s.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="field" style={{ maxWidth: 220, marginTop: 4 }}>
-            <label htmlFor="shelf-price">Shelf price (optional)</label>
-            <div className="input-prefix">
-              <span>$</span>
-              <input id="shelf-price" className="input" inputMode="decimal" placeholder="0" value={priceText} onChange={(e) => setPriceText(e.target.value.replace(/[^0-9.]/g, ''))} />
-            </div>
-          </div>
+          {showInput && (
+            <>
+              <div className="chips" role="group" aria-label="Style">
+                {STYLES.map((s) => (
+                  <button key={s.value} type="button" className="chip" aria-pressed={style === s.value} onClick={() => setStyle(style === s.value ? null : s.value)}>
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+              <div className="field" style={{ maxWidth: 220 }}>
+                <label htmlFor="shelf-price">Shelf price (optional)</label>
+                <div className="input-prefix">
+                  <span>$</span>
+                  <input id="shelf-price" className="input white" inputMode="decimal" placeholder="0" value={priceText} onChange={(e) => setPriceText(e.target.value.replace(/[^0-9.]/g, ''))} />
+                </div>
+              </div>
+            </>
+          )}
 
           {lookingUp && <div className="status-line">Looking up barcode…</div>}
 
@@ -321,22 +365,22 @@ export function InStorePage() {
           )}
 
           {advice && (
-            <>
+            <div className="advice">
               <div className={`verdict ${advice.verdict.level}`} aria-live="polite">
                 <span className="eyebrow">Based on your history</span>
                 <h2>{advice.verdict.title}</h2>
                 <p>{advice.verdict.detail}</p>
               </div>
               {advice.price?.note && (
-                <div className="callout info" style={{ marginBottom: 6 }}>
+                <div className="callout info">
                   <Tag size={18} />
                   <span>{advice.price.note}</span>
                 </div>
               )}
 
               {advice.exact.length > 0 && (
-                <section style={{ marginTop: 20 }}>
-                  <h3 className="section-title">You’ve had this wine</h3>
+                <section>
+                  <h3 className="eyebrow list-title">You’ve had this wine</h3>
                   <div className="list">
                     {advice.exact.slice(0, 6).map((w) => (
                       <WineRow key={w.id} wine={w} />
@@ -346,8 +390,8 @@ export function InStorePage() {
               )}
 
               {advice.related.length > 0 && (
-                <section style={{ marginTop: 20 }}>
-                  <h3 className="section-title">Related wines you’ve had</h3>
+                <section>
+                  <h3 className="eyebrow list-title">Related wines you’ve had</h3>
                   <div className="list">
                     {advice.related.slice(0, 6).map((w) => (
                       <WineRow key={w.id} wine={w} />
@@ -357,8 +401,8 @@ export function InStorePage() {
               )}
 
               {advice.signals.length > 0 && (
-                <section style={{ marginTop: 20 }}>
-                  <h3 className="section-title">Why</h3>
+                <section>
+                  <h3 className="eyebrow list-title">Why</h3>
                   <ul className="signals">
                     {advice.signals.map((s) => (
                       <li key={`${s.kind}-${s.value}`} className="signal">
@@ -374,75 +418,50 @@ export function InStorePage() {
                 </section>
               )}
 
-              <div style={{ display: 'flex', gap: 10, marginTop: 20, flexWrap: 'wrap' }}>
-                <button type="button" className="btn btn-primary" onClick={saveBottle}>
+              <div>
+                <button type="button" className="btn btn-wine" onClick={saveBottle}>
                   <Plus size={18} /> Save this bottle
                 </button>
               </div>
-            </>
-          )}
-
-          {!hasInput && !lookingUp && (
-            <div className="tips">
-              <div className="tip">
-                <Camera size={20} />
-                <div>
-                  <strong>Snap the label</strong>
-                  Claude reads producer, wine, vintage and region from a photo, then Palate checks your history and similar bottles.
-                </div>
-              </div>
-              <div className="tip">
-                <ScanLine size={20} />
-                <div>
-                  <strong>Or type what’s on the label</strong>
-                  Producer, grape or region — e.g. “Ridge zinfandel” or “Sancerre”. Palate checks how you rated similar bottles.
-                </div>
-              </div>
-              <button type="button" className="tip" onClick={() => setScanning(true)}>
-                <Barcode size={20} />
-                <div>
-                  <strong>Or scan the barcode</strong>
-                  Works on iPhone and Android. Bottles you’ve saved with a barcode open straight away.
-                </div>
-              </button>
-              <div className="tip">
-                <Sparkles size={20} />
-                <div>
-                  <strong>The more you rate, the better it gets</strong>
-                  Every “Loved it” and “Wouldn’t buy again” sharpens the advice.
-                </div>
-              </div>
             </div>
           )}
-        </div>
+        </section>
 
-        <aside style={{ marginTop: 28 }}>
-          <h3 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Heart size={14} /> Your safe bets
-          </h3>
+        <section className="safe-bets" aria-label="Your safe bets">
           {safeBets.length ? (
-            <div className="list">
-              {safeBets.map((w) => (
-                <WineRow key={w.id} wine={w} />
-              ))}
-            </div>
-          ) : (
-            <p className="muted small">Wines you mark “Loved it” show up here for quick reference.</p>
-          )}
-          {lists && lists.want.length > 0 && (
             <>
-              <h3 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 24 }}>
-                <Bookmark size={14} /> Want to try
-              </h3>
-              <div className="list">
-                {lists.want.slice(0, 8).map((w) => (
-                  <WineRow key={w.id} wine={w} />
-                ))}
+              <div className="mobile-only">
+                <ShelfRow title="Your safe bets" sub="Bottles you loved — look for them here">
+                  {safeBets.map((w) => (
+                    <MiniWineCard key={w.id} wine={w} />
+                  ))}
+                </ShelfRow>
+              </div>
+              <div className="desktop-only">
+                <div className="eyebrow side-title">Your safe bets</div>
+                <div className="safe-list">
+                  {safeBets.map((w) => (
+                    <Link key={w.id} to={`/wine/${w.id}`} className="safe-row lift">
+                      <div className="tile shelf-stage">
+                        <BottleImage photo={w.photo} alt="" />
+                      </div>
+                      <div className="body">
+                        <div className="t">{w.name || w.producer || 'Untitled wine'}</div>
+                        {w.name && w.producer && <div className="s">{w.producer}</div>}
+                      </div>
+                      <span className="loved-mark">
+                        <Heart size={11} fill="currentColor" strokeWidth={0} /> Loved
+                      </span>
+                    </Link>
+                  ))}
+                </div>
               </div>
             </>
+          ) : (
+            <p className="footnote">Wines you mark “Loved it” show up here as safe bets for quick reference.</p>
           )}
-        </aside>
-      </div>
+        </section>
+      </aside>
 
       {scanning && <BarcodeScanner onDetected={onDetected} onClose={() => setScanning(false)} />}
     </div>

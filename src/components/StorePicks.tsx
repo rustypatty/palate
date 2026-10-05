@@ -1,13 +1,17 @@
-import { Lightbulb, RefreshCw, Sparkles, Store as StoreIcon } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { RefreshCw, Sparkles, Store as StoreIcon } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLists, useWines } from '../hooks';
 import { getApiKey } from '../lib/labelReader';
 import { markNotForMe, saveToWant } from '../lib/lists';
-import { refreshPogos, requestStoreList, storeById, STORES, possessive } from '../lib/stores';
+import { possessive, refreshPogos, requestStoreList, storeById, STORES, type StoreId } from '../lib/stores';
 import { MIN_RATED } from '../lib/taste';
-import { useBudget, useStoreChoice, useStorePicks, useTaste } from '../lib/usePicks';
-import { PickCard, PickRow, ShelfRow, type PickLike } from './Shelf';
+import { useAllStoreItems, useBudget, useStoreChoice, useStorePicks, useTaste } from '../lib/usePicks';
+
+/** Rough cost of one Claude store list, shown on the button. */
+const LIST_COST = '~25¢';
+import { HiddenRow, PickCard, PickRow, pickNames, ShelfRow, type PickLike } from './Shelf';
+import { useUndo } from './useUndo';
 import { useToast } from './Toast';
 
 const BUDGETS: { value: number | null; label: string }[] = [
@@ -33,9 +37,11 @@ export function RatePrompt({ rated }: { rated: number }) {
   const left = MIN_RATED - rated;
   return (
     <div className="rate-prompt">
-      <Sparkles size={18} />
+      <Sparkles size={20} strokeWidth={1.7} />
       <div>
-        <strong>Rate {left} more {left === 1 ? 'wine' : 'wines'} to get suggestions.</strong>
+        <strong>
+          Rate {left} more {left === 1 ? 'wine' : 'wines'} to get suggestions.
+        </strong>
         <div className="small muted">Palate suggests bottles from what you’ve loved and passed on — a few more ratings make that worth trusting.</div>
       </div>
     </div>
@@ -50,25 +56,74 @@ function usePickActions(storeName: string) {
       await saveToWant(p.item, store, p.reason);
       toast('Saved to Want to try');
     },
-    pass: async (p: PickLike) => {
-      await markNotForMe(p.item, store, p.reason);
-      toast('Hidden — it won’t be suggested again');
-    },
+    pass: (p: PickLike) => markNotForMe(p.item, store, p.reason),
   };
 }
 
-/** The full section on the In-store screen. */
-export function StorePicksPanel() {
+/** How much is saved for each store: "8 picks", "List loaded", "No list yet". */
+function useStoreCounts(): Map<StoreId, string> {
+  const entries = useAllStoreItems();
+  return useMemo(() => {
+    const out = new Map<StoreId, string>();
+    for (const store of STORES) {
+      const n = (entries ?? []).filter((e) => e.storeId === store.id).length;
+      out.set(store.id, n === 0 ? 'No list yet' : store.kind === 'catalog' ? 'List loaded' : `${n} ${n === 1 ? 'pick' : 'picks'}`);
+    }
+    return out;
+  }, [entries]);
+}
+
+/** Which store and budget: wrapping pills on a phone, a store list on desktop. */
+export function StoreChooser({ variant = 'pills' }: { variant?: 'pills' | 'list' }) {
   const [storeId, setStoreId] = useStoreChoice();
   const [budget, setBudget] = useBudget();
+  const counts = useStoreCounts();
+  return (
+    <div className={`store-chooser ${variant}`}>
+      <div className="eyebrow">Store</div>
+      {variant === 'list' ? (
+        <div className="store-list" role="group" aria-label="Store">
+          {STORES.map((s) => (
+            <button key={s.id} type="button" aria-pressed={s.id === storeId} onClick={() => setStoreId(s.id)}>
+              <span className="store-name">{s.name}</span>
+              <span className="store-count">{counts.get(s.id)}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="chips" role="group" aria-label="Store">
+          {STORES.map((s) => (
+            <button key={s.id} type="button" className="chip" aria-pressed={s.id === storeId} onClick={() => setStoreId(s.id)}>
+              {s.name}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="eyebrow">Budget</div>
+      <div className="chips" role="group" aria-label="Budget">
+        {BUDGETS.map((b) => (
+          <button key={b.label} type="button" className="chip outline" aria-pressed={b.value === budget} onClick={() => setBudget(b.value)}>
+            {b.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The store's suggestions on the In store screen: status, picks, what else to look for. */
+export function StorePicksPanel() {
+  const [storeId] = useStoreChoice();
+  const [budget] = useBudget();
   const store = storeById(storeId);
   const { fetchedAt, picks, tips, saved } = useStorePicks(storeId, budget, 15);
   const taste = useTaste();
   const wines = useWines();
   const lists = useLists();
   const actions = usePickActions(store.name);
+  const hiding = useUndo();
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ store: StoreId; text: string } | null>(null);
   const abort = useRef<AbortController | null>(null);
   const hasKey = Boolean(getApiKey());
 
@@ -98,163 +153,174 @@ export function StorePicksPanel() {
           },
           ctl.signal,
         );
-        if (!out.ok) setError(`Couldn’t make a list: ${out.reason}.`);
+        if (!out.ok) setError({ store: store.id, text: `Couldn’t make a list: ${out.reason}.` });
       }
     } catch (e) {
-      if (!ctl.signal.aborted) setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
+      if (!ctl.signal.aborted) setError({ store: store.id, text: e instanceof Error ? e.message : 'Something went wrong. Try again.' });
     } finally {
       if (abort.current === ctl) setBusy(null);
     }
   };
 
-  const enough = taste?.enough ?? false;
+  if (taste && !taste.enough) return <RatePrompt rated={taste.rated} />;
+  if (fetchedAt === undefined) return null;
+
+  const catalog = store.kind === 'catalog';
+  const button = busy ? (
+    <button type="button" className="btn btn-white btn-sm" onClick={() => (abort.current?.abort(), setBusy(null))}>
+      Cancel
+    </button>
+  ) : catalog ? (
+    <button type="button" className="btn btn-white btn-sm" onClick={load}>
+      <RefreshCw size={15} strokeWidth={1.8} /> {fetchedAt ? 'Refresh' : 'Load list'} · free
+    </button>
+  ) : hasKey ? (
+    <button type="button" className="btn btn-white btn-sm" onClick={load}>
+      {fetchedAt ? 'New list' : 'Make a list'} · {LIST_COST}
+    </button>
+  ) : (
+    <Link to="/profile" state={{ focusKey: Date.now() }} className="btn btn-white btn-sm">
+      Add key
+    </Link>
+  );
+
+  const status = busy
+    ? busy
+    : fetchedAt
+      ? catalog
+        ? `In stock at ${store.name} · updated ${ago(fetchedAt)}`
+        : `List made ${ago(fetchedAt)} · ${picks.length} found on ${store.domain}`
+      : catalog
+        ? `Free. Downloads ${possessive(store.name)} current wine list (about 1 MB), then works without signal.`
+        : hasKey
+          ? `Claude searches ${possessive(store.name)} website for bottles that fit your taste. About a minute.`
+          : `Needs your Anthropic API key (in My palate) to search ${possessive(store.name)} website.`;
+
+  const shownError = error?.store === store.id ? error.text : null;
 
   return (
-    <section className="store-picks">
-      <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
-        <StoreIcon size={14} /> Picks for this store
-      </h2>
-      <div className="chips" role="group" aria-label="Store">
-        {STORES.map((s) => (
-          <button key={s.id} type="button" className="chip" aria-pressed={s.id === storeId} onClick={() => (setStoreId(s.id), setError(null))}>
-            {s.name}
-          </button>
-        ))}
-      </div>
-      <div className="chips chips-sm" role="group" aria-label="Budget">
-        {BUDGETS.map((b) => (
-          <button key={b.label} type="button" className="chip" aria-pressed={b.value === budget} onClick={() => setBudget(b.value)}>
-            {b.label}
-          </button>
-        ))}
-      </div>
-
-      {!enough && taste ? (
-        <RatePrompt rated={taste.rated} />
+    <section className="store-picks" aria-label={`Picks at ${store.name}`}>
+      {!fetchedAt && !busy ? (
+        <div className="picks-empty">
+          <h2 className="title-lg">
+            No list for <em>{store.name}</em> yet.
+          </h2>
+          <p className="lede">{status}</p>
+          <div>{button}</div>
+        </div>
       ) : (
-        <>
-          <div className="picks-status">
-            {busy ? (
-              <span className="muted small" role="status">
-                {busy}
-              </span>
-            ) : fetchedAt ? (
-              <span className="muted small">
-                {store.kind === 'catalog' ? `In stock at ${store.name} · updated ${ago(fetchedAt)}` : `List made ${ago(fetchedAt)}`}
-              </span>
-            ) : (
-              <span className="muted small">
-                {store.kind === 'catalog'
-                  ? `Free. Downloads ${possessive(store.name)} current wine list (about 1 MB), then works without signal.`
-                  : hasKey
-                    ? `Claude searches ${possessive(store.name)} website for bottles that fit your taste. About 25¢, about a minute.`
-                    : `Needs your Anthropic API key (My palate) to search ${possessive(store.name)} website.`}
-              </span>
-            )}
-            {busy ? (
-              <button type="button" className="btn btn-sm btn-ghost" onClick={() => (abort.current?.abort(), setBusy(null))}>
-                Cancel
-              </button>
-            ) : store.kind === 'catalog' ? (
-              <button type="button" className={`btn btn-sm ${fetchedAt ? 'btn-outline' : 'btn-dark'}`} onClick={load}>
-                <RefreshCw size={15} /> {fetchedAt ? 'Refresh' : `Load ${possessive(store.name)} list`}
-              </button>
-            ) : hasKey ? (
-              <button type="button" className={`btn btn-sm ${fetchedAt ? 'btn-outline' : 'btn-dark'}`} onClick={load}>
-                <Sparkles size={15} /> {fetchedAt ? 'New list · ~25¢' : 'What should I look for?'}
-              </button>
-            ) : (
-              <Link to="/profile" state={{ focusKey: Date.now() }} className="btn btn-sm btn-outline">
-                Add key
-              </Link>
-            )}
-          </div>
-          {error && (
-            <p className="small" role="alert" style={{ color: 'var(--danger)', margin: 0 }}>
-              {error}
-            </p>
-          )}
+        <div className={`picks-status${busy ? ' busy' : ''}`}>
+          <span role="status">{status}</span>
+          {button}
+        </div>
+      )}
+      {shownError && (
+        <p className="small" role="alert" style={{ color: 'var(--danger)', margin: 0 }}>
+          {shownError}
+        </p>
+      )}
 
-          {fetchedAt && !busy && picks.length === 0 && (
-            <p className="small muted" style={{ margin: 0 }}>
-              {store.kind === 'search' && tips.length
-                ? `Claude couldn’t confirm specific bottles on ${possessive(store.name)} website this time — see what to look for below.`
-                : budget
-                  ? 'Nothing here fits your taste at this budget. Try a higher one.'
-                  : 'Nothing here matches your taste closely yet.'}
-            </p>
+      {fetchedAt && !busy && picks.length === 0 && (
+        <p className="lede">
+          {store.kind === 'search' && tips.length
+            ? `Claude couldn’t confirm specific bottles on ${possessive(store.name)} website this time — see what to look for below.`
+            : budget
+              ? 'Nothing on this list fits that budget. Try a higher one.'
+              : 'Nothing here matches your taste closely yet.'}
+        </p>
+      )}
+      {picks.length > 0 && (
+        <div className="pick-list">
+          {picks.map((p, i) =>
+            hiding.isPending(p.item.key) ? (
+              <HiddenRow key={p.item.key} label={pickNames(p).producer || p.item.title} onUndo={() => hiding.undo(p.item.key)} />
+            ) : (
+              <PickRow
+                key={p.item.key}
+                n={i + 1}
+                pick={p}
+                storeName={store.name}
+                domain={store.domain}
+                saved={saved.has(p.item.key)}
+                onWant={() => actions.want(p)}
+                onPass={() => hiding.start(p.item.key, () => actions.pass(p))}
+              />
+            ),
           )}
-          {picks.length > 0 && (
-            <div className="pick-list">
-              {picks.map((p) => (
-                <PickRow
-                  key={p.item.key}
-                  pick={p}
-                  storeName={store.name}
-                  saved={saved.has(p.item.key)}
-                  onWant={() => actions.want(p)}
-                  onPass={() => actions.pass(p)}
-                />
-              ))}
-            </div>
-          )}
-          {tips.length > 0 && (
-            <div className="tips-box">
-              <div className="small" style={{ fontWeight: 650, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Lightbulb size={15} /> Also look for
-              </div>
-              <ul>
-                {tips.map((t) => (
-                  <li key={t}>{t}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {fetchedAt && (
-            <p className="small muted" style={{ margin: 0 }}>
-              {store.kind === 'catalog'
-                ? `Stock is what ${possessive(store.name)} website shows; it can lag behind the shelf.`
-                : `Every bottle above was found on ${possessive(store.name)} website. Tap a bottle to check your location has it.`}
-            </p>
-          )}
-        </>
+        </div>
+      )}
+      {tips.length > 0 && (
+        <div className="tone-card">
+          <h3>Also look for</h3>
+          <ul className="bullets">
+            {tips.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {fetchedAt && (
+        <p className="footnote">
+          {catalog
+            ? `Stock is what ${possessive(store.name)} website shows; it can lag behind the shelf.`
+            : `Every bottle above was found on ${possessive(store.name)} website. Stock can lag behind the shelf — tap a link to check your location.`}
+        </p>
       )}
     </section>
   );
 }
 
-/** Compact row for the home screen. */
+/** "Best bets at Total Wine" on the home screen. */
 export function StorePicksRow() {
   // The home screen follows Total Wine, the main store; other stores live on the In-store screen.
   const storeId = 'totalwine';
   const store = storeById(storeId);
   const { fetchedAt, picks, saved } = useStorePicks(storeId, null, 10);
   const actions = usePickActions(store.name);
+  const hiding = useUndo();
   if (fetchedAt === undefined) return null;
   if (!fetchedAt || picks.length === 0) {
     return (
-      <Link to="/store" className="cta-card">
-        <StoreIcon size={18} />
+      <Link to="/store" className="cta-card lift">
+        <StoreIcon size={20} strokeWidth={1.7} />
         <span>
-          <strong>Heading to {store.name}?</strong>
-          <span className="small muted"> See which bottles there fit your taste.</span>
+          <strong>
+            Heading to <em>{store.name}?</em>
+          </strong>
+          <span className="small muted">See which bottles there fit your taste.</span>
         </span>
       </Link>
     );
   }
   return (
     <ShelfRow
-      title={`Best bets at ${store.name}`}
-      sub={store.kind === 'catalog' ? `In stock · updated ${ago(fetchedAt)}` : `From ${possessive(store.name)} website`}
+      title={
+        <>
+          Best bets <em>at {store.name}</em>
+        </>
+      }
+      sub={`${picks.length} found on ${store.domain} · ${ago(fetchedAt)}`}
+      arrows
       action={
-        <Link to="/store" className="shelf-link">
+        <Link to="/store" className="text-link">
           See all
         </Link>
       }
     >
-      {picks.map((p) => (
-        <PickCard key={p.item.key} pick={p} saved={saved.has(p.item.key)} onWant={() => actions.want(p)} onPass={() => actions.pass(p)} />
-      ))}
+      {picks.map((p) =>
+        hiding.isPending(p.item.key) ? (
+          <HiddenRow key={p.item.key} card label={pickNames(p).producer || p.item.title} onUndo={() => hiding.undo(p.item.key)} />
+        ) : (
+          <PickCard
+            key={p.item.key}
+            pick={p}
+            storeName={store.name}
+            saved={saved.has(p.item.key)}
+            onWant={() => actions.want(p)}
+            onPass={() => hiding.start(p.item.key, () => actions.pass(p))}
+          />
+        ),
+      )}
     </ShelfRow>
   );
 }

@@ -1,5 +1,5 @@
-import { Sparkles } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { Camera, Sparkles } from 'lucide-react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { hasApiKey, LabelReadError, readLabel, type LabelReading } from '../lib/labelReader';
 import { useToast } from './Toast';
@@ -10,11 +10,14 @@ export function LabelSnap({
   onStart,
   label = 'Snap the label',
   className = 'btn btn-dark',
+  children,
 }: {
   onRead: (reading: LabelReading, photo: File) => void;
   onStart?: (photo: File) => void;
   label?: string;
   className?: string;
+  /** Custom button content, e.g. the big burgundy "Snap the label" tile. */
+  children?: (busy: boolean) => ReactNode;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -48,9 +51,34 @@ export function LabelSnap({
   return (
     <>
       <button type="button" className={className} onClick={start} disabled={busy} aria-busy={busy}>
-        <Sparkles size={18} /> {busy ? 'Reading label…' : label}
+        {children ? (
+          children(busy)
+        ) : (
+          <>
+            <Sparkles size={18} /> {busy ? 'Reading label…' : label}
+          </>
+        )}
       </button>
       <input ref={inputRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => (onFile(e.target.files?.[0]), (e.target.value = ''))} />
     </>
   );
 }
+
+/** Contents of the big burgundy "Snap the label" tile. */
+export function snapTile(sub: string) {
+  return function SnapTileContent(busy: boolean) {
+    return (
+      <>
+        <span className="snap-icon" aria-hidden="true">
+          <Camera size={22} strokeWidth={1.6} />
+        </span>
+        <span className="snap-cost">{LABEL_COST}</span>
+        <span className="snap-title">{busy ? 'Reading the label…' : 'Snap the label'}</span>
+        <span className="snap-sub">{sub}</span>
+      </>
+    );
+  };
+}
+
+/** Rough cost of reading one label with Claude. */
+export const LABEL_COST = '~2¢';
