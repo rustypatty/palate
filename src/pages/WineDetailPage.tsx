@@ -14,7 +14,7 @@ import { useWine } from '../hooks';
 import { RATING_LABEL, STYLE_LABEL } from '../lib/constants';
 import { formatDate, formatPrice, fullName, placeLabel } from '../lib/format';
 import { shownPhoto } from '../lib/image';
-import { findPhotoFor, PHOTO_FIND_COST, photoQueue } from '../lib/photoFinder';
+import { findPhotoFor, lastMiss, PHOTO_FIND_COST, photoQueue } from '../lib/photoFinder';
 import { hasApiKey, LabelReadError, lookUpWine } from '../lib/labelReader';
 
 /** Rough cost of looking up published notes (a few web searches and page reads). */
@@ -138,9 +138,22 @@ export function WineDetailPage() {
           </span>
         )}
         {!shownPhoto(wine.photo) && !findingPhoto && (
-          <Link to={`/wine/${wine.id}/edit`} state={{ findPhoto: true }} className="btn btn-white btn-sm hero-cta">
-            <Globe size={16} /> Find a photo
-          </Link>
+          hasApiKey() ? (
+            <button
+              type="button"
+              className="btn btn-white btn-sm hero-cta"
+              onClick={async () => {
+                const found = await findPhotoFor(wine);
+                toast(found ? 'Found a photo of this bottle' : `No photo yet: ${lastMiss(wine) ?? 'nothing found'}`);
+              }}
+            >
+              <Globe size={16} /> {lastMiss(wine) ? 'Try again' : 'Find a photo'} · {PHOTO_FIND_COST}
+            </button>
+          ) : (
+            <Link to="/profile" className="btn btn-white btn-sm hero-cta">
+              <Globe size={16} /> Add your key to find photos
+            </Link>
+          )
         )}
         {credit &&
           (credit.pageUrl ? (

@@ -1,7 +1,6 @@
 import { db, updateWine } from '../db';
 import type { Wine } from '../types';
 import { photoFromUrl, shownPhoto } from './image';
-import type { LabelReading } from './labelReader';
 
 /**
  * Every bottle should show a real photo from the web, without you having to look for one.
@@ -10,11 +9,11 @@ import type { LabelReading } from './labelReader';
  * Each wine is tried once; it's tried again only if its name changes or after a while.
  */
 
-const KEY = 'palate.photoTries';
+const KEY = 'palate.photoTries2'; // v2: earlier tries used a search that couldn't get past shop sites
 const RETRY_AFTER = 14 * 24 * 60 * 60 * 1000;
-export const PHOTO_FIND_COST = '~8¢';
+export const PHOTO_FIND_COST = '~12¢';
 
-type Tries = Record<string, { at: number; sig: string }>;
+type Tries = Record<string, { at: number; sig: string; why?: string }>;
 
 function loadTries(): Tries {
   try {
@@ -24,10 +23,10 @@ function loadTries(): Tries {
   }
 }
 
-function saveTry(id: string, sig: string): void {
+function saveTry(id: string, sig: string, why?: string): void {
   try {
     const tries = loadTries();
-    tries[id] = { at: Date.now(), sig };
+    tries[id] = { at: Date.now(), sig, why };
     localStorage.setItem(KEY, JSON.stringify(tries));
   } catch {
     /* private mode: tried again next visit */
@@ -55,19 +54,24 @@ export function photoQueue(wines: Wine[], now = Date.now(), tries: Tries = loadT
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-function toReading(w: Wine): LabelReading {
-  return {
-    is_wine_label: true,
-    producer: w.producer,
-    wine_name: w.name,
-    vintage: w.vintage === null ? '' : String(w.vintage),
-    country: w.country,
-    region: w.region,
-    grapes: w.grapes,
-    style: w.style ?? 'unknown',
-    confidence: 'high',
-    uncertain: '',
-  };
+/** "Domaine de la Bressande En Sazenay 2022 (Mercurey, France)" */
+export function wineQuery(w: Wine): string {
+  const place = [w.region, w.country].filter(Boolean).join(', ');
+  return [w.producer, w.name, w.vintage ?? ''].filter(Boolean).join(' ') + (place ? ` (${place})` : '');
+}
+
+/** Why the last automatic search found nothing, if it didn't. */
+export function lastMiss(w: Wine): string | null {
+  const t = loadTries()[w.id];
+  return t && t.sig === signature(w) && t.why ? t.why : null;
+}
+
+/** Bottle photos of a wine from the web, best first (Claude searches; see bottlePhotoClient). */
+export async function findBottlePhotos(query: string, snap: Blob | null, signal?: AbortSignal) {
+  const { getApiKey } = await import('./labelReader');
+  const apiKey = getApiKey();
+  if (!apiKey) return { ok: false as const, reason: 'add your Anthropic API key in My palate first' };
+  return (await import('./bottlePhotoClient')).findBottlePhotosWithClaude(apiKey, query, snap, signal);
 }
 
 // Which wines are being looked up right now, for "Finding a photo…".
@@ -87,24 +91,24 @@ export async function findPhotoFor(wine: Wine, signal?: AbortSignal): Promise<bo
   finding.add(wine.id);
   changed();
   try {
-    const { lookUpWine } = await import('./labelReader');
     // Your own snap, if there is one, is only used to check the web photo is the same bottle.
     const snap = wine.photo?.kind === 'local' ? ((await db.photos.get(wine.photo.blobId))?.blob ?? null) : null;
-    const outcome = await lookUpWine(toReading(wine), snap, signal);
+    const outcome = await findBottlePhotos(wineQuery(wine), snap, signal);
     if (signal?.aborted) return false;
-    saveTry(wine.id, signature(wine));
-    if (!outcome.ok) return false;
-    const pick = outcome.lookup.photo ?? outcome.lookup.candidates[0] ?? null;
-    if (!pick) return false;
+    if (!outcome.ok || !outcome.matched) {
+      saveTry(wine.id, signature(wine), outcome.ok ? 'no photo of this exact wine was found' : outcome.reason);
+      return false;
+    }
+    const pick = outcome.photos[0];
     const photo = await photoFromUrl(pick.url, { name: pick.siteName, pageUrl: pick.pageUrl, title: pick.title });
+    saveTry(wine.id, signature(wine));
     // Only if it still needs one (you may have changed it meanwhile).
     const now = await db.wines.get(wine.id);
     if (!now || shownPhoto(now.photo)) return false;
-    const extra = !now.about && outcome.lookup.about ? { about: outcome.lookup.about } : {};
-    await updateWine(wine.id, { photo, ...extra });
+    await updateWine(wine.id, { photo });
     return true;
   } catch {
-    saveTry(wine.id, signature(wine));
+    saveTry(wine.id, signature(wine), 'something went wrong looking it up');
     return false;
   } finally {
     finding.delete(wine.id);
