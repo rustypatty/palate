@@ -79,7 +79,7 @@ const ReportSchema = z.object({
 });
 
 export { normalizeUrl } from './likeThis';
-import { normalizeUrl } from './likeThis';
+import { bottleTitle, normalizeUrl } from './likeThis';
 
 /**
  * Turn Claude's report into what the app shows: a bottle is a pick only if its page
@@ -92,7 +92,7 @@ export function verifyReport(report: z.infer<typeof ReportSchema>, store: Store,
   for (const p of report.picks) {
     const norm = normalizeUrl(p.url);
     const onStore = norm.startsWith(store.domain) || norm.includes(`.${store.domain}`);
-    const title = [p.producer, p.wine, p.vintage].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    const title = bottleTitle(p.producer, p.wine, p.vintage);
     if (!onStore || !seen.has(norm) || !p.producer || !p.wine) {
       if (p.producer) tips.push(`Look for ${p.producer}${p.region ? ` (${p.region})` : ''}.`);
       continue;
@@ -141,7 +141,8 @@ function prompt(r: StoreListRequest): string {
 
 export async function findStoreListWithClaude(apiKey: string, req: StoreListRequest, signal?: AbortSignal): Promise<StoreListOutcome> {
   // No automatic retries (a retry is billed twice); searching can take a minute or two.
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 600_000 });
+  // Always Anthropic's own address, whatever the environment says.
+  const client = new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com', dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 600_000 });
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: prompt(req) }];
   const seen = new Set<string>();
   let report: z.infer<typeof ReportSchema> | null = null;
@@ -156,7 +157,10 @@ export async function findStoreListWithClaude(apiKey: string, req: StoreListRequ
             betas: ['server-side-fallback-2026-07-01'],
             fallbacks: 'default',
             output_config: { effort: 'low' },
-            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 6, allowed_domains: [req.store.domain] }, REPORT_TOOL],
+            // The basic search tool: the newer web_search_20260209 filters results in a code
+            // sandbox, and in live runs its code crashed or ran out of searches, so Claude never
+            // saw the product pages and reported no picks.
+            tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 6, allowed_domains: [req.store.domain] }, REPORT_TOOL],
             messages,
           },
           { signal },

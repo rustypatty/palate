@@ -89,5 +89,10 @@ describe('bottle titles', () => {
     expect(bottleTitle('Domaine X', 'Gigondas 2019', '2019')).toBe('Domaine X Gigondas 2019');
     expect(bottleTitle('Saint Cosme', 'St. Cosme Chateauneuf Du Pape', '')).toBe('St. Cosme Chateauneuf Du Pape');
     expect(bottleTitle('Domaine Charvin', 'Chateauneuf Du Pape', '2021')).toBe('Domaine Charvin Chateauneuf Du Pape 2021');
+    // From the Total Wine list's live runs:
+    expect(bottleTitle('Homage to Heritage', 'H to H "Homage to Heritage" Chateauneuf du Pape', '')).toBe('H to H "Homage to Heritage" Chateauneuf du Pape');
+    expect(bottleTitle('Domaine du Grand Prieur', 'Vacqueyras', '2021')).toBe('Domaine du Grand Prieur Vacqueyras 2021');
+    // Only whole words count: "Ridge" is not inside "Partridge Hill".
+    expect(bottleTitle('Ridge', 'Partridge Hill Zinfandel', '')).toBe('Ridge Partridge Hill Zinfandel');
   });
 });

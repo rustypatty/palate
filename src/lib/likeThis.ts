@@ -113,7 +113,8 @@ export function bottleTitle(producer: string, wine: string, vintage: string): st
   const w = tokens(wine);
   // The wine name already starts with the producer, in full or shortened ("Guigal", "St. Cosme").
   const opening = w.slice(0, 2);
-  const inWine = p.length > 0 && (w.join(' ').includes(p.join(' ')) || p.filter((t) => t.length > 3).some((t) => opening.includes(t)));
+  // Whole words only: "Ridge" is not inside "Partridge Hill".
+  const inWine = p.length > 0 && (` ${w.join(' ')} `.includes(` ${p.join(' ')} `) || p.filter((t) => t.length > 3).some((t) => opening.includes(t)));
   return [inWine ? '' : producer, wine, wine.includes(vintage) ? '' : vintage].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 }
 
