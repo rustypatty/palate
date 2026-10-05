@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import type { LikeThisCache, Wine } from '../types';
 import { pagePreviewImage, relayedImageUrl } from './labelClient';
-import { normalizeUrl, photoMatches, SEARCH_STORES, verifyBottles, type ReportedBottle } from './likeThis';
+import { normalizeUrl, photoMatches, SEARCH_STORES, storeForDomain, verifyBottles, type ReportedBottle } from './likeThis';
 
 const MODEL = 'claude-opus-5-5';
 const STYLES = ['red', 'white', 'rose', 'sparkling', 'orange', 'dessert', 'fortified'] as const;
@@ -171,6 +171,9 @@ export async function findLikeThisWithClaude(apiKey: string, req: LikeRequest, s
     if (e instanceof Anthropic.APIConnectionTimeoutError) return { ok: false, reason: 'it took too long' };
     if (e instanceof Anthropic.APIUserAbortError) return { ok: false, reason: 'cancelled' };
     if (e instanceof Anthropic.APIConnectionError) return { ok: false, reason: 'lost connection (check your signal)' };
+    if (e instanceof Anthropic.RateLimitError || (e instanceof Anthropic.APIError && e.status === 529)) {
+      return { ok: false, reason: 'Anthropic is busy right now — try again in a minute' };
+    }
     if (e instanceof Anthropic.APIError) return { ok: false, reason: `Anthropic error ${e.status ?? ''}: ${e.message}`.slice(0, 300) };
     throw e;
   }
@@ -189,6 +192,13 @@ export async function findLikeThisWithClaude(apiKey: string, req: LikeRequest, s
       b.image = { url: relayedImageUrl(img.url), pageUrl: page, siteName: new URL(page).hostname.replace(/^www\./, '') };
     }),
   );
+  // What was covered: store pages the search turned up, and confirmed bottles per store.
+  const pages = [...seen].filter((u) => storeForDomain(`https://${u}`)).length;
+  const byStore: Record<string, number> = {};
+  for (const b of bottles) for (const o of b.offers) byStore[o.storeId] = (byStore[o.storeId] ?? 0) + 1;
   // Claude's own tips first, then producers it named without a confirmed store page.
-  return { ok: true, cache: { at: Date.now(), bottles, tips: [...report.tips, ...tips].slice(0, 5) } };
+  return {
+    ok: true,
+    cache: { at: Date.now(), bottles, tips: [...report.tips, ...tips].slice(0, 5), checked: { pages, suggested: report.bottles.length, byStore } },
+  };
 }

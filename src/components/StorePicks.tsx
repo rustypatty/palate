@@ -225,7 +225,8 @@ export function StorePicksPanel() {
 
 /** Compact row for the home screen. */
 export function StorePicksRow() {
-  const [storeId] = useStoreChoice();
+  // The home screen follows Total Wine, the main store; other stores live on the In-store screen.
+  const storeId = 'totalwine';
   const store = storeById(storeId);
   const { fetchedAt, picks, saved } = useStorePicks(storeId, null, 10);
   const actions = usePickActions(store.name);

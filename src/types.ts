@@ -55,6 +55,8 @@ export interface LikeThisCache {
   at: number;
   bottles: LikeBottle[];
   tips: string[];
+  /** What the search covered, so the page can say what happened. */
+  checked?: { pages: number; suggested: number; byStore: Record<string, number> };
 }
 
 export interface Suggestion {

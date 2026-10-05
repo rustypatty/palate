@@ -195,6 +195,9 @@ export async function findStoreListWithClaude(apiKey: string, req: StoreListRequ
     if (e instanceof Anthropic.APIConnectionTimeoutError) return { ok: false, reason: 'it took too long' };
     if (e instanceof Anthropic.APIUserAbortError) return { ok: false, reason: 'cancelled' };
     if (e instanceof Anthropic.APIConnectionError) return { ok: false, reason: 'lost connection (check your signal)' };
+    if (e instanceof Anthropic.RateLimitError || (e instanceof Anthropic.APIError && e.status === 529)) {
+      return { ok: false, reason: 'Anthropic is busy right now — try again in a minute' };
+    }
     if (e instanceof Anthropic.APIError) return { ok: false, reason: `Anthropic error ${e.status ?? ''}: ${e.message}`.slice(0, 300) };
     throw e;
   }
