@@ -43,7 +43,6 @@ export interface ReportedBottle {
   grapes: string[];
   style: LikeBottle['style'];
   offers: { url: string; price_usd: number }[];
-  photo_page_url: string;
   reason: string;
 }
 
@@ -118,9 +117,30 @@ export function bottleTitle(producer: string, wine: string, vintage: string): st
   return [inWine ? '' : producer, wine, wine.includes(vintage) ? '' : vintage].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 }
 
+/** Through an image relay: works around sites that block other pages from showing their images,
+ * and puts transparent product shots on white. */
+export function relayImage(url: string): string {
+  return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=1000&h=1000&fit=inside&we&bg=white&output=jpg&q=86`;
+}
+
+/** Total Wine's own product photo, from the product number in its page address (…/p/115641750). */
+export function totalWineImage(pageUrl: string): string | null {
+  const m = pageUrl.match(/totalwine\.com\/[^?#]*\/p\/(\d{5,})/i);
+  return m ? relayImage(`https://www.totalwine.com/dynamic/x1000,sq/images/${m[1]}/${m[1]}-1-fr.png`) : null;
+}
+
+/** The best store photo of this exact bottle: Total Wine's own, else whatever the search found. */
+export function bottlePhoto(b: Pick<LikeBottle, 'offers' | 'image'>): LikeBottle['image'] {
+  const tw = b.offers.find((o) => o.storeId === 'totalwine');
+  const twImg = tw ? totalWineImage(tw.url) : null;
+  if (twImg) return { url: twImg, pageUrl: tw!.url, siteName: 'Total Wine' };
+  return b.image;
+}
+
 /** A found bottle as a rankable store item (its cheapest offer is the main one). */
 export function bottleAsItem(b: LikeBottle): StoreItem & { offers: StoreOffer[]; imageSource?: { name: string; pageUrl: string } } {
   const main = b.offers.find((o) => o.storeId === 'totalwine') ?? b.offers[0];
+  const photo = bottlePhoto(b);
   const prices = b.offers.map((o) => o.price).filter((p): p is number => p !== null);
   return {
     key: b.key,
@@ -129,8 +149,8 @@ export function bottleAsItem(b: LikeBottle): StoreItem & { offers: StoreOffer[];
     price: prices.length ? Math.min(...prices) : null,
     context: [b.region, b.country, ...b.grapes].join(' '),
     url: main.url,
-    image: b.image?.url ?? null,
-    imageSource: b.image ? { name: b.image.siteName, pageUrl: b.image.pageUrl } : undefined,
+    image: photo?.url ?? null,
+    imageSource: photo ? { name: photo.siteName, pageUrl: photo.pageUrl } : undefined,
     vintage: /^\d{4}$/.test(b.vintage) ? Number(b.vintage) : b.vintage === 'NV' ? 'NV' : null,
     country: b.country,
     sizeMl: null,

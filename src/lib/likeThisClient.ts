@@ -1,8 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import type { LikeThisCache, Wine } from '../types';
-import { pagePreviewImage, relayedImageUrl } from './labelClient';
-import { normalizeUrl, photoMatches, SEARCH_STORES, storeForDomain, verifyBottles, type ReportedBottle } from './likeThis';
+import { pagePreviewImage } from './labelClient';
+import { normalizeUrl, photoMatches, relayImage, SEARCH_STORES, storeForDomain, verifyBottles, type ReportedBottle } from './likeThis';
 
 const MODEL = 'claude-opus-5-5';
 const STYLES = ['red', 'white', 'rose', 'sparkling', 'orange', 'dessert', 'fortified'] as const;
@@ -32,7 +32,7 @@ const REPORT_TOOL = {
         items: {
           type: 'object',
           additionalProperties: false,
-          required: ['producer', 'wine', 'vintage', 'region', 'country', 'grapes', 'style', 'offers', 'photo_page_url', 'reason'],
+          required: ['producer', 'wine', 'vintage', 'region', 'country', 'grapes', 'style', 'offers', 'reason'],
           properties: {
             producer: { type: 'string' },
             wine: { type: 'string', description: 'Cuvée or wine name as the store lists it.' },
@@ -54,10 +54,6 @@ const REPORT_TOOL = {
                 },
               },
             },
-            photo_page_url: {
-              type: 'string',
-              description: 'A product page for this same producer and cuvée on another wine shop (not one of the stores above, not wine.com/vivino/wine-searcher), from your search results; empty if none.',
-            },
             reason: { type: 'string', description: 'One short line on why it is like the wine they enjoyed.' },
           },
         },
@@ -78,7 +74,6 @@ const ReportSchema = z.object({
       grapes: z.array(z.string()),
       style: z.enum(STYLES),
       offers: z.array(z.object({ url: z.string(), price_usd: z.number() })),
-      photo_page_url: z.string(),
       reason: z.string(),
     }),
   ),
@@ -111,7 +106,6 @@ function prompt(r: LikeRequest): string {
     `\nMy stores: ${stores}. Search Total Wine first, then the others. Find 6–10 specific bottles similar to this wine (same appellation or nearby, similar grapes and style, similar price) that these stores sell. ` +
     'For each bottle, list every one of these stores whose product page for it appeared in your search results, with the exact URL and the price shown. ' +
     'Never invent a bottle, URL or price. If a producer would suit me but you found no store page, put it in tips instead. ' +
-    'Where you can, also give a product page for the same producer and cuvée on another wine shop (for its bottle photo). ' +
     'Then call report_bottles once.'
   );
 }
@@ -184,16 +178,15 @@ export async function findLikeThisWithClaude(apiKey: string, req: LikeRequest, s
   if (!report) return { ok: false, reason: stopNote || 'Claude didn’t report a result' };
 
   const { bottles, tips } = verifyBottles(report.bottles as ReportedBottle[], seen);
-  // Photos: the other shop's page must have turned up in the search, and its title must
-  // name this producer and cuvée — otherwise keep the placeholder.
+  // Photos: Total Wine's come from its product number (see likeThis.bottlePhoto). For a bottle
+  // only Twin Liquors has, use the main image of its own product page, if the page names this wine.
   await Promise.all(
     bottles.map(async (b) => {
-      const src = report!.bottles.find((r) => r.producer === b.producer && r.wine === b.wine);
-      const page = src?.photo_page_url ?? '';
-      if (!/^https:\/\//.test(page) || !seen.has(normalizeUrl(page))) return;
-      const img = await pagePreviewImage(page, signal);
-      if (!img || !photoMatches(b, img.title)) return;
-      b.image = { url: relayedImageUrl(img.url), pageUrl: page, siteName: new URL(page).hostname.replace(/^www\./, '') };
+      if (b.offers.some((o) => o.storeId === 'totalwine')) return;
+      const twin = b.offers.find((o) => o.storeId === 'twin');
+      if (!twin) return;
+      const img = await pagePreviewImage(twin.url, signal);
+      if (img && photoMatches(b, img.title)) b.image = { url: relayImage(img.url), pageUrl: twin.url, siteName: 'Twin Liquors' };
     }),
   );
   // What was covered: store pages the search turned up, and confirmed bottles per store.

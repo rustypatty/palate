@@ -358,7 +358,7 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
 
 /** An image URL routed through images.weserv.nl: CORS-enabled, resized (never enlarged), JPEG. */
 export function relayedImageUrl(url: string): string {
-  return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=1400&h=1400&fit=inside&we&output=jpg&q=88`;
+  return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=1400&h=1400&fit=inside&we&bg=white&output=jpg&q=88`;
 }
 
 async function imageAsBase64(url: string, signal?: AbortSignal): Promise<string | null> {

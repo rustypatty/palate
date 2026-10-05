@@ -1,9 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { wine } from '../test/fixtures';
-import { bottleAsItem, bottleTitle, isStale, LIKE_REFRESH_MS, normalizeUrl, offerLabel, photoMatches, storeForDomain, verifyBottles, withPogoOffers, type ReportedBottle } from './likeThis';
+import { bottleAsItem, bottlePhoto, bottleTitle, totalWineImage, isStale, LIKE_REFRESH_MS, normalizeUrl, offerLabel, photoMatches, storeForDomain, verifyBottles, withPogoOffers, type ReportedBottle } from './likeThis';
 
-const TW = 'https://www.totalwine.com/wine/red-wine/rhone-blend/coudoulet/p/111';
+const TW = 'https://www.totalwine.com/wine/red-wine/rhone-blend/coudoulet/p/115641750';
 const SPECS = 'https://specsonline.com/product/coudoulet-de-beaucastel';
 const bottle = (over: Partial<ReportedBottle> = {}): ReportedBottle => ({
   producer: 'Famille Perrin',
@@ -17,7 +17,6 @@ const bottle = (over: Partial<ReportedBottle> = {}): ReportedBottle => ({
     { url: `${TW}?s=1203`, price_usd: 34.99 },
     { url: SPECS, price_usd: 32.97 },
   ],
-  photo_page_url: '',
   reason: 'Grenache-based like the Châteauneuf you loved',
   ...over,
 });
@@ -94,5 +93,24 @@ describe('bottle titles', () => {
     expect(bottleTitle('Domaine du Grand Prieur', 'Vacqueyras', '2021')).toBe('Domaine du Grand Prieur Vacqueyras 2021');
     // Only whole words count: "Ridge" is not inside "Partridge Hill".
     expect(bottleTitle('Ridge', 'Partridge Hill Zinfandel', '')).toBe('Ridge Partridge Hill Zinfandel');
+  });
+});
+
+describe('store photos of the exact bottle', () => {
+  it('uses Total Wine’s own product photo, from the product number', () => {
+    const img = totalWineImage('https://www.totalwine.com/wine/red-wine/rhone-blend/bosquet-des-papes-chateauneufdupape/p/115641750?s=1203');
+    expect(decodeURIComponent(img!)).toContain('https://www.totalwine.com/dynamic/x1000,sq/images/115641750/115641750-1-fr.png');
+    expect(img).toContain('bg=white');
+    expect(totalWineImage('https://specsonline.com/shop/wine/x/')).toBeNull();
+  });
+
+  it('prefers Total Wine’s photo, else keeps what the search found, else none', () => {
+    const { bottles } = verifyBottles([bottle()], seen);
+    expect(bottlePhoto(bottles[0])?.siteName).toBe('Total Wine');
+    expect(bottleAsItem(bottles[0]).imageSource?.name).toBe('Total Wine');
+    const specsOnly = { offers: [{ storeId: 'specs', url: SPECS, price: 30 }], image: null };
+    expect(bottlePhoto(specsOnly)).toBeNull();
+    const twin = { offers: [{ storeId: 'twin', url: 'https://twinliquors.com/shop/product/x/1', price: 30 }], image: { url: 'https://images.weserv.nl/?url=x', pageUrl: 'p', siteName: 'Twin Liquors' } };
+    expect(bottlePhoto(twin)?.siteName).toBe('Twin Liquors');
   });
 });

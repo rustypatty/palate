@@ -79,7 +79,7 @@ const ReportSchema = z.object({
 });
 
 export { normalizeUrl } from './likeThis';
-import { bottleTitle, normalizeUrl } from './likeThis';
+import { bottleTitle, normalizeUrl, totalWineImage } from './likeThis';
 
 /**
  * Turn Claude's report into what the app shows: a bottle is a pick only if its page
@@ -107,7 +107,8 @@ export function verifyReport(report: z.infer<typeof ReportSchema>, store: Store,
       price,
       context: [p.region, p.country, ...p.grapes].join(' '),
       url: p.url,
-      image: null, // never a lookalike: the user can add a real photo later
+      // The store's own photo of this exact listing when there's a reliable one, else none (never a lookalike).
+      image: totalWineImage(p.url),
       vintage: /^\d{4}$/.test(p.vintage) ? Number(p.vintage) : p.vintage === 'NV' ? 'NV' : null,
       country: p.country,
       sizeMl: null,
