@@ -1,14 +1,14 @@
 // @vitest-environment node
 /**
  * Live check of the Total Wine suggestion search against the real Anthropic API (about 25¢ a run).
- * Skipped unless ANTHROPIC_API_KEY is set:
- *   ANTHROPIC_API_KEY=sk-ant-api... npx vitest run scripts/totalwine.live.test.ts
+ * Skipped unless PALATE_TEST_KEY is set (ANTHROPIC_API_KEY is left alone; the environment reserves it):
+ *   PALATE_TEST_KEY=sk-ant-api... npx vitest run scripts/totalwine.live.test.ts
  */
 import { expect, it } from 'vitest';
 import { findStoreListWithClaude, normalizeUrl } from '../src/lib/storeListClient';
 import { storeById } from '../src/lib/stores';
 
-const key = process.env.ANTHROPIC_API_KEY ?? '';
+const key = process.env.PALATE_TEST_KEY ?? '';
 
 it.skipIf(!key)('finds real Total Wine bottles', { timeout: 600_000 }, async () => {
   const queries: string[] = [];
