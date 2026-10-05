@@ -4217,3 +4217,21 @@ details.more[open] > .more-body {
 .offers a {
   display: block;
 }
+
+.one-line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Bodoni's hairlines vanish on standard-resolution screens: a touch heavier there. */
+@media (max-resolution: 1.5dppx) {
+  .stat .n,
+  .reason,
+  .wc-reason,
+  .hero-caption-name,
+  .hidden-row em,
+  .pr-no {
+    font-weight: 500;
+  }
+}

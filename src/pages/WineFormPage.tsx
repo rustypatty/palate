@@ -14,6 +14,7 @@ import { adoptWant } from '../lib/lists';
 import { useWines } from '../hooks';
 import { COMMON_COUNTRIES, COMMON_GRAPES, STYLES } from '../lib/constants';
 import { photoFromFile, photoFromUrl } from '../lib/image';
+import { lookupBarcode } from '../lib/imageSearch';
 import { LabelReadError, lookUpWine, readingToDraft, type LabelReading, type WineLookup } from '../lib/labelReader';
 import { tally } from '../lib/filters';
 import type { Photo, WineDraft } from '../types';
@@ -193,6 +194,46 @@ export function WineFormPage() {
     } finally {
       setLookingUp(false);
     }
+  };
+
+  // A scanned barcode: open the wine if you have it, else fill in what the barcode database knows.
+  const onBarcode = async (code: string) => {
+    set({ barcode: code });
+    if (editing) {
+      toast('Barcode added');
+      return;
+    }
+    const mine = wines?.find((w) => w.barcode === code);
+    if (mine) {
+      toast('You already have this one');
+      navigate(`/wine/${mine.id}`, { replace: true });
+      return;
+    }
+    const nothing = () => {
+      toast('Barcode added — type the name from the label');
+      document.getElementById('producer')?.focus();
+    };
+    let found: Awaited<ReturnType<typeof lookupBarcode>> = null;
+    try {
+      found = await lookupBarcode(code);
+    } catch {
+      /* offline */
+    }
+    if (!found || (!found.brand && !found.title)) return nothing();
+    const photo = found.candidate && !draft.photo
+      ? await photoFromUrl(found.candidate.url, { name: found.candidate.sourceName, pageUrl: found.candidate.pageUrl, title: found.candidate.title }).catch(() => null)
+      : null;
+    setDraft((d) =>
+      d
+        ? {
+            ...d,
+            producer: d.producer || found.brand,
+            name: d.name || found.title.replace(new RegExp(`^${found.brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i'), '').trim(),
+            photo: d.photo ?? photo,
+          }
+        : d,
+    );
+    toast('Filled in from the barcode — please check it');
   };
 
   return (
@@ -461,9 +502,8 @@ export function WineFormPage() {
       {scanning && (
         <BarcodeScanner
           onDetected={(barcode) => {
-            set({ barcode });
             setScanning(false);
-            toast('Barcode added');
+            void onBarcode(barcode);
           }}
           onClose={() => setScanning(false)}
         />

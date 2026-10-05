@@ -2,7 +2,7 @@ import { ArrowUpRight, Bookmark, Check, ChevronLeft, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BottleImage } from '../components/BottleImage';
-import { HiddenRow } from '../components/Shelf';
+import { cleanReason, HiddenRow } from '../components/Shelf';
 import { useToast } from '../components/Toast';
 import { useUndo } from '../components/useUndo';
 import { deleteWine, updateWine } from '../db';
@@ -40,7 +40,7 @@ function WantCard({ wine, onRemove }: { wine: Wine; onRemove: () => void }) {
             <span>{storeOf(wine)}</span>
           )}
         </div>
-        {wine.suggestion?.reason && <p className="wc-reason">{wine.suggestion.reason}</p>}
+        {wine.suggestion?.reason && <p className="wc-reason">{cleanReason(wine.suggestion.reason)}</p>}
       </div>
       <div className="wc-actions">
         <button

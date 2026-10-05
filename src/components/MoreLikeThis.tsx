@@ -10,7 +10,7 @@ import { possessive, storeById, type StoreId, type StoreItem } from '../lib/stor
 import { useAdvisor, useAllStoreItems, useBudget, useTaste } from '../lib/usePicks';
 import type { StoreOffer, Wine } from '../types';
 import { BottlePlaceholder } from './BottleImage';
-import { PickCard, ShelfRow } from './Shelf';
+import { cleanReason, PickCard, ShelfRow } from './Shelf';
 import { useToast } from './Toast';
 
 // Searches already tried this session, so a failure doesn't retry (and bill) in a loop.
@@ -178,7 +178,7 @@ export function SuggestionNote({ wine }: { wine: Wine }) {
   return (
     <div className="suggestion-note">
       <div className="why-label">{wine.list === 'want' ? `On your Want to try list · from ${s.source}` : `Suggested at ${s.source}`}</div>
-      {s.reason && <p className="reason">{s.reason}</p>}
+      {s.reason && <p className="reason">{cleanReason(s.reason)}</p>}
       {s.url && (
         <a href={s.url} target="_blank" rel="noreferrer" className="pr-link">
           See it on {possessive(s.source)} website <ArrowUpRight size={14} strokeWidth={1.6} />

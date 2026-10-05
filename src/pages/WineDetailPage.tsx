@@ -83,9 +83,10 @@ export function WineDetailPage() {
 
   const back = () => (window.history.length > 1 ? navigate(-1) : navigate('/'));
   const title = wine.name || wine.producer || 'Untitled wine';
-  // "Châteauneuf-du-Pape Cuvée Réservée": the cuvée after the appellation goes in italic.
+  // Only when the name really starts with the region ("Châteauneuf-du-Pape Cuvée Réservée") is the rest set in italic.
   const region = wine.region.trim();
-  const split = region && title.toLowerCase().startsWith(region.toLowerCase() + ' ') ? [title.slice(0, region.length), title.slice(region.length + 1)] : null;
+  const rest = region && title.startsWith(region + ' ') ? title.slice(region.length + 1).trim() : '';
+  const split = rest ? [region, rest] : null;
   const facts: [string, string][] = [
     ['Vintage', wine.vintage === null ? '' : String(wine.vintage)],
     ['Style', wine.style ? STYLE_LABEL[wine.style] : ''],

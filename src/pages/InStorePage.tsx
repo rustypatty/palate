@@ -1,10 +1,10 @@
 import { Barcode, Bookmark, Heart, Plus, Search, Tag, Type, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { BottleImage } from '../components/BottleImage';
 import { LabelSnap, snapTile } from '../components/LabelSnap';
-import { MiniWineCard, ShelfRow } from '../components/Shelf';
+import { cleanReason, MiniWineCard, ShelfRow } from '../components/Shelf';
 import { PhotoChoices } from '../components/PhotoChoices';
 import { useToast } from '../components/Toast';
 import { StoreChooser, StorePicksPanel } from '../components/StorePicks';
@@ -47,17 +47,34 @@ function Meter({ s }: { s: Signal }) {
   );
 }
 
+/** Arriving from a scan elsewhere: what to check. */
+export interface CheckPrefill {
+  check: string;
+  barcode: string;
+}
+
 export function InStorePage() {
   const wines = useWines();
   const navigate = useNavigate();
   const toast = useToast();
-  const [query, setQuery] = useState('');
+  const prefill = useLocation().state as CheckPrefill | null;
+  const [query, setQuery] = useState(prefill?.check ?? '');
   const [style, setStyle] = useState<WineStyle | null>(null);
   const [priceText, setPriceText] = useState('');
-  const [barcode, setBarcode] = useState('');
+  const [barcode, setBarcode] = useState(prefill?.barcode ?? '');
   const [scanning, setScanning] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
-  const [typing, setTyping] = useState(false);
+  const [typing, setTyping] = useState(Boolean(prefill));
+  const checkRef = useRef<HTMLElement>(null);
+  const loaded = wines !== undefined;
+  const scrolled = useRef(false);
+  useEffect(() => {
+    // Once the page is there, bring the check into view.
+    if (!prefill || !loaded || scrolled.current) return;
+    scrolled.current = true;
+    checkRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!prefill.check) inputRef.current?.focus({ preventScroll: true });
+  }, [loaded]);
   const [storeId] = useStoreChoice();
   const store = storeById(storeId);
   const [label, setLabel] = useState<{
@@ -210,7 +227,7 @@ export function InStorePage() {
           <StoreChooser variant="list" />
         </div>
 
-        <section className="check" aria-label="Check one bottle">
+        <section className="check" aria-label="Check one bottle" ref={checkRef}>
           <div className="check-head">
             <h2 className="title-lg">Check one bottle</h2>
             <p className="footnote mobile-only">Would I like this? Ask before you buy.</p>
@@ -359,7 +376,7 @@ export function InStorePage() {
               <Bookmark size={18} />
               <span>
                 <strong>On your Want to try list</strong>
-                {wanted.suggestion?.reason && <span className="small"> · {wanted.suggestion.reason}</span>}
+                {wanted.suggestion?.reason && <span className="small"> · {cleanReason(wanted.suggestion.reason)}</span>}
               </span>
             </Link>
           )}

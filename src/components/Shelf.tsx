@@ -105,6 +105,11 @@ export interface PickLike {
   name?: string;
 }
 
+/** Reasons read better without dashes: a comma, or a full stop before a new sentence. */
+export function cleanReason(text: string): string {
+  return text.replace(/\s*[—–]\s*(?=([A-Z])?)/g, (_m, cap?: string) => (cap ? '. ' : ', '));
+}
+
 /** Producer (eyebrow) and wine name (the big line), split where the listing allows. */
 export function pickNames(pick: PickLike): { producer: string; name: string } {
   const s = pick.item as Partial<SuggestedItem>;
@@ -154,7 +159,7 @@ export function PickCard({ pick, saved, onWant, onPass, storeName, offers }: { p
             {item.price !== null && <strong>{formatPrice(item.price)}</strong>} {storeName && <span>{storeName}</span>}
           </div>
         )}
-        <p className="pc-reason">{pick.reason}</p>
+        <p className="pc-reason">{cleanReason(pick.reason)}</p>
       </div>
       <div className="pc-actions">
         <button
@@ -210,7 +215,7 @@ export function PickRow({
       </div>
       <div className="pr-why">
         <div className="why-label">Why you’ll like it</div>
-        <p className="reason">{pick.reason}</p>
+        <p className="reason">{cleanReason(pick.reason)}</p>
       </div>
       <div className="pr-actions">
         <button type="button" className={`btn btn-dark btn-lg${saved ? ' is-saved' : ''}`} onClick={onWant} disabled={saved}>

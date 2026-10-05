@@ -1,18 +1,22 @@
 import { Bookmark, Plus, ScanLine, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { BarcodeScanner } from '../components/BarcodeScanner';
+import { useToast } from '../components/Toast';
 import { BottleImage, BottlePlaceholder } from '../components/BottleImage';
 import { FilterSheet, SORTS } from '../components/FilterSheet';
 import { MiniWineCard, ShelfRow } from '../components/Shelf';
 import { RatePrompt, StorePicksRow } from '../components/StorePicks';
 import { useWantCount, Wordmark } from '../components/Layout';
 import { WineCard } from '../components/WineCard';
-import { useDebounced, useLists, useWines } from '../hooks';
+import { useDebounced, useWines } from '../hooks';
 import { PRICE_BANDS, STYLE_LABEL } from '../lib/constants';
+import { lookupBarcode } from '../lib/imageSearch';
 import { activeFilterCount, applyFilters, DEFAULT_FILTERS, type Filters, type Shelf } from '../lib/filters';
-import { buyAgain, fromCellar } from '../lib/recommend';
+import { buyAgain } from '../lib/recommend';
 import { useTaste } from '../lib/usePicks';
 import type { Wine } from '../types';
+import type { CheckPrefill } from './InStorePage';
 
 const SHELVES: { value: Shelf; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -34,12 +38,6 @@ function loadFilters(): Filters {
   }
 }
 
-function since(w: Wine): string {
-  const t = w.tastedOn ? Date.parse(w.tastedOn) : w.createdAt;
-  const d = new Date(t).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
-  return w.tastedOn ? `Cellar · tasted ${d}` : `Cellar · since ${d}`;
-}
-
 const NUMBER_WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve'];
 
 function greeting(now = new Date()): string {
@@ -58,6 +56,8 @@ function Hero({ wines }: { wines: Wine[] }) {
   const latest = withPhoto[0] ?? loved[0];
   const row = withPhoto.slice(0, 4);
   // The most recent one stands in the middle, a little taller.
+  // The caption names the bottles in the picture (or the latest loved ones if none have photos).
+  const captioned = row.length ? row : loved.slice(0, 4);
   const ordered = row.length > 1 ? [row[1], row[0], ...row.slice(2)] : row;
   const n = loved.length;
   return (
@@ -88,10 +88,10 @@ function Hero({ wines }: { wines: Wine[] }) {
             </div>
           </div>
         )}
-        {row.length > 0 && (
+        {captioned.length > 0 && (
           <div className="hero-caption desktop-only">
-            <div className="eyebrow">{row.length === 1 ? 'Your latest love' : `Your loved ${NUMBER_WORDS[row.length]?.toLowerCase() ?? row.length}`}</div>
-            <div className="hero-caption-name">{row.map(shortProducer).join(' · ')}</div>
+            <div className="eyebrow">{captioned.length === 1 ? 'Your latest love' : `Your loved ${NUMBER_WORDS[captioned.length].toLowerCase()}`}</div>
+            <div className="hero-caption-name one-line">{captioned.map((w) => w.name || w.region || shortProducer(w)).join(' · ')}</div>
           </div>
         )}
       </div>
@@ -116,35 +116,23 @@ function Hero({ wines }: { wines: Wine[] }) {
 /** Suggestion rows above the collection, shown only while browsing. */
 function HomeRows({ wines }: { wines: Wine[] }) {
   const taste = useTaste();
-  const lists = useLists();
-  // One "shortlist" row: loved but none at home, saved to try, and forgotten bottles at home.
-  const shortlist = useMemo(() => {
-    const seen = new Set<string>();
-    const out: { wine: Wine; note?: string }[] = [];
-    const add = (w: Wine, note?: string) => !seen.has(w.id) && (seen.add(w.id), out.push({ wine: w, note }));
-    buyAgain(wines).slice(0, 8).forEach((w) => add(w));
-    (lists?.want ?? []).slice(0, 8).forEach((w) => add(w, 'Want to try'));
-    fromCellar(wines).slice(0, 6).forEach((w) => add(w, since(w)));
-    return out;
-  }, [wines, lists]);
-  const sub = buyAgain(wines).length ? 'Loved it — buy again' : lists?.want.length ? 'Saved to try' : 'Waiting in your cellar';
+  // Loved, and none left at home: the ones to buy again.
+  const shortlist = useMemo(() => buyAgain(wines).slice(0, 12), [wines]);
+  const cellar = useMemo(() => wines.filter((w) => w.owned > 0).sort((a, b) => b.updatedAt - a.updatedAt), [wines]);
   return (
     <div className="home-rows">
       {taste && !taste.enough ? <RatePrompt rated={taste.rated} /> : <StorePicksRow />}
       {shortlist.length > 0 && (
-        <ShelfRow
-          title="Your shortlist"
-          sub={sub}
-          action={
-            lists && lists.want.length > 0 ? (
-              <Link to="/want" className="text-link">
-                Want to try · {lists.want.length}
-              </Link>
-            ) : undefined
-          }
-        >
-          {shortlist.map(({ wine, note }) => (
-            <MiniWineCard key={wine.id} wine={wine} note={note} />
+        <ShelfRow title="Your shortlist" sub="Loved it — buy again">
+          {shortlist.map((wine) => (
+            <MiniWineCard key={wine.id} wine={wine} />
+          ))}
+        </ShelfRow>
+      )}
+      {cellar.length > 0 && (
+        <ShelfRow title="In your cellar" sub={`${cellar.reduce((n, w) => n + w.owned, 0)} bottles on hand`}>
+          {cellar.map((wine) => (
+            <MiniWineCard key={wine.id} wine={wine} note={`${wine.owned} in cellar`} />
           ))}
         </ShelfRow>
       )}
@@ -180,6 +168,29 @@ export function CollectionPage() {
   const [filters, setFilters] = useState<Filters>(loadFilters);
   const [showFilters, setShowFilters] = useState(false);
   const query = useDebounced(filters.query, 120);
+  const [scanning, setScanning] = useState(false);
+  const navigate = useNavigate();
+  const toast = useToast();
+
+  // Scanned on the home screen: your own bottle opens straight away; anything else gets the in-store check.
+  const onScanned = async (code: string) => {
+    setScanning(false);
+    const mine = wines?.find((w) => w.barcode === code);
+    if (mine) {
+      navigate(`/wine/${mine.id}`);
+      return;
+    }
+    toast('Looking up the barcode…');
+    let text = '';
+    try {
+      const found = await lookupBarcode(code);
+      text = found ? [found.brand, found.title].filter(Boolean).join(' ') : '';
+    } catch {
+      /* offline: check by typing instead */
+    }
+    if (!text) toast('Barcode not recognised. Type the name from the label.');
+    navigate('/store', { state: { check: text, barcode: code } satisfies CheckPrefill });
+  };
 
   useEffect(() => {
     try {
@@ -212,17 +223,20 @@ export function CollectionPage() {
             </span>
           )}
         </Link>
-        <Link to="/store" className="icon-btn" aria-label="Check a bottle in the store">
+        <button type="button" className="icon-btn" onClick={() => setScanning(true)} aria-label="Scan a bottle’s barcode">
           <ScanLine size={20} strokeWidth={1.6} />
-        </Link>
+        </button>
       </div>
     </div>
   );
+
+  const scanner = scanning && <BarcodeScanner onDetected={onScanned} onClose={() => setScanning(false)} />;
 
   if (wines.length === 0) {
     return (
       <>
         {header}
+        {scanner}
         <div className="empty">
           <div className="art">
             <BottlePlaceholder />
@@ -256,6 +270,7 @@ export function CollectionPage() {
   return (
     <>
       {header}
+      {scanner}
       <Hero wines={wines} />
 
       <div className="search-row home-search mobile-only">

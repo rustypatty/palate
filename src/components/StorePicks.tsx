@@ -60,14 +60,14 @@ function usePickActions(storeName: string) {
   };
 }
 
-/** How much is saved for each store: "8 picks", "List loaded", "No list yet". */
+/** How much is saved for each store: "8 picks", "Ready · free", "No list yet". */
 function useStoreCounts(): Map<StoreId, string> {
   const entries = useAllStoreItems();
   return useMemo(() => {
     const out = new Map<StoreId, string>();
     for (const store of STORES) {
       const n = (entries ?? []).filter((e) => e.storeId === store.id).length;
-      out.set(store.id, n === 0 ? 'No list yet' : store.kind === 'catalog' ? 'List loaded' : `${n} ${n === 1 ? 'pick' : 'picks'}`);
+      out.set(store.id, n === 0 ? 'No list yet' : store.kind === 'catalog' ? 'Ready · free' : `${n} ${n === 1 ? 'pick' : 'picks'}`);
     }
     return out;
   }, [entries]);
