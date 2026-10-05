@@ -235,7 +235,7 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
   // No automatic retries: a retried lookup is billed twice. Generous timeout: searching and
   // reading pages can take a few minutes, and the response streams so the connection stays alive.
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 600_000 });
-  // Without the user's own photo there's nothing to compare against, so no photo is picked.
+  // Without the user's own photo there's nothing to compare against: the shop photos come back as candidates.
   const userPhoto = photo ? await toBase64Jpeg(photo) : null;
 
   const messages: Anthropic.Beta.BetaMessageParam[] = [
@@ -315,7 +315,7 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
   let match: WineLookup['photo'] = null;
   const candidates: WineLookup['candidates'] = [];
   let previews = 0;
-  for (const p of userPhoto ? report.product_pages.slice(0, 4) : []) {
+  for (const p of report.product_pages.slice(0, 4)) {
     if (!/^https:\/\//.test(p.page_url)) continue;
     const img = await pagePreviewImage(p.page_url, signal);
     if (!img) continue;
@@ -344,7 +344,7 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
       : null,
     photo: match,
     candidates: match ? [] : candidates,
-    photoNote: match || !userPhoto
+    photoNote: match || (!userPhoto && candidates.length)
       ? ''
       : report.product_pages.length === 0
         ? 'No shop pages for this wine were found.'
