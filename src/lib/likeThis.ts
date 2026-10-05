@@ -150,10 +150,13 @@ export { possessive };
 // ---------- Running the search ----------
 
 const inFlight = new Map<string, Promise<{ ok: boolean; reason?: string }>>();
+/** The last failure per wine this session, so it stays on screen after leaving and coming back. */
+const lastError = new Map<string, string>();
 const listeners = new Set<() => void>();
 
 export const likeSearch = {
   running: (id: string) => inFlight.has(id),
+  error: (id: string) => lastError.get(id) ?? null,
   subscribe: (l: () => void) => {
     listeners.add(l);
     return () => listeners.delete(l);
@@ -167,6 +170,7 @@ export const likeSearch = {
 export function searchLikeThis(wine: Wine, req: Omit<import('./likeThisClient').LikeRequest, 'wine'>): Promise<{ ok: boolean; reason?: string }> {
   const running = inFlight.get(wine.id);
   if (running) return running;
+  lastError.delete(wine.id);
   const job = (async () => {
     const { getApiKey } = await import('./labelReader');
     const apiKey = getApiKey();
@@ -176,11 +180,23 @@ export function searchLikeThis(wine: Wine, req: Omit<import('./likeThisClient').
     const { updateWine } = await import('../db');
     await updateWine(wine.id, { likeThis: out.cache });
     return { ok: true };
-  })().finally(() => {
-    inFlight.delete(wine.id);
-    listeners.forEach((l) => l());
-  });
+  })()
+    .catch((e: unknown) => ({ ok: false, reason: e instanceof Error ? e.message : 'something went wrong' }))
+    .then((r) => {
+      if (!r.ok) lastError.set(wine.id, r.reason ?? 'something went wrong');
+      return r;
+    })
+    .finally(() => {
+      inFlight.delete(wine.id);
+      listeners.forEach((l) => l());
+    });
   inFlight.set(wine.id, job);
   listeners.forEach((l) => l());
   return job;
+}
+
+/** "3 at Total Wine, 1 at Spec’s" */
+export function checkedSummary(c: NonNullable<import('../types').LikeThisCache['checked']>): string {
+  const parts = SEARCH_STORES.filter((st) => c.byStore[st.id]).map((st) => `${c.byStore[st.id]} at ${st.name}`);
+  return parts.join(', ');
 }

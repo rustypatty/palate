@@ -1,12 +1,11 @@
 import { ExternalLink, RefreshCw } from 'lucide-react';
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
 import { useLists, useWines } from '../hooks';
 import { formatDate } from '../lib/format';
 import { getApiKey } from '../lib/labelReader';
-import { bottleAsItem, isStale, LIKE_COST, likeSearch, searchLikeThis, storesSearched, withPogoOffers } from '../lib/likeThis';
+import { bottleAsItem, checkedSummary, isStale, LIKE_COST, likeSearch, searchLikeThis, storesSearched, withPogoOffers } from '../lib/likeThis';
 import { markNotForMe, saveToWant } from '../lib/lists';
-import { bottlesLikeThis } from '../lib/recommend';
 import { possessive, storeById, type StoreId, type StoreItem } from '../lib/stores';
 import { useAdvisor, useAllStoreItems, useBudget, useTaste } from '../lib/usePicks';
 import type { StoreOffer, Wine } from '../types';
@@ -34,12 +33,11 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
   const [budget] = useBudget();
   const toast = useToast();
   const running = useSyncExternalStore(likeSearch.subscribe, () => likeSearch.running(wine.id));
-  const [error, setError] = useState<string | null>(null);
+  const failed = useSyncExternalStore(likeSearch.subscribe, () => likeSearch.error(wine.id));
   const hasKey = Boolean(getApiKey());
   const enjoyed = wine.rating === 'loved' || wine.rating === 'liked';
 
   const start = () => {
-    setError(null);
     tried.add(wine.id);
     const all = wines ?? [];
     searchLikeThis(wine, {
@@ -47,8 +45,6 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
       loved: all.filter((w) => w.rating === 'loved').map(listName),
       disliked: all.filter((w) => w.rating === 'wouldnt').map(listName),
       skip: [...(lists?.want ?? []), ...(lists?.passed ?? []), ...all].map(listName).slice(0, 40),
-    }).then((r) => {
-      if (!r.ok) setError(`Couldn’t search the stores: ${r.reason}.`);
     });
   };
 
@@ -60,23 +56,19 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
 
   const cards = useMemo(() => {
     if (!advisor || !lists || !entries) return undefined;
+    // Only bottles the search found at your stores. Pogo's, if loaded, just adds its price/photo.
     const pogo = entries.filter((e) => e.storeId === 'pogos').map((e) => e.item as StoreItem);
     const found = withPogoOffers(wine.likeThis?.bottles ?? [], pogo).map(bottleAsItem);
     const skip = new Set(lists.passed.map((w) => w.suggestion?.key));
-    const keep = found.filter((item) => {
-      if (skip.has(item.key)) return false;
-      if (budget !== null && (item.price === null || item.price > budget)) return false;
-      const a = advisor.advise({ query: `${item.title} ${item.context ?? ''}`, style: item.style, partial: false });
-      return a.verdict.level !== 'skip' && !a.exact.some((w) => w.rating === 'wouldnt');
-    });
-    // Free extras from Pogo's list, when it's loaded and not already shown.
-    const extras = bottlesLikeThis(wine, entries.filter((e) => e.storeId === 'pogos'), advisor, lists.passed, 6, budget).filter(
-      (l) => !keep.some((k) => k.offers.some((o) => o.url === l.item.url)),
-    );
-    return [
-      ...keep.map((item) => ({ item, offers: item.offers as StoreOffer[], reason: wine.likeThis!.bottles.find((b) => b.key === item.key)?.reason ?? '' })),
-      ...extras.map((l) => ({ item: l.item as StoreItem, offers: [{ storeId: 'pogos', url: l.item.url, price: l.item.price }], reason: l.reason })),
-    ].slice(0, 12);
+    return found
+      .filter((item) => {
+        if (skip.has(item.key)) return false;
+        if (budget !== null && (item.price === null || item.price > budget)) return false;
+        const a = advisor.advise({ query: `${item.title} ${item.context ?? ''}`, style: item.style, partial: false });
+        return a.verdict.level !== 'skip' && !a.exact.some((w) => w.rating === 'wouldnt');
+      })
+      .map((item) => ({ item, offers: item.offers as StoreOffer[], reason: wine.likeThis!.bottles.find((b) => b.key === item.key)?.reason ?? '' }))
+      .slice(0, 12);
   }, [wine, advisor, lists, entries, budget]);
 
   const saved = useMemo(() => new Set((lists?.want ?? []).map((w) => w.suggestion?.key).filter(Boolean)), [lists]);
@@ -84,10 +76,12 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
 
   const stores = storesSearched().join(', ').replace(/, ([^,]*)$/, ' and $1');
   const found = wine.likeThis;
+  const when = found ? formatDate(new Date(found.at).toISOString().slice(0, 10)) : '';
+  const summary = found?.checked ? checkedSummary(found.checked) : '';
   const sub = running
     ? `Searching ${stores} — about a minute`
     : found
-      ? `Found ${formatDate(new Date(found.at).toISOString().slice(0, 10))}${budget ? ` · under $${budget}` : ''}`
+      ? `Found ${when}${summary ? ` · ${summary}` : ''}${budget ? ` · under $${budget}` : ''}`
       : `At ${stores}`;
 
   const action = running ? null : hasKey ? (
@@ -104,7 +98,7 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
     // min-width 0: inside the page's grid, a scrolling row must not widen the page.
     <div style={{ minWidth: 0 }}>
       <ShelfRow title="Bottles like this to buy" sub={sub} action={action}>
-        {running && cards.length === 0
+        {running
           ? [0, 1, 2, 3].map((i) => (
               <div key={i} className="mini-card skeleton" aria-hidden="true">
                 <div className="tile">
@@ -127,12 +121,18 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
               );
             })}
       </ShelfRow>
-      {!running && cards.length === 0 && (
+      {!running && !failed && cards.length === 0 && (
         <p className="small muted" style={{ margin: '4px 0 0' }}>
           {!hasKey
             ? `Add your Anthropic API key in My palate to find bottles like this at ${stores}.`
             : found
-              ? 'No confirmed bottles at your stores this time.'
+              ? found.checked
+                ? found.bottles.length === 0
+                  ? found.checked.pages === 0
+                    ? `Claude’s search didn’t turn up your stores’ pages for bottles like this, so none could be confirmed (it had ${found.checked.suggested} ideas — see what to look for below). Try “New search” later.`
+                    : `Claude looked through ${found.checked.pages} pages on your stores’ websites but couldn’t confirm any bottles like this (it had ${found.checked.suggested} ideas — see what to look for below). Try “New search” later.`
+                  : `None of the ${found.bottles.length} bottles found fit your budget or taste filters.`
+                : 'No confirmed bottles at your stores this time.'
               : enjoyed
                 ? 'Looking for bottles like this at your stores…'
                 : `Tap “Find bottles” to search ${stores} for bottles like this.`}
@@ -148,9 +148,9 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
           </ul>
         </div>
       )}
-      {error && (
+      {failed && !running && (
         <p className="small" role="alert" style={{ color: 'var(--danger)', margin: '6px 0 0' }}>
-          {error}
+          Couldn’t search the stores: {failed}.
         </p>
       )}
     </div>
