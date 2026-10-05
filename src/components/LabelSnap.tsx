@@ -3,6 +3,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { hasApiKey, LabelReadError, readLabel, type LabelReading } from '../lib/labelReader';
 import { useToast } from './Toast';
+import { isStaleApp, reloadForUpdate } from '../lib/appUpdate';
 
 /** "Snap the label" — takes a photo and has Claude read it. */
 export function LabelSnap({
@@ -42,7 +43,11 @@ export function LabelSnap({
       if (!reading.is_wine_label) toast('That doesn’t look like a wine label. Try again closer up.');
       onRead(reading, file);
     } catch (e) {
-      toast(e instanceof LabelReadError ? e.message : 'Couldn’t read the label. Try again.');
+      if (isStaleApp(e) && reloadForUpdate()) {
+        toast('Palate was updated. Reloading, then snap again.');
+        return;
+      }
+      toast(e instanceof LabelReadError ? e.message : `Couldn’t read the label (${e instanceof Error ? e.message : 'unknown error'}). Try again.`);
     } finally {
       setBusy(false);
     }

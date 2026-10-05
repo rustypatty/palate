@@ -25,6 +25,7 @@ import { useAdvisor, useStoreChoice, useTaste } from '../lib/usePicks';
 import { ago } from './StorePicks';
 import { cleanReason } from './Shelf';
 import { useToast } from './Toast';
+import { isStaleApp, reloadForUpdate } from '../lib/appUpdate';
 
 const CALL_LABEL: Record<PriceCall, string> = { bargain: 'Bargain', fair: 'Fair price', pricey: 'A little pricey', unknown: '' };
 
@@ -109,7 +110,9 @@ export function ShelfSnap() {
       setPhotos([]);
       update({ at: Date.now(), store: store.name, photos: photos.length, report: out.report, done: {} });
     } catch (e) {
-      if (!ctl.signal.aborted) setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
+      if (ctl.signal.aborted) return;
+      if (isStaleApp(e) && reloadForUpdate()) return;
+      setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
     } finally {
       if (abort.current === ctl) setBusy(null);
     }
@@ -144,7 +147,9 @@ export function ShelfSnap() {
       });
       update({ ...shelf, report: { ...shelf.report, bottles }, pricesChecked: Date.now() });
     } catch (e) {
-      if (!ctl.signal.aborted) setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
+      if (ctl.signal.aborted) return;
+      if (isStaleApp(e) && reloadForUpdate()) return;
+      setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
     } finally {
       if (abort.current === ctl) setBusy(null);
     }
