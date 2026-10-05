@@ -11,6 +11,7 @@ import { useWantCount, Wordmark } from '../components/Layout';
 import { WineCard } from '../components/WineCard';
 import { useDebounced, useWines } from '../hooks';
 import { PRICE_BANDS, STYLE_LABEL } from '../lib/constants';
+import { shownPhoto } from '../lib/image';
 import { lookupBarcode } from '../lib/imageSearch';
 import { activeFilterCount, applyFilters, DEFAULT_FILTERS, type Filters, type Shelf } from '../lib/filters';
 import { buyAgain } from '../lib/recommend';
@@ -51,7 +52,7 @@ const shortProducer = (w: Wine) => (w.producer || w.name).replace(/\s*\(.*?\)\s*
 /** The golden-hour welcome: how many bottles you'd pour again, and the latest of them standing in the light. */
 function Hero({ wines }: { wines: Wine[] }) {
   const loved = useMemo(() => wines.filter((w) => w.rating === 'loved').sort((a, b) => b.updatedAt - a.updatedAt), [wines]);
-  const withPhoto = loved.filter((w) => w.photo);
+  const withPhoto = loved.filter((w) => shownPhoto(w.photo));
   const owned = wines.reduce((n, w) => n + w.owned, 0);
   const latest = withPhoto[0] ?? loved[0];
   const row = withPhoto.slice(0, 4);

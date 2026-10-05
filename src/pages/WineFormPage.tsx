@@ -13,18 +13,13 @@ import { createWine, db, emptyDraft, updateWine } from '../db';
 import { adoptWant } from '../lib/lists';
 import { useWines } from '../hooks';
 import { COMMON_COUNTRIES, COMMON_GRAPES, STYLES } from '../lib/constants';
-import { photoFromFile, photoFromUrl } from '../lib/image';
+import { photoFromUrl, shownPhoto } from '../lib/image';
 import { lookupBarcode } from '../lib/imageSearch';
 import { LabelReadError, lookUpWine, readingToDraft, type LabelReading, type WineLookup } from '../lib/labelReader';
 import { tally } from '../lib/filters';
-import type { Photo, WineDraft } from '../types';
+import type { WineDraft } from '../types';
 
 const THIS_YEAR = new Date().getFullYear();
-
-function samePhoto(a: Photo | null, b: Photo | null): boolean {
-  if (!a || !b || a.kind !== b.kind) return false;
-  return a.kind === 'local' ? a.blobId === (b as typeof a).blobId : a.url === (b as typeof a).url;
-}
 
 export interface AddPrefill {
   draft?: Partial<WineDraft>;
@@ -46,8 +41,8 @@ export function WineFormPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
-  // The user's own label snap, kept so they can switch back from an online photo.
-  const [snapPhoto, setSnapPhoto] = useState<Photo | null>(null);
+  // Opens the web photo search (bumped when the label check found no photo).
+  const [photoSearch, setPhotoSearch] = useState(0);
   const [lookingUp, setLookingUp] = useState(false);
   // Result of the online check, kept on screen (not just a pop-up).
   const [lookupNote, setLookupNote] = useState<string | null>(null);
@@ -144,11 +139,12 @@ export function WineFormPage() {
   const onLabelRead = async (reading: LabelReading, file: File) => {
     if (!reading.is_wine_label) return;
     const found = readingToDraft(reading);
-    const photo = draft.photo ?? (await photoFromFile(file, { name: 'Your photo' }));
+    // Your snap is only for reading the label; it's never kept as the bottle's photo.
+    const needPhoto = !shownPhoto(draft.photo);
     // Fill only what's still empty, so nothing you typed is overwritten.
     setDraft((d) => {
       if (!d) return d;
-      const next = { ...d, photo: d.photo ?? photo };
+      const next = { ...d };
       for (const [k, v] of Object.entries(found) as [keyof WineDraft, never][]) {
         const cur = next[k] as unknown;
         const empty = cur === '' || cur === null || (Array.isArray(cur) && cur.length === 0);
@@ -160,9 +156,7 @@ export function WineFormPage() {
     if (!vintageText && found.vintage != null) setVintageText(String(found.vintage));
     toast(reading.confidence === 'high' ? 'Filled in from the label' : 'Filled in from the label — please double-check');
 
-    // Then confirm style/grapes online and look for a clean photo of the same bottle.
-    const usedSnap = !draft.photo;
-    if (usedSnap) setSnapPhoto(photo);
+    // Then confirm style/grapes online and find a photo of the same bottle on the web.
     snapFill.current = { style: found.style ?? null, grapes: found.grapes ?? [] };
     setLookingUp(true);
     setLookupNote(null);
@@ -171,10 +165,11 @@ export function WineFormPage() {
       const outcome = await lookUpWine(reading, file);
       if (!outcome.ok) {
         setLookupNote(`Couldn’t confirm colour and grapes online (${outcome.reason}). Left blank — check the label.`);
+        if (needPhoto) setPhotoSearch(Date.now());
         return;
       }
       const l = outcome.lookup;
-      const clean = usedSnap && l.photo ? await photoFromUrl(l.photo.url, { name: l.photo.siteName, pageUrl: l.photo.pageUrl, title: l.photo.title }) : null;
+      const clean = needPhoto && l.photo ? await photoFromUrl(l.photo.url, { name: l.photo.siteName, pageUrl: l.photo.pageUrl, title: l.photo.title }) : null;
       setDraft((d) => {
         if (!d) return d;
         const next = { ...d };
@@ -182,13 +177,21 @@ export function WineFormPage() {
         // Only replace values the label reading put there (or left empty), never your own edits.
         if (l.style !== 'unknown' && (d.style === null || d.style === filled?.style)) next.style = l.style;
         if (l.grapes.length && (d.grapes.length === 0 || d.grapes.join() === filled?.grapes.join())) next.grapes = l.grapes;
-        if (clean && samePhoto(d.photo, photo)) next.photo = clean;
+        if (clean && !shownPhoto(d.photo)) next.photo = clean;
         if (l.about && !d.about) next.about = l.about;
         return next;
       });
-      toast(clean ? `Checked online and swapped in a clean photo from ${l.photo!.siteName}` : `Details checked online (${l.sourceName})`);
-      if (!clean && l.photoNote) setLookupNote(`${l.photoNote} Keeping your photo.`);
-      if (!clean && usedSnap) setPhotoChoices(l.candidates);
+      toast(clean ? `Checked online, with a photo from ${l.photo!.siteName}` : `Details checked online (${l.sourceName})`);
+      if (!clean && needPhoto) {
+        // No sure match: offer the near-misses, or open the photo search.
+        if (l.candidates.length) {
+          setPhotoChoices(l.candidates);
+          setLookupNote(`${l.photoNote ? `${l.photoNote} ` : ''}Pick the right bottle below, or search for another.`);
+        } else {
+          if (l.photoNote) setLookupNote(l.photoNote);
+          setPhotoSearch(Date.now());
+        }
+      }
     } catch (e) {
       if (e instanceof LabelReadError) setLookupNote(e.message);
     } finally {
@@ -301,17 +304,10 @@ export function WineFormPage() {
           toast(`Using the photo from ${c.siteName}`);
         }}
       />
-      {snapPhoto && draft.photo && !samePhoto(draft.photo, snapPhoto) && draft.photo.source?.name !== 'Your photo' && (
-        <div className="row-between small">
-          <span className="muted">Using a matching photo from {draft.photo.source?.name ?? 'the web'}.</span>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => set({ photo: snapPhoto })}>
-            Use my photo instead
-          </button>
-        </div>
-      )}
 
       <PhotoPicker
         autoSearch={findPhoto}
+        openSearch={photoSearch}
         photo={draft.photo}
         onChange={(photo) => set({ photo })}
         expected={{ producer: draft.producer, name: draft.name, vintage: draft.vintage }}

@@ -12,6 +12,7 @@ import { deleteWine, updateWine } from '../db';
 import { useWine } from '../hooks';
 import { RATING_LABEL, STYLE_LABEL } from '../lib/constants';
 import { formatDate, formatPrice, fullName, placeLabel } from '../lib/format';
+import { shownPhoto } from '../lib/image';
 import { hasApiKey, LabelReadError, lookUpWine } from '../lib/labelReader';
 
 /** Rough cost of looking up published notes (a few web searches and page reads). */
@@ -107,7 +108,7 @@ export function WineDetailPage() {
   // Don't cut a quotation in half.
   const quote = (candidate.match(/["“”]/g)?.length ?? 0) % 2 ? '' : candidate.replace(/^["“](.*)["”]$/, '$1');
   const body = quote ? notes.slice(notes.indexOf(candidate) + candidate.length).trim() : notes;
-  const credit = wine.photo?.source && wine.photo.source.name !== 'Your photo' ? wine.photo.source : null;
+  const credit = shownPhoto(wine.photo)?.source ?? null;
 
   return (
     <div className="detail">
@@ -123,7 +124,7 @@ export function WineDetailPage() {
             <Pencil size={18} strokeWidth={1.7} />
           </Link>
         </div>
-        {!wine.photo && (
+        {!shownPhoto(wine.photo) && (
           <Link to={`/wine/${wine.id}/edit`} state={{ findPhoto: true }} className="btn btn-white btn-sm hero-cta">
             <Globe size={16} /> Find a photo
           </Link>

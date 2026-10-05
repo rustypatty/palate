@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { usePhotoUrl } from '../hooks';
+import { shownPhoto } from '../lib/image';
 import type { Photo } from '../types';
 import { useTrimmedPhoto } from './useTrimmedPhoto';
 
@@ -30,7 +31,9 @@ export function BottleGlyph({ size = 13 }: { size?: number }) {
 }
 
 /** A full bottle, letterboxed inside its tile (never cropped). */
-export function BottleImage({ photo, alt, eager = false }: { photo: Photo | null | undefined; alt: string; eager?: boolean }) {
+export function BottleImage({ photo: given, alt, eager = false }: { photo: Photo | null | undefined; alt: string; eager?: boolean }) {
+  // Camera photos never show: the silhouette stands in until a web photo is found.
+  const photo = shownPhoto(given);
   const original = usePhotoUrl(photo);
   const url = useTrimmedPhoto(original);
   const [failed, setFailed] = useState<string | null>(null);

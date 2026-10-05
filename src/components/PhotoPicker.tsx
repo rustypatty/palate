@@ -1,78 +1,66 @@
-import { Camera, Globe, ImagePlus, Trash2 } from 'lucide-react';
-import { useRef, useState } from 'react';
-import { photoFromFile, photoFromUrl } from '../lib/image';
+import { Globe, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { isCameraPhoto, photoFromUrl, shownPhoto } from '../lib/image';
 import type { Photo } from '../types';
 import { BottleImage } from './BottleImage';
 import { ImageSearchSheet, type ExpectedWine } from './ImageSearchSheet';
 import { useToast } from './Toast';
 
+/** The bottle's photo: always one found on the web (camera photos are never kept). */
 export function PhotoPicker({
   photo,
   onChange,
   expected,
   autoSearch = false,
+  openSearch = 0,
 }: {
   autoSearch?: boolean;
+  /** Change this to open the web search (e.g. when the label check found no photo). */
+  openSearch?: number;
   photo: Photo | null;
   onChange: (p: Photo | null) => void;
   expected: ExpectedWine;
 }) {
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const libraryRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
   const [searching, setSearching] = useState(autoSearch);
   const toast = useToast();
-
-  const onFile = async (file: File | undefined) => {
-    if (!file) return;
-    setBusy(true);
-    try {
-      onChange(await photoFromFile(file, { name: 'Your photo' }));
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Couldn’t use that photo');
-    } finally {
-      setBusy(false);
-    }
-  };
+  useEffect(() => {
+    if (openSearch) setSearching(true);
+  }, [openSearch]);
 
   const query = [expected.producer, expected.name, typeof expected.vintage === 'number' ? expected.vintage : ''].filter(Boolean).join(' ');
+  const web = shownPhoto(photo);
 
   return (
     <div className="photo-picker">
       <div className="tile">
         <BottleImage photo={photo} alt="Bottle photo" eager />
-        {busy && <div className="busy">Processing…</div>}
       </div>
       <div className="actions">
-        <button type="button" className="btn btn-tone" onClick={() => cameraRef.current?.click()}>
-          <Camera size={18} /> Take photo
-        </button>
-        <button type="button" className="btn btn-tone" onClick={() => libraryRef.current?.click()}>
-          <ImagePlus size={18} /> Upload
-        </button>
         <button type="button" className="btn btn-tone" onClick={() => setSearching(true)}>
-          <Globe size={18} /> Find online
+          <Globe size={18} /> {web ? 'Find a better photo' : 'Find a photo online'}
         </button>
-        {photo && (
+        {web && (
           <button type="button" className="btn btn-ghost btn-sm" style={{ justifySelf: 'start' }} onClick={() => onChange(null)}>
             <Trash2 size={16} /> Remove photo
           </button>
         )}
-        {photo?.source && (
-          <span className="photo-source">
-            Source:{' '}
-            {photo.source.pageUrl ? (
-              <a href={photo.source.pageUrl} target="_blank" rel="noreferrer">
-                {photo.source.name}
-              </a>
-            ) : (
-              photo.source.name
-            )}
-          </span>
+        {isCameraPhoto(photo) ? (
+          <span className="photo-source">Your own photos aren’t used — pick this bottle from the web.</span>
+        ) : (
+          web?.source && (
+            <span className="photo-source">
+              Source:{' '}
+              {web.source.pageUrl ? (
+                <a href={web.source.pageUrl} target="_blank" rel="noreferrer">
+                  {web.source.name}
+                </a>
+              ) : (
+                web.source.name
+              )}
+            </span>
+          )
         )}
       </div>
-      <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => (onFile(e.target.files?.[0]), (e.target.value = ''))} />
-      <input ref={libraryRef} type="file" accept="image/*" hidden onChange={(e) => (onFile(e.target.files?.[0]), (e.target.value = ''))} />
       {searching && (
         <ImageSearchSheet
           initialQuery={query}
