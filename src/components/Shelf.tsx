@@ -6,6 +6,7 @@ import { offerLabel } from '../lib/likeThis';
 import { possessive, type StoreItem, type SuggestedItem } from '../lib/stores';
 import type { StoreOffer, Wine } from '../types';
 import { BottleImage, BottlePlaceholder } from './BottleImage';
+import { useTrimmedPhoto } from './useTrimmedPhoto';
 
 /** A titled, horizontally scrolling row ("Best bets", "Your shortlist"…). */
 export function ShelfRow({
@@ -84,8 +85,10 @@ export function MiniWineCard({ wine, note }: { wine: Wine; note?: string }) {
 type Item = StoreItem | SuggestedItem;
 
 /** The store's photo of this bottle; the silhouette if there's none or it won't load. */
-export function StorePhoto({ src }: { src: string | null }) {
+export function StorePhoto({ src: original }: { src: string | null }) {
+  const src = useTrimmedPhoto(original);
   const [failed, setFailed] = useState<string | null>(null);
+  if (src === undefined) return null; // being trimmed
   if (!src || failed === src) return <BottlePlaceholder />;
   return <img className="bottle" src={src} alt="" loading="lazy" decoding="async" draggable={false} onError={() => setFailed(src)} />;
 }

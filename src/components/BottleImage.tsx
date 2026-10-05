@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { usePhotoUrl } from '../hooks';
 import type { Photo } from '../types';
+import { useTrimmedPhoto } from './useTrimmedPhoto';
 
 /** No photo: a minimal bottle silhouette standing in the tile. */
 export function BottlePlaceholder(_props: { size?: number } = {}) {
@@ -30,10 +31,11 @@ export function BottleGlyph({ size = 13 }: { size?: number }) {
 
 /** A full bottle, letterboxed inside its tile (never cropped). */
 export function BottleImage({ photo, alt, eager = false }: { photo: Photo | null | undefined; alt: string; eager?: boolean }) {
-  const url = usePhotoUrl(photo);
+  const original = usePhotoUrl(photo);
+  const url = useTrimmedPhoto(original);
   const [failed, setFailed] = useState<string | null>(null);
   if (!photo) return <BottlePlaceholder />;
-  if (!url) return null; // on-device photo still loading
+  if (!url) return null; // on-device photo still loading, or being trimmed
   if (failed === url) return <BottlePlaceholder />;
   return (
     <img
