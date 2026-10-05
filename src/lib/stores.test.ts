@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { wine } from '../test/fixtures';
 import { makeAdvisor } from './insights';
 import { rankCandidates } from './recommend';
-import { normalizeUrl, verifyReport } from './storeListClient';
+import { normalizeUrl, pickTitle, verifyReport } from './storeListClient';
 import { parseShopifyProduct, storeById } from './stores';
 
 // Trimmed copies of real Pogo's listings.
@@ -92,6 +92,14 @@ describe('Claude store lists: only bottles whose page was really found', () => {
     const list = verifyReport({ picks: [made_up, offSite], tips: [] }, store, seen, null);
     expect(list.picks).toEqual([]);
     expect(list.tips).toEqual(['Look for Domaine Imaginaire (Gigondas).', 'Look for Château Ailleurs (Bordeaux).']);
+  });
+
+  it('names the producer once when the store’s wine name already includes it', () => {
+    expect(pickTitle('Brotte', 'Brotte Chateauneuf du Pape', '')).toBe('Brotte Chateauneuf du Pape');
+    expect(pickTitle('Homage to Heritage', 'H to H "Homage to Heritage" Chateauneuf du Pape', '')).toBe('H to H "Homage to Heritage" Chateauneuf du Pape');
+    expect(pickTitle('Domaine du Grand Prieur', 'Vacqueyras', '2021')).toBe('Domaine du Grand Prieur Vacqueyras 2021');
+    // Only whole words count: "Ridge" is not inside "Partridge Hill".
+    expect(pickTitle('Ridge', 'Partridge Hill Zinfandel', '')).toBe('Ridge Partridge Hill Zinfandel');
   });
 
   it('drops picks over budget and duplicates', () => {

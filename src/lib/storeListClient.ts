@@ -80,6 +80,14 @@ const ReportSchema = z.object({
 
 export { normalizeUrl } from './likeThis';
 import { normalizeUrl } from './likeThis';
+import { tokens } from './text';
+
+/** "Brotte" + "Brotte Chateauneuf du Pape" reads "Brotte Chateauneuf du Pape", not "Brotte Brotte…". */
+export function pickTitle(producer: string, wine: string, vintage: string): string {
+  const words = (s: string) => ` ${tokens(s).join(' ')} `;
+  const named = tokens(producer).length > 0 && words(wine).includes(words(producer));
+  return [named ? '' : producer, wine, vintage].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+}
 
 /**
  * Turn Claude's report into what the app shows: a bottle is a pick only if its page
@@ -92,7 +100,7 @@ export function verifyReport(report: z.infer<typeof ReportSchema>, store: Store,
   for (const p of report.picks) {
     const norm = normalizeUrl(p.url);
     const onStore = norm.startsWith(store.domain) || norm.includes(`.${store.domain}`);
-    const title = [p.producer, p.wine, p.vintage].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    const title = pickTitle(p.producer, p.wine, p.vintage);
     if (!onStore || !seen.has(norm) || !p.producer || !p.wine) {
       if (p.producer) tips.push(`Look for ${p.producer}${p.region ? ` (${p.region})` : ''}.`);
       continue;
@@ -156,7 +164,10 @@ export async function findStoreListWithClaude(apiKey: string, req: StoreListRequ
             betas: ['server-side-fallback-2026-07-01'],
             fallbacks: 'default',
             output_config: { effort: 'low' },
-            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 6, allowed_domains: [req.store.domain] }, REPORT_TOOL],
+            // The basic search tool: the newer web_search_20260209 filters results in a code
+            // sandbox, and in live runs its code crashed or ran out of searches, so Claude never
+            // saw the product pages and reported no picks.
+            tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 6, allowed_domains: [req.store.domain] }, REPORT_TOOL],
             messages,
           },
           { signal },

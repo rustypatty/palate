@@ -6,7 +6,9 @@ import { storeById } from './stores';
 /**
  * Real Total Wine search against the Anthropic API (about 25¢ a run). Skipped unless
  * PALATE_TEST_KEY holds an API key:
- *   PALATE_TEST_KEY=sk-ant-... NODE_USE_ENV_PROXY=1 npx vitest run src/lib/storeList.live.test.ts
+ *   PALATE_TEST_KEY=sk-ant-... npx vitest run src/lib/storeList.live.test.ts --silent=false
+ * (--silent=false prints the picks even when the test passes; behind an HTTPS proxy, also set
+ * NODE_USE_ENV_PROXY=1.)
  */
 // The app's tsconfig has no Node types; vitest runs this file under Node.
 const key = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.PALATE_TEST_KEY;
