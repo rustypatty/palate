@@ -1,5 +1,5 @@
 import { Bookmark, BookmarkCheck, ExternalLink, X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { formatPrice, vintageLabel } from '../lib/format';
 import { offerLabel } from '../lib/likeThis';
@@ -40,8 +40,15 @@ export function MiniWineCard({ wine, note }: { wine: Wine; note?: string }) {
 
 type Item = StoreItem | SuggestedItem;
 
+/** The store's photo of this bottle; the plain placeholder if there's none or it won't load. */
+function StorePhoto({ src }: { src: string | null }) {
+  const [failed, setFailed] = useState<string | null>(null);
+  if (!src || failed === src) return <BottlePlaceholder />;
+  return <img className="bottle" src={src} alt="" loading="lazy" decoding="async" draggable={false} onError={() => setFailed(src)} />;
+}
+
 function itemPhoto(item: Item) {
-  return item.image ? <img className="bottle" src={item.image} alt="" loading="lazy" decoding="async" draggable={false} /> : <BottlePlaceholder />;
+  return <StorePhoto src={item.image} />;
 }
 
 interface PickActions {

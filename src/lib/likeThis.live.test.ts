@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { wine } from '../test/fixtures';
 import { findLikeThisWithClaude } from './likeThisClient';
-import { offerLabel } from './likeThis';
+import { bottlePhoto, offerLabel } from './likeThis';
 
 /**
  * Real "Bottles like this to buy" search against the Anthropic API (about 30¢ a run).
@@ -26,8 +26,11 @@ describe.skipIf(!key)('Bottles like this (live)', () => {
     if (!out.ok) return;
     const c = out.cache;
     console.log('checked:', JSON.stringify(c.checked));
-    for (const b of c.bottles) console.log(`- ${b.producer} | ${b.wine} ${b.vintage} | ${b.offers.map(offerLabel).join(' / ')} | photo: ${b.image ? b.image.siteName : 'none'} | ${b.reason}`);
+    for (const b of c.bottles) console.log(`- ${b.producer} | ${b.wine} ${b.vintage} | ${b.offers.map(offerLabel).join(' / ')} | photo: ${bottlePhoto(b)?.siteName ?? 'none'} | ${b.reason}`);
     console.log('tips:', c.tips);
+    // Optional: save the result to look at in the app (PALATE_LIVE_OUT=path).
+    const out_ = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.PALATE_LIVE_OUT;
+    if (out_) await (await import('node:fs/promises' as string)).writeFile(out_, JSON.stringify(c));
     expect(c.bottles.length).toBeGreaterThan(0);
   });
 });
