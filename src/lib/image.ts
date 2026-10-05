@@ -45,6 +45,20 @@ function loadImg(file: Blob): Promise<HTMLImageElement> {
   });
 }
 
+/**
+ * A photo taken with your own camera (or an early on-device photo with no source). The rule:
+ * these are never shown — every bottle image comes from the web, or the silhouette.
+ */
+export function isCameraPhoto(photo: Photo | null | undefined): boolean {
+  if (!photo) return false;
+  return photo.source?.name === 'Your photo' || (photo.kind === 'local' && !photo.source);
+}
+
+/** The photo to show: web photos only. */
+export function shownPhoto(photo: Photo | null | undefined): Photo | null {
+  return photo && !isCameraPhoto(photo) ? photo : null;
+}
+
 export async function photoFromFile(file: Blob, source?: PhotoSource): Promise<Photo> {
   const { blob, width, height } = await resizeImage(file);
   const blobId = await savePhoto(blob, width, height);

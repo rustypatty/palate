@@ -2,18 +2,19 @@ import { Barcode, Bookmark, Heart, Plus, Search, Tag, Type, X } from 'lucide-rea
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { BarcodeScanner } from '../components/BarcodeScanner';
-import { BottleImage } from '../components/BottleImage';
+import { BottleImage, BottlePlaceholder } from '../components/BottleImage';
 import { LabelSnap, snapTile } from '../components/LabelSnap';
 import { cleanReason, MiniWineCard, ShelfRow } from '../components/Shelf';
 import { PhotoChoices } from '../components/PhotoChoices';
 import { useToast } from '../components/Toast';
+import { ShelfSnap } from '../components/ShelfSnap';
 import { StoreChooser, StorePicksPanel } from '../components/StorePicks';
 import { WineRow } from '../components/WineCard';
 import { useDebounced, useLists, useWines } from '../hooks';
 import { STYLES } from '../lib/constants';
 import { formatPrice } from '../lib/format';
 import { lookupBarcode } from '../lib/imageSearch';
-import { photoFromFile, photoFromUrl } from '../lib/image';
+import { photoFromUrl } from '../lib/image';
 import { advise, describeCounts, detectStyle, type Signal } from '../lib/insights';
 import { LabelReadError, lookUpWine, readingToDraft, readingToQuery, withLookup, type LabelReading, type WineLookup } from '../lib/labelReader';
 import { matchesWant } from '../lib/lists';
@@ -137,10 +138,9 @@ export function InStorePage() {
 
   const saveBottle = async () => {
     if (label?.reading) {
+      // Only a photo found on the web is kept; your snap was just for reading the label.
       const clean = label.found?.photo;
-      const photo = clean
-        ? await photoFromUrl(clean.url, { name: clean.siteName, pageUrl: clean.pageUrl, title: clean.title })
-        : await photoFromFile(label.photo, { name: 'Your photo' });
+      const photo = clean ? await photoFromUrl(clean.url, { name: clean.siteName, pageUrl: clean.pageUrl, title: clean.title }) : null;
       const draft: Partial<WineDraft> = { ...readingToDraft(label.reading), price, barcode, owned: 0, photo, about: label.found?.about ?? null };
       if (style) draft.style = style;
       navigate('/add', { state: { draft } satisfies AddPrefill });
@@ -216,6 +216,7 @@ export function InStorePage() {
           </h1>
           <p className="lede mobile-only">Bottles on the shelf that fit your taste.</p>
         </header>
+        <ShelfSnap />
         <div className="mobile-only">
           <StoreChooser />
         </div>
@@ -286,7 +287,14 @@ export function InStorePage() {
           {label && labelUrl && (
             <div className="label-card" aria-live="polite">
               <div className="tile">
-                <img className="bottle" src={label.found?.photo?.url ?? labelUrl} alt="Bottle photo" style={{ mixBlendMode: 'normal' }} />
+                {label.found?.photo ? (
+                  <img className="bottle" src={label.found.photo.url} alt="Bottle photo" />
+                ) : label.lookup === 'pending' || !label.reading ? (
+                  // Your snap, only while it's being read; it's never kept.
+                  <img className="bottle" src={labelUrl} alt="" style={{ mixBlendMode: 'normal', opacity: 0.6 }} />
+                ) : (
+                  <BottlePlaceholder />
+                )}
               </div>
               <div style={{ minWidth: 0 }}>
                 {!label.reading ? (
@@ -323,8 +331,8 @@ export function InStorePage() {
                         <a href={label.found.sourceUrl} target="_blank" rel="noreferrer">
                           {label.found.sourceName}
                         </a>
-                        {label.found.photo ? ' · clean photo found' : ''}
-                        {!label.found.photo && label.found.photoNote && <div className="muted">{label.found.photoNote} Keeping your photo.</div>}
+                        {label.found.photo ? ' · photo found' : ''}
+                        {!label.found.photo && label.found.photoNote && <div className="muted">{label.found.photoNote} Pick one below, or add it from the web later.</div>}
                         {!label.found.photo && (
                           <PhotoChoices
                             candidates={label.found.candidates}

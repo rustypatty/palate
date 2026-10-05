@@ -2289,6 +2289,7 @@ details.more[open] > .more-body {
 
 .pick-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -4323,4 +4324,288 @@ details.more[open] > .more-body {
 
 .hero-caption-name .one-line {
   display: block;
+}
+
+/* ---------- Snap a shelf ---------- */
+
+.shelf-snap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.shelf-start {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.shelf-start .tone-tile {
+  min-height: 0;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+}
+
+@media (min-width: 640px) {
+  .shelf-start {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+  .shelf-start .tone-tile {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+}
+
+.shelf-tray {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: var(--r-pick);
+  background: var(--tone);
+}
+
+.shelf-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.shelf-thumb {
+  position: relative;
+  width: 76px;
+  height: 100px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  border: 0;
+  padding: 0;
+  flex: none;
+}
+
+.shelf-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.shelf-thumb button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(35, 31, 29, 0.7);
+  color: #fff;
+  display: grid;
+  place-items: center;
+}
+
+.shelf-thumb button::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+.shelf-thumb.add {
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+  box-shadow: inset 0 0 0 1.5px #dccfbf;
+  background: transparent;
+}
+
+.shelf-tray-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.shelf-tray-actions .btn-wine {
+  flex: 1 1 200px;
+}
+
+.shelf-tray .footnote,
+.shelf-tray .picks-status {
+  padding: 0;
+}
+
+.shelf-results {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 6px;
+}
+
+.shelf-results-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.shelf-summary {
+  margin: 0;
+  padding: 0 var(--text-in);
+  font-size: 19px;
+}
+
+.shelf-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  padding: 20px 20px 16px;
+  border-radius: var(--r-pick);
+  background: var(--card);
+  box-shadow: var(--sh-card);
+}
+
+/* Reuses the store pick's pieces, stacked in one column. */
+.shelf-card > * {
+  grid-area: auto;
+  min-width: 0;
+}
+
+.shelf-card .pr-why {
+  padding: 12px 0 0;
+}
+
+.shelf-card.compact .pr-name {
+  font-size: 19px;
+}
+
+.sc-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.sc-price strong {
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.price-call {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--pill);
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.price-call.bargain {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.price-call.fair {
+  background: var(--tone);
+  color: var(--ink-soft);
+}
+
+.price-call.pricey {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.sc-note {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.sc-rated {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wine);
+  text-decoration: none;
+}
+
+.sc-rated::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+.sc-taste {
+  margin: 10px 0 0;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.sc-tip {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  color: var(--ink-3);
+}
+
+.sc-actions {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.sc-actions .text-link {
+  grid-column: 1 / -1;
+  justify-self: center;
+  color: var(--ink-3);
+}
+
+@media (min-width: 900px) {
+  .sc-actions {
+    display: flex;
+  }
+  .sc-actions .text-link {
+    margin-left: auto;
+  }
+}
+
+.buy-three h3 em {
+  font-style: italic;
+}
+
+.buy-three ol {
+  margin: 0 0 12px;
+  padding-left: 22px;
+  display: grid;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+
+.buy-three .reason {
+  margin: 0;
+}
+
+.shelf-pass ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--text-in);
+  display: grid;
+  gap: 10px;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.shelf-pass strong {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 16px;
 }
