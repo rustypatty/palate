@@ -7,6 +7,7 @@ import { LabelSnap, snapTile } from '../components/LabelSnap';
 import { cleanReason, MiniWineCard, ShelfRow } from '../components/Shelf';
 import { PhotoChoices } from '../components/PhotoChoices';
 import { useToast } from '../components/Toast';
+import { ShelfSnap } from '../components/ShelfSnap';
 import { StoreChooser, StorePicksPanel } from '../components/StorePicks';
 import { WineRow } from '../components/WineCard';
 import { useDebounced, useLists, useWines } from '../hooks';
@@ -215,6 +216,7 @@ export function InStorePage() {
           </h1>
           <p className="lede mobile-only">Bottles on the shelf that fit your taste.</p>
         </header>
+        <ShelfSnap />
         <div className="mobile-only">
           <StoreChooser />
         </div>

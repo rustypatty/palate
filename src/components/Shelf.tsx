@@ -108,9 +108,9 @@ export interface PickLike {
   name?: string;
 }
 
-/** Reasons read better without dashes: a comma, or a full stop before a new sentence. */
+/** Reasons read better without dashes: a comma, or a full stop before a new sentence. Ranges like "$75–90" stay. */
 export function cleanReason(text: string): string {
-  return text.replace(/\s*[—–]\s*(?=([A-Z])?)/g, (_m, cap?: string) => (cap ? '. ' : ', '));
+  return text.replace(/\s*—\s*|\s+–\s+/g, (m, offset: number, all: string) => (/[A-Z]/.test(all.charAt(offset + m.length)) ? '. ' : ', '));
 }
 
 /** Producer (eyebrow) and wine name (the big line), split where the listing allows. */
