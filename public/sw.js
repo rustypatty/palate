@@ -35,6 +35,20 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Google Fonts: cache first, so the type looks right in a store with no signal.
+  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
+    event.respondWith(
+      caches.open(APP_CACHE).then(async (cache) => {
+        const hit = await cache.match(req);
+        if (hit) return hit;
+        const res = await fetch(req);
+        if (res.ok) await cache.put(req, res.clone());
+        return res;
+      }),
+    );
+    return;
+  }
+
   // Bottle photos linked from the web: cache first so they show offline.
   if (url.origin !== self.location.origin) {
     if (req.destination !== 'image') return;
