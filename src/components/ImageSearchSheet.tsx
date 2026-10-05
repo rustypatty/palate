@@ -1,15 +1,30 @@
 import { AlertTriangle, ArrowLeft, Check, ExternalLink, Link2, Search } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { isProbablyImageUrl } from '../lib/image';
-import { searchOpenFoodFacts, searchWikimediaCommons, webImageSearchUrl, type ImageCandidate } from '../lib/imageSearch';
+import { searchWikimediaCommons, webImageSearchUrl, type ImageCandidate } from '../lib/imageSearch';
+import { findBottlePhotos, PHOTO_FIND_COST } from '../lib/photoFinder';
 import { Sheet } from './Sheet';
 
-type SourceId = 'off' | 'commons';
+type SourceId = 'web' | 'page' | 'commons';
+
+/** Claude searches shops and wineries for this wine and lists the bottle photos found. */
+async function searchShops(q: string, signal: AbortSignal): Promise<ImageCandidate[]> {
+  const out = await findBottlePhotos(q, null, signal);
+  if (!out.ok) throw new Error(out.reason);
+  return out.photos.map((p, i) => ({ id: `web-${i}`, url: p.url, thumbUrl: p.thumbUrl, title: p.title, subtitle: p.siteName, sourceName: p.siteName, pageUrl: p.pageUrl }));
+}
+
+/** The bottle photos on a page you paste the link of. */
+async function searchPage(url: string, signal: AbortSignal): Promise<ImageCandidate[]> {
+  const { bottleImagesOnPage } = await import('../lib/bottlePhotoClient');
+  return (await bottleImagesOnPage(url, signal)).map((p, i) => ({ id: `page-${i}`, url: p.url, thumbUrl: p.thumbUrl, title: p.title, subtitle: p.siteName, sourceName: p.siteName, pageUrl: p.pageUrl }));
+}
 
 const SOURCES: { id: SourceId; label: string; run: (q: string, s: AbortSignal) => Promise<ImageCandidate[]> }[] = [
-  { id: 'off', label: 'Product photos', run: searchOpenFoodFacts },
+  { id: 'web', label: `Shops & wineries · ${PHOTO_FIND_COST}`, run: searchShops },
   { id: 'commons', label: 'Wikimedia Commons', run: searchWikimediaCommons },
 ];
+const PAGE_SOURCE = { id: 'page' as const, label: 'that page', run: searchPage };
 
 export interface ExpectedWine {
   producer: string;
@@ -42,7 +57,7 @@ export function ImageSearchSheet({
 }) {
   const [query, setQuery] = useState(initialQuery);
   const [submitted, setSubmitted] = useState(initialQuery);
-  const [source, setSource] = useState<SourceId>('off');
+  const [source, setSource] = useState<SourceId>('web');
   const [state, setState] = useState<{ status: 'idle' | 'loading' | 'done' | 'error'; results: ImageCandidate[]; error?: string }>({
     status: 'idle',
     results: [],
@@ -57,7 +72,7 @@ export function ImageSearchSheet({
     }
     const ctrl = new AbortController();
     setState({ status: 'loading', results: [] });
-    SOURCES.find((s) => s.id === source)!
+    (source === 'page' ? PAGE_SOURCE : SOURCES.find((s) => s.id === source)!)
       .run(submitted.trim(), ctrl.signal)
       .then((results) => setState({ status: 'done', results }))
       .catch((e: unknown) => {
@@ -70,6 +85,7 @@ export function ImageSearchSheet({
   const onSearch = (e: FormEvent) => {
     e.preventDefault();
     (document.activeElement as HTMLElement | null)?.blur();
+    if (source === 'page') setSource('web');
     setSubmitted(query);
   };
 
@@ -77,6 +93,12 @@ export function ImageSearchSheet({
     e.preventDefault();
     const url = pasted.trim();
     if (!isProbablyImageUrl(url)) return;
+    if (!/\.(jpe?g|png|webp|gif|avif)$/i.test(new URL(url).pathname)) {
+      // A page link: show the bottle photos on that page.
+      setSource('page');
+      setSubmitted(url);
+      return;
+    }
     let host = 'Web';
     try {
       host = new URL(url).hostname.replace(/^www\./, '');
@@ -116,7 +138,10 @@ export function ImageSearchSheet({
 
       <div className="source-tabs" role="tablist" aria-label="Photo source">
         {SOURCES.map((s) => (
-          <button key={s.id} type="button" role="tab" className="chip" aria-selected={source === s.id} aria-pressed={source === s.id} onClick={() => setSource(s.id)}>
+          <button key={s.id} type="button" role="tab" className="chip" aria-selected={source === s.id} aria-pressed={source === s.id} onClick={() => {
+            setSource(s.id);
+            setSubmitted(query);
+          }}>
             {s.label}
           </button>
         ))}
@@ -125,12 +150,14 @@ export function ImageSearchSheet({
         </a>
       </div>
 
-      {state.status === 'loading' && <div className="status-line">Searching…</div>}
+      {state.status === 'loading' && (
+        <div className="status-line">{source === 'web' ? 'Searching shops and wineries for this bottle (about 30 seconds)…' : 'Searching…'}</div>
+      )}
       {state.status === 'error' && (
         <div className="callout">
           <AlertTriangle size={18} />
           <span>
-            Couldn’t reach {SOURCES.find((s) => s.id === source)!.label} ({state.error}). Check your connection, or paste an image link below.
+            {source === 'web' ? `No photos found: ${state.error}.` : `Couldn’t reach ${source === 'page' ? 'that page' : 'Wikimedia Commons'} (${state.error}).`} Try another source, or paste a link below.
           </span>
         </div>
       )}
@@ -163,7 +190,7 @@ export function ImageSearchSheet({
         </>
       )}
 
-      <div className="divider-label">or paste an image link</div>
+      <div className="divider-label">or paste a link</div>
       <form onSubmit={onPaste} className="url-row">
         <label className="sr-only" htmlFor="img-url">
           Image address
@@ -173,16 +200,16 @@ export function ImageSearchSheet({
           className="input"
           type="url"
           inputMode="url"
-          placeholder="https://…/bottle.jpg"
+          placeholder="Link to the wine’s page on a shop or winery site"
           value={pasted}
           onChange={(e) => setPasted(e.target.value)}
         />
-        <button type="submit" className="btn btn-outline" style={{ height: 50 }} disabled={!isProbablyImageUrl(pasted)}>
+        <button type="submit" className="btn btn-outline" style={{ height: 50 }} disabled={!/^https?:\/\/\S+\.\S+/i.test(pasted.trim())}>
           <Link2 size={18} /> Use
         </button>
       </form>
       <p className="muted small" style={{ marginTop: 8 }}>
-        Found it on a producer or shop site? Long-press the photo (or right-click) and choose “Copy image address”, then paste it here.
+        Found the wine on a shop or winery site? Copy the address from your browser’s address bar and paste it here: the bottle photos on that page show up above.
       </p>
     </Sheet>
   );
