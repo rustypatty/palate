@@ -134,3 +134,75 @@ export function useTrimmedPhoto(src: string | null): string | null | undefined {
   if (done?.src !== src) return undefined;
   return done.url ?? src;
 }
+
+/** Where the bottle sits in a photo, as fractions of its width and height. */
+export interface BottleBox {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  /** Natural width / height of the whole photo. */
+  aspect: number;
+}
+
+const boxes = new Map<string, Promise<BottleBox | null>>();
+
+/**
+ * Measure a bottle's real outline once: anything not near-white (brightness under ~245)
+ * and not transparent counts as bottle. Results are kept for the session, per photo.
+ */
+export function measureBottle(src: string): Promise<BottleBox | null> {
+  let job = boxes.get(src);
+  if (!job) {
+    job = (async () => {
+      const img = await loadImage(src);
+      const W = img.naturalWidth;
+      const H = img.naturalHeight;
+      if (!W || !H) return null;
+      const scale = Math.min(1, 320 / Math.max(W, H));
+      const w = Math.max(1, Math.round(W * scale));
+      const h = Math.max(1, Math.round(H * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return null;
+      ctx.drawImage(img, 0, 0, w, h);
+      const d = ctx.getImageData(0, 0, w, h).data; // throws for photos the browser can't read (CORS)
+      let top = h;
+      let bottom = -1;
+      let left = w;
+      let right = -1;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          if (d[i + 3] < 24) continue;
+          if ((d[i] + d[i + 1] + d[i + 2]) / 3 >= 245) continue;
+          if (y < top) top = y;
+          if (y > bottom) bottom = y;
+          if (x < left) left = x;
+          if (x > right) right = x;
+        }
+      }
+      if (bottom < 0 || bottom - top < h * 0.1) return null;
+      return { left: left / w, top: top / h, right: (right + 1) / w, bottom: (bottom + 1) / h, aspect: W / H };
+    })().catch(() => null);
+    boxes.set(src, job);
+  }
+  return job;
+}
+
+/** The measured outline, null if it couldn't be measured, undefined while working. */
+export function useBottleBox(src: string | null): BottleBox | null | undefined {
+  const [done, setDone] = useState<{ src: string; box: BottleBox | null } | null>(null);
+  useEffect(() => {
+    if (!src) return;
+    let alive = true;
+    measureBottle(src).then((box) => alive && setDone({ src, box }));
+    return () => {
+      alive = false;
+    };
+  }, [src]);
+  if (!src) return null;
+  return done?.src === src ? done.box : undefined;
+}

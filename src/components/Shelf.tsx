@@ -1,6 +1,7 @@
-import { ArrowUpRight, Bookmark, Check, ChevronLeft, ChevronRight, Heart, X } from 'lucide-react';
-import { useRef, useState, type ReactNode } from 'react';
+import { ArrowUpRight, Bookmark, Check, ChevronLeft, ChevronRight, Heart, Plus, X } from 'lucide-react';
+import { Children, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { useMediaQuery } from '../hooks';
 import { formatPrice, vintageLabel } from '../lib/format';
 import { offerLabel } from '../lib/likeThis';
 import { possessive, type StoreItem, type SuggestedItem } from '../lib/stores';
@@ -8,13 +9,28 @@ import type { StoreOffer, Wine } from '../types';
 import { BottleImage, BottlePlaceholder } from './BottleImage';
 import { useTrimmedPhoto } from './useTrimmedPhoto';
 
-/** A titled, horizontally scrolling row ("Best bets", "Your shortlist"…). */
+const GRID_MIN = 220;
+const GRID_GAP = 28;
+
+/** Desktop grid options for a row: at most two rows, an optional quiet "add" tile when there's room. */
+export interface ShelfGrid {
+  /** Shown in the heading when there's more than fits in two rows. */
+  seeAll?: ReactNode;
+  /** A tile that ends a short row. */
+  filler?: ReactNode;
+}
+
+/**
+ * A titled row of bottles ("Best bets", "Your shortlist"…). On a phone it scrolls sideways;
+ * with `grid` on desktop (1024px and up) it becomes a grid that fills the width instead.
+ */
 export function ShelfRow({
   title,
   sub,
   action,
   below,
   arrows = false,
+  grid,
   children,
 }: {
   title: ReactNode;
@@ -22,25 +38,42 @@ export function ShelfRow({
   action?: ReactNode;
   /** Something under the heading, such as a "New search" button. */
   below?: ReactNode;
-  /** Previous/next buttons on desktop. */
+  /** Previous/next buttons on desktop (rows that scroll). */
   arrows?: boolean;
+  grid?: ShelfGrid;
   children: ReactNode;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
+  const wide = useMediaQuery('(min-width: 1024px)');
+  const asGrid = Boolean(grid) && wide;
+  const [cols, setCols] = useState(4);
+  useEffect(() => {
+    const el = scroller.current;
+    if (!asGrid || !el) return;
+    const ro = new ResizeObserver(([e]) => setCols(Math.max(1, Math.floor((e.contentRect.width + GRID_GAP) / (GRID_MIN + GRID_GAP)))));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [asGrid]);
   const page = (dir: 1 | -1) => {
     const el = scroller.current;
     if (el) el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: 'smooth' });
   };
+
+  const items = Children.toArray(children);
+  const shown = asGrid ? items.slice(0, cols * 2) : items;
+  const more = asGrid && items.length > shown.length;
+  const filler = asGrid && grid?.filler && items.length < cols ? grid.filler : null;
+
   return (
-    <section className="shelf" aria-label={typeof title === 'string' ? title : undefined}>
+    <section className={`shelf${asGrid ? ' as-grid' : ''}`} aria-label={typeof title === 'string' ? title : undefined}>
       <div className="shelf-head">
         <div style={{ minWidth: 0 }}>
           <h2>{title}</h2>
           {sub && <p>{sub}</p>}
         </div>
         <div className="shelf-actions">
-          {action}
-          {arrows && (
+          {more ? grid?.seeAll ?? action : action}
+          {arrows && !asGrid && (
             <span className="desktop-only shelf-arrows">
               <button type="button" className="icon-btn" onClick={() => page(-1)} aria-label="Scroll back">
                 <ChevronLeft size={18} />
@@ -53,10 +86,23 @@ export function ShelfRow({
         </div>
       </div>
       {below && <div className="shelf-below">{below}</div>}
-      <div className="shelf-scroll" ref={scroller}>
-        {children}
+      <div className={asGrid ? 'shelf-grid' : 'shelf-scroll'} ref={scroller}>
+        {shown}
+        {filler}
       </div>
     </section>
+  );
+}
+
+/** The quiet tile that ends a short row on desktop. */
+export function FillerTile({ to, label, state }: { to: string; label: string; state?: unknown }) {
+  return (
+    <Link to={to} state={state} className="shelf-filler">
+      <span className="tile filler-tile">
+        <Plus size={26} strokeWidth={1.5} />
+        <span>{label}</span>
+      </span>
+    </Link>
   );
 }
 

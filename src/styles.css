@@ -3531,27 +3531,17 @@ details.more[open] > .more-body {
   .hero-caption-name {
     font-size: 19px;
   }
+  /* Bottles on one shared baseline, evenly spaced in the right half */
   .hero-bottles {
     position: absolute;
+    left: 50%;
     right: 64px;
-    left: 48%;
-    top: 60px;
-    bottom: 56px;
+    bottom: 64px;
+    height: 420px;
     display: flex !important;
     align-items: flex-end;
     justify-content: center;
-    gap: 28px;
-  }
-  .hero-bottles .hero-bottle {
-    position: relative;
-    inset: auto;
-    width: 92px;
-    height: 62%;
-    flex: none;
-  }
-  .hero-bottles .hero-bottle.main {
-    width: 140px;
-    height: 88%;
+    gap: 48px;
   }
 }
 
@@ -4608,4 +4598,134 @@ details.more[open] > .more-body {
   font-family: var(--font-display);
   font-weight: 400;
   font-size: 16px;
+}
+
+/* A hero bottle sized from its measured outline */
+.hero-bottle-m {
+  position: relative;
+  flex: none;
+  display: block;
+}
+
+.hero-bottle-m::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  width: 120%;
+  height: 18px;
+  transform: translateX(-50%);
+  background: var(--floor);
+  pointer-events: none;
+}
+
+.hero-bottle-m .bottle {
+  position: absolute;
+  inset: auto;
+  max-width: none;
+  object-fit: fill;
+  mix-blend-mode: multiply;
+}
+
+.hero-bottle-m .bottle.contain {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+}
+
+@media (hover: hover) {
+  .hero-bottle-m:hover .bottle {
+    transform: translateY(-8px);
+  }
+}
+
+/* ---------- Desktop My wines (1024px and up); phones keep the scrolling rows ---------- */
+
+.cta-button {
+  display: none;
+}
+
+.shelf-filler {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.filler-tile {
+  aspect-ratio: 4 / 5;
+  background: #f6f3ef;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--ink-3);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  padding: 16px;
+  transition: background 0.3s var(--glide), color 0.3s var(--glide);
+}
+
+.filler-tile::after {
+  display: none;
+}
+
+.shelf-filler:hover .filler-tile {
+  background: var(--tone);
+  color: var(--ink-2);
+}
+
+/* No-photo silhouette: a soft shadow so it reads as a bottle */
+.bottle-placeholder svg {
+  filter: drop-shadow(0 6px 10px rgba(70, 35, 20, 0.1));
+}
+
+@media (min-width: 1024px) {
+  .home-rows {
+    gap: 96px;
+    margin-top: 96px;
+  }
+  .collection {
+    margin-top: 96px;
+  }
+  .shelf.as-grid .shelf-head {
+    margin-bottom: 28px;
+  }
+  .shelf-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 28px;
+  }
+  .shelf-grid .mini-card .tile,
+  .shelf-grid .pick-card .tile {
+    height: auto;
+    aspect-ratio: 4 / 5;
+  }
+  .shelf-grid .mini-card .tile {
+    border-radius: var(--r-tile);
+  }
+  .shelf-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 56px;
+    align-items: start;
+  }
+  .cta-card {
+    width: 100%;
+    padding: 28px 36px;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .cta-card .cta-text {
+    flex: 1;
+    min-width: 0;
+  }
+  .cta-button {
+    display: inline-flex;
+    min-height: 48px;
+    flex: none;
+  }
 }
