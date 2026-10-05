@@ -1,5 +1,5 @@
 import { BookmarkX, ChevronLeft, Globe, Pencil, ShoppingBag } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AboutWine } from '../components/AboutWine';
 import { MoreLikeThis, SuggestionNote } from '../components/MoreLikeThis';
@@ -8,11 +8,13 @@ import { Stepper } from '../components/Inputs';
 import { RatingPicker } from '../components/Rating';
 import { Sheet } from '../components/Sheet';
 import { useToast } from '../components/Toast';
+import { useFindingPhoto } from '../components/usePhotoFinder';
 import { deleteWine, updateWine } from '../db';
 import { useWine } from '../hooks';
 import { RATING_LABEL, STYLE_LABEL } from '../lib/constants';
 import { formatDate, formatPrice, fullName, placeLabel } from '../lib/format';
 import { shownPhoto } from '../lib/image';
+import { findPhotoFor, PHOTO_FIND_COST, photoQueue } from '../lib/photoFinder';
 import { hasApiKey, LabelReadError, lookUpWine } from '../lib/labelReader';
 
 /** Rough cost of looking up published notes (a few web searches and page reads). */
@@ -25,6 +27,12 @@ export function WineDetailPage() {
   const toast = useToast();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const findingPhoto = useFindingPhoto(wine?.id);
+  // Looking at a bottle with no photo: look it up now rather than wait its turn.
+  const wineToFind = wine && photoQueue([wine]).length ? wine : null;
+  useEffect(() => {
+    if (wineToFind && hasApiKey() && navigator.onLine) void findPhotoFor(wineToFind);
+  }, [wineToFind?.id]);
 
   if (wine === undefined) return null;
   if (wine === null) {
@@ -124,7 +132,12 @@ export function WineDetailPage() {
             <Pencil size={18} strokeWidth={1.7} />
           </Link>
         </div>
-        {!shownPhoto(wine.photo) && (
+        {!shownPhoto(wine.photo) && findingPhoto && (
+          <span className="btn btn-white btn-sm hero-cta" role="status">
+            <Globe size={16} /> Finding a photo… · {PHOTO_FIND_COST}
+          </span>
+        )}
+        {!shownPhoto(wine.photo) && !findingPhoto && (
           <Link to={`/wine/${wine.id}/edit`} state={{ findPhoto: true }} className="btn btn-white btn-sm hero-cta">
             <Globe size={16} /> Find a photo
           </Link>
