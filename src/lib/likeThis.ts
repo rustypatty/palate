@@ -104,13 +104,26 @@ export function photoMatches(b: Pick<LikeBottle, 'producer' | 'wine'>, pageTitle
   return Boolean(pageTitle) && mentioned(b.producer, q, false) && mentioned(b.wine, q, false);
 }
 
+/**
+ * "Brotte" + "Brotte Chateauneuf du Pape" reads "Brotte Chateauneuf du Pape"; also when the
+ * store uses a shorter form of the producer ("E. Guigal" + "Guigal Gigondas").
+ */
+export function bottleTitle(producer: string, wine: string, vintage: string): string {
+  const p = tokens(producer);
+  const w = tokens(wine);
+  // The wine name already starts with the producer, in full or shortened ("Guigal", "St. Cosme").
+  const opening = w.slice(0, 2);
+  const inWine = p.length > 0 && (w.join(' ').includes(p.join(' ')) || p.filter((t) => t.length > 3).some((t) => opening.includes(t)));
+  return [inWine ? '' : producer, wine, wine.includes(vintage) ? '' : vintage].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+}
+
 /** A found bottle as a rankable store item (its cheapest offer is the main one). */
 export function bottleAsItem(b: LikeBottle): StoreItem & { offers: StoreOffer[]; imageSource?: { name: string; pageUrl: string } } {
   const main = b.offers.find((o) => o.storeId === 'totalwine') ?? b.offers[0];
   const prices = b.offers.map((o) => o.price).filter((p): p is number => p !== null);
   return {
     key: b.key,
-    title: [b.producer, b.wine, b.vintage].filter(Boolean).join(' '),
+    title: bottleTitle(b.producer, b.wine, b.vintage),
     style: b.style,
     price: prices.length ? Math.min(...prices) : null,
     context: [b.region, b.country, ...b.grapes].join(' '),

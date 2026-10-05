@@ -118,7 +118,8 @@ function prompt(r: LikeRequest): string {
 
 export async function findLikeThisWithClaude(apiKey: string, req: LikeRequest, signal?: AbortSignal): Promise<LikeOutcome> {
   // No automatic retries (a retry is billed twice).
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 600_000 });
+  // Always Anthropic's own address, whatever the environment says.
+  const client = new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com', dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 600_000 });
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: prompt(req) }];
   const seen = new Set<string>();
   let report: z.infer<typeof ReportSchema> | null = null;
@@ -133,7 +134,10 @@ export async function findLikeThisWithClaude(apiKey: string, req: LikeRequest, s
             betas: ['server-side-fallback-2026-07-01'],
             fallbacks: 'default',
             output_config: { effort: 'low' },
-            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 8 }, REPORT_TOOL],
+            // The basic search tool: the newer web_search_20260209 filters results in a code
+            // sandbox, and in live runs that code crashed or ran out of searches, so Claude never
+            // saw the product pages and every bottle was dropped as unconfirmed.
+            tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }, REPORT_TOOL],
             messages,
           },
           { signal },

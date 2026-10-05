@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { wine } from '../test/fixtures';
-import { bottleAsItem, isStale, LIKE_REFRESH_MS, normalizeUrl, offerLabel, photoMatches, storeForDomain, verifyBottles, withPogoOffers, type ReportedBottle } from './likeThis';
+import { bottleAsItem, bottleTitle, isStale, LIKE_REFRESH_MS, normalizeUrl, offerLabel, photoMatches, storeForDomain, verifyBottles, withPogoOffers, type ReportedBottle } from './likeThis';
 
 const TW = 'https://www.totalwine.com/wine/red-wine/rhone-blend/coudoulet/p/111';
 const SPECS = 'https://specsonline.com/product/coudoulet-de-beaucastel';
@@ -78,5 +78,16 @@ describe('bottles like this: one search, many stores', () => {
     expect(isStale(wine({}))).toBe(true);
     expect(isStale(wine({ likeThis: { at: now - 1000, bottles: [], tips: [] } }), now)).toBe(false);
     expect(isStale(wine({ likeThis: { at: now - LIKE_REFRESH_MS - 1, bottles: [], tips: [] } }), now)).toBe(true);
+  });
+});
+
+describe('bottle titles', () => {
+  it('doesn’t repeat the producer', () => {
+    expect(bottleTitle('Brotte', 'Brotte Chateauneuf du Pape', '2021')).toBe('Brotte Chateauneuf du Pape 2021');
+    expect(bottleTitle('E. Guigal', 'Guigal Gigondas', '2020')).toBe('Guigal Gigondas 2020');
+    expect(bottleTitle('Famille Perrin', 'Coudoulet de Beaucastel', '2022')).toBe('Famille Perrin Coudoulet de Beaucastel 2022');
+    expect(bottleTitle('Domaine X', 'Gigondas 2019', '2019')).toBe('Domaine X Gigondas 2019');
+    expect(bottleTitle('Saint Cosme', 'St. Cosme Chateauneuf Du Pape', '')).toBe('St. Cosme Chateauneuf Du Pape');
+    expect(bottleTitle('Domaine Charvin', 'Chateauneuf Du Pape', '2021')).toBe('Domaine Charvin Chateauneuf Du Pape 2021');
   });
 });
