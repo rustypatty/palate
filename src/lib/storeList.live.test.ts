@@ -8,7 +8,8 @@ import { storeById } from './stores';
  * PALATE_TEST_KEY holds an API key:
  *   PALATE_TEST_KEY=sk-ant-... NODE_USE_ENV_PROXY=1 npx vitest run src/lib/storeList.live.test.ts
  */
-const key = process.env.PALATE_TEST_KEY;
+// The app's tsconfig has no Node types; vitest runs this file under Node.
+const key = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.PALATE_TEST_KEY;
 
 describe.skipIf(!key)('Total Wine search (live)', () => {
   it('finds real Total Wine bottles for a Southern Rhône lover', { timeout: 600_000 }, async () => {
