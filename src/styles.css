@@ -1343,161 +1343,221 @@ img {
   flex-wrap: wrap;
 }
 
-/* ---------- Detail ---------- */
+/* ---------- Wine page ---------- */
 
 .detail {
   display: grid;
-  gap: 20px;
-  padding-top: 12px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 30px;
 }
 
-@media (min-width: 900px) {
-  .detail {
-    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-    gap: 48px;
-    padding-top: 32px;
-    align-items: start;
-  }
-  .detail .hero {
-    position: sticky;
-    top: 96px;
-  }
-}
-
-.hero {
+/* Cinematic photo stage, full-bleed on a phone */
+.photo-stage {
   position: relative;
-  border-radius: var(--radius-xl);
-  background: var(--surface);
-  aspect-ratio: 4 / 5;
-  /* Leave the title and one-tap rating visible on a phone. */
-  max-height: 52vh;
-  width: 100%;
+  height: 520px;
+  margin: 0 calc(-1 * var(--gutter));
+  border-radius: 0 0 40px 40px;
+  background: var(--golden);
   overflow: hidden;
+  isolation: isolate;
 }
 
-@media (min-width: 900px) {
-  .hero {
-    max-height: calc(100vh - 140px);
+.photo-stage::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 50px;
+  width: 200px;
+  height: 22px;
+  transform: translateX(-50%);
+  background: var(--floor);
+  z-index: 0;
+}
+
+.photo-bottle {
+  position: absolute;
+  left: 15%;
+  right: 15%;
+  top: 70px;
+  bottom: 58px;
+}
+
+.photo-bottle .bottle {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s var(--glide);
+}
+
+.photo-bottle .bottle-placeholder {
+  padding-bottom: 0;
+}
+
+.photo-bottle .bottle-placeholder svg {
+  height: 70%;
+}
+
+@media (hover: hover) {
+  .photo-stage:hover .bottle {
+    transform: translateY(-10px);
   }
 }
 
-.hero .bottle {
-  inset: 6%;
-  width: 88%;
-  height: 88%;
+.photo-stage:active .bottle {
+  transform: translateY(-10px);
 }
 
 .hero-actions {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
+  z-index: 2;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  left: 16px;
+  right: 16px;
   display: flex;
   justify-content: space-between;
 }
 
 .hero-cta {
   position: absolute;
+  z-index: 2;
   left: 50%;
-  bottom: 16px;
+  bottom: 18px;
   transform: translateX(-50%);
-  background: #fff;
-  box-shadow: var(--shadow-sm);
 }
 
 .hero-credit {
   position: absolute;
-  bottom: 10px;
-  right: 12px;
+  z-index: 2;
+  right: 22px;
+  bottom: 16px;
   font-size: 11px;
-  color: var(--ink-3);
-  background: rgba(255, 255, 255, 0.85);
-  padding: 3px 8px;
-  border-radius: var(--pill);
+  color: var(--ink-hero);
   text-decoration: none;
 }
 
-.detail-title .producer {
-  font-size: 13px;
-  font-weight: 650;
-  color: var(--ink-3);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.detail-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
+  min-width: 0;
+}
+
+.detail-title {
+  padding: 0 var(--text-in);
 }
 
 .detail-title h1 {
-  margin: 4px 0 6px;
-  font-size: 28px;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+  margin: 8px 0 8px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 34px;
+  line-height: 1.06;
+  letter-spacing: -0.01em;
 }
 
-@media (min-width: 900px) {
-  .detail-title h1 {
-    font-size: 34px;
-  }
+.detail-title h1 em {
+  font-style: italic;
 }
 
 .detail-title .meta {
   color: var(--ink-2);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  align-items: center;
+  font-size: 15px;
 }
 
-.detail-title .price-tag {
-  font-weight: 700;
-  color: var(--ink);
-  background: var(--surface);
-  padding: 2px 10px;
-  border-radius: var(--pill);
-}
-
-.section {
-  border-top: 1px solid var(--line);
-  padding-top: 18px;
-}
-
-.section h2,
-.section-title {
-  margin: 0 0 12px;
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-3);
-}
-
-.facts {
+.detail-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.suggestion-note {
+  display: grid;
+  gap: 6px;
+  padding: 20px 22px;
+  border-radius: var(--r-tone);
+  background: var(--wine-soft);
+}
+
+.suggestion-note .reason {
   margin: 0;
 }
 
-.facts dt {
-  font-size: 12px;
-  color: var(--ink-3);
-  font-weight: 600;
+.cellar-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 14px 14px 24px;
 }
 
-.facts dd {
-  margin: 2px 0 0;
-  font-weight: 600;
-  word-break: break-word;
+.cellar-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.detail-section {
+  padding: 12px var(--text-in) 0;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-head h2,
+.about-card h2 {
+  margin: 0;
+}
+
+.notes-quote {
+  margin: 12px 0 10px;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 26px;
+  line-height: 1.25;
+  color: var(--ink);
 }
 
 .notes {
   white-space: pre-wrap;
   margin: 0;
   color: var(--ink-2);
-  font-size: 16px;
+  font-size: 15.5px;
   line-height: 1.6;
 }
 
 .notes.muted {
   color: var(--ink-3);
+}
+
+.about-card {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+
+.about-card .about-wine {
+  justify-self: stretch;
+  background: none;
+  padding: 0;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px 18px;
+  margin: 0;
+}
+
+.facts dd {
+  margin: 4px 0 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.25;
+  word-break: break-word;
 }
 
 .row-between {
@@ -1517,8 +1577,91 @@ img {
 
 .detail-footer {
   display: flex;
+  align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  padding-top: 8px;
+}
+
+/* Bottles like this: store and price lines */
+.offers {
+  display: grid;
+  gap: 2px;
+  margin-top: 8px;
+}
+
+.offers a {
+  font-size: 13px;
+  color: var(--ink-3);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.offers a:first-child {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pick-card.skeleton .tile,
+.pick-card.skeleton .sk-line {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.sk-line {
+  height: 14px;
+  margin-top: 10px;
+  border-radius: 7px;
+  background: var(--tone);
+}
+
+.sk-line.short {
+  width: 60%;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (min-width: 900px) {
+  .detail {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    gap: 64px;
+    padding-top: 24px;
+    align-items: start;
+  }
+  .photo-stage {
+    position: sticky;
+    top: 104px;
+    height: calc(100vh - 136px);
+    min-height: 520px;
+    max-height: 820px;
+    margin: 0;
+    border-radius: var(--r-hero);
+  }
+  .photo-bottle {
+    top: 90px;
+    bottom: 70px;
+  }
+  .photo-stage::after {
+    bottom: 62px;
+  }
+  .hero-actions {
+    top: 20px;
+    left: 20px;
+    right: 20px;
+  }
+  .detail-body {
+    padding-top: 16px;
+    gap: 26px;
+  }
+  .detail-title h1 {
+    font-size: 48px;
+  }
 }
 
 /* ---------- Forms ---------- */
@@ -1594,9 +1737,9 @@ details.more > .more-body {
 }
 
 .about-wine {
-  background: var(--surface);
-  border-radius: var(--radius);
-  padding: 14px 16px;
+  background: var(--tone);
+  border-radius: 22px;
+  padding: 18px 20px;
 }
 
 /* ---------- Photo picker ---------- */
@@ -3638,72 +3781,3 @@ details.more > .more-body {
   text-decoration-thickness: 1px;
 }
 
-.suggestion-note {
-  display: grid;
-  gap: 3px;
-  padding: 12px 14px;
-  border-radius: var(--radius-lg);
-  background: var(--wine-soft);
-}
-
-.suggestion-note a {
-  color: var(--wine);
-}
-
-/* On a wine's page there's room for wider cards, so the reasons read in full. */
-.detail .shelf-scroll {
-  grid-auto-columns: 124px;
-}
-
-@media (min-width: 900px) {
-  .detail .shelf-scroll {
-    grid-auto-columns: 140px;
-  }
-}
-
-.detail .pick-card .pick-reason {
-  -webkit-line-clamp: 3;
-}
-
-/* Store and price lines on a "Bottles like this" card. */
-.offers {
-  display: grid;
-  gap: 1px;
-  margin-top: 2px;
-}
-
-.offers a {
-  font-size: 12px;
-  color: var(--ink-2);
-  text-decoration: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.offers a:first-child {
-  font-weight: 650;
-  color: var(--ink);
-}
-
-.mini-card.skeleton .tile {
-  animation: pulse 1.4s ease-in-out infinite;
-}
-
-.mini-card.skeleton .mini-t {
-  height: 12px;
-  border-radius: 6px;
-  background: var(--surface);
-}
-
-@keyframes pulse {
-  50% {
-    opacity: 0.55;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .mini-card.skeleton .tile {
-    animation: none;
-  }
-}
