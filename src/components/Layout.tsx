@@ -36,7 +36,11 @@ export function Layout() {
           <span className="spacer" />
           <NavLink to="/want" className="want-pill">
             <Bookmark size={17} /> Want to try
-            {wantCount > 0 && <span className="count-badge">{wantCount}</span>}
+            {wantCount > 0 && (
+              <span key={wantCount} className="count-badge">
+                {wantCount}
+              </span>
+            )}
           </NavLink>
           <Link to="/add" className="btn btn-wine add-pill">
             <Plus size={18} /> Add wine

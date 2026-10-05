@@ -206,7 +206,11 @@ export function CollectionPage() {
       <div className="head-actions">
         <Link to="/want" className="icon-btn" aria-label={`Want to try (${wantCount})`}>
           <Bookmark size={20} strokeWidth={1.6} />
-          {wantCount > 0 && <span className="badge-dot">{wantCount}</span>}
+          {wantCount > 0 && (
+            <span key={wantCount} className="badge-dot pop">
+              {wantCount}
+            </span>
+          )}
         </Link>
         <Link to="/store" className="icon-btn" aria-label="Check a bottle in the store">
           <ScanLine size={20} strokeWidth={1.6} />

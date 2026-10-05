@@ -1664,49 +1664,120 @@ img {
   }
 }
 
-/* ---------- Forms ---------- */
+/* ---------- Add / edit wine ---------- */
 
 .form {
   max-width: 720px;
   margin: 0 auto;
   display: grid;
-  gap: 22px;
-  padding-top: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  padding-top: 10px;
+}
+
+.form-top {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.form-intro {
+  display: grid;
+  gap: 12px;
+  padding: 0 var(--text-in);
+  margin-top: -14px;
+}
+
+.add-ways {
+  display: grid;
+  gap: 12px;
+}
+
+.snap-tile.big {
+  min-height: 210px;
+}
+
+.snap-tile.big .snap-icon {
+  width: 60px;
+  height: 60px;
+}
+
+.snap-tile.big .snap-title {
+  font-size: 30px;
+  margin-top: 80px;
+}
+
+.snap-tile.big .snap-sub {
+  font-size: 14px;
+  max-width: 40ch;
+}
+
+.form-section-title {
+  margin-top: 18px;
+  padding: 0 var(--text-in);
+}
+
+.vintage-row {
+  display: flex;
+  gap: 8px;
+}
+
+.nv-toggle {
+  flex: none;
+  width: 58px;
+  height: 58px;
+  border: 0;
+  border-radius: var(--r-input);
+  background: var(--tone);
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.4s var(--spring);
+}
+
+.nv-toggle[aria-pressed='true'] {
+  background: var(--ink);
+  color: #f6f1ea;
 }
 
 .form-actions {
   position: sticky;
-  bottom: calc(var(--nav-h) + var(--safe-bottom));
+  bottom: 0;
   z-index: 10;
   display: flex;
   gap: 10px;
-  padding: 12px var(--gutter);
+  padding: 26px var(--gutter) calc(16px + var(--safe-bottom));
   margin: 0 calc(-1 * var(--gutter));
-  background: linear-gradient(rgba(255, 255, 255, 0), #fff 30%);
+  background: linear-gradient(rgba(255, 255, 255, 0), #fff 40%);
 }
 
-.form-actions .btn-primary {
+.form-actions .btn {
+  min-height: 60px;
+}
+
+.form-actions .btn-tone {
+  padding: 0 26px;
+}
+
+.form-actions .btn-wine {
   flex: 1;
 }
 
 @media (min-width: 900px) {
-  .form-actions {
-    bottom: 0;
-    margin: 0;
-    padding: 16px 0;
-    justify-content: flex-end;
+  .form {
+    padding-top: 24px;
   }
-  .form-actions .btn-primary {
-    flex: none;
-    min-width: 180px;
+  .form-actions {
+    margin: 0;
+    padding-left: 0;
+    padding-right: 0;
   }
 }
 
 .form-error {
-  background: #fdecea;
+  background: #fbeceb;
   color: var(--danger);
-  border-radius: var(--radius);
-  padding: 10px 14px;
+  border-radius: 20px;
+  padding: 14px 18px;
   font-size: 14px;
   font-weight: 600;
 }
@@ -1714,16 +1785,22 @@ img {
 details.more > summary {
   list-style: none;
   cursor: pointer;
-  font-weight: 650;
-  color: var(--ink-2);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink-soft);
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 0;
+  min-height: 48px;
+  padding: 0 var(--text-in);
 }
 
 details.more > summary::-webkit-details-marker {
   display: none;
+}
+
+details.more > summary svg {
+  transition: transform 0.35s var(--glide);
 }
 
 details.more[open] > summary svg {
@@ -1732,8 +1809,13 @@ details.more[open] > summary svg {
 
 details.more > .more-body {
   display: grid;
-  gap: 22px;
-  padding-top: 18px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  padding-top: 14px;
+}
+
+details.more[open] > .more-body {
+  animation: route-in 0.35s var(--glide);
 }
 
 .about-wine {
@@ -1746,7 +1828,7 @@ details.more > .more-body {
 
 .photo-picker {
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
+  grid-template-columns: 120px minmax(0, 1fr);
   gap: 14px;
   align-items: stretch;
 }
@@ -1754,8 +1836,9 @@ details.more > .more-body {
 .photo-picker .tile {
   width: 100%;
   align-self: start;
-  aspect-ratio: 3 / 4;
-  border-radius: var(--radius-lg);
+  aspect-ratio: auto;
+  height: 160px;
+  border-radius: 22px;
 }
 
 .photo-picker .actions {
@@ -1766,20 +1849,16 @@ details.more > .more-body {
 
 .photo-picker .actions .btn {
   justify-content: flex-start;
-  height: 44px;
-  padding: 0 14px;
+  min-height: 46px;
+  padding: 0 18px;
   min-width: 0;
-}
-
-@media (max-width: 360px) {
-  .photo-picker {
-    grid-template-columns: 112px minmax(0, 1fr);
-  }
+  font-size: 14px;
 }
 
 .photo-picker .busy {
   position: absolute;
   inset: 0;
+  z-index: 3;
   display: grid;
   place-items: center;
   background: rgba(255, 255, 255, 0.7);
@@ -1791,6 +1870,7 @@ details.more > .more-body {
 .photo-source {
   font-size: 12px;
   color: var(--ink-3);
+  padding-left: 6px;
 }
 
 /* ---------- Sheets / dialogs ---------- */
@@ -3000,60 +3080,125 @@ details.more > .more-body {
   border-radius: 12px;
 }
 
-/* ---------- Profile ---------- */
+/* ---------- My palate ---------- */
+
+.palate-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 40px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.palate-hero {
+  margin: 0 calc(-1 * var(--gutter));
+  padding: calc(34px + env(safe-area-inset-top, 0px)) calc(var(--gutter) + var(--text-in)) 40px;
+  border-radius: 0 0 40px 40px;
+  background: var(--golden);
+}
+
+.palate-hero .eyebrow {
+  color: var(--ink-hero);
+}
+
+.palate-summary {
+  margin: 16px 0 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 34px;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+}
+
+.palate-summary em {
+  font-style: italic;
+}
+
+.palate-more {
+  margin: 18px 0 0;
+  font-size: 15.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.pull-quote {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 14px;
+  margin: 0;
+  padding: 0 var(--text-in);
+}
+
+.pull-quote .mark {
+  grid-row: span 2;
+  font-family: var(--font-display);
+  font-size: 64px;
+  line-height: 0.9;
+  color: var(--wine);
+}
+
+.pull-quote blockquote {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+.pull-quote figcaption {
+  margin-top: 8px;
+}
 
 .stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-@media (min-width: 700px) {
-  .stats {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+  gap: 12px;
 }
 
 .stat {
-  background: var(--surface);
-  border-radius: var(--radius-lg);
-  padding: 16px;
+  background: var(--tone);
+  border-radius: var(--r-tone);
+  padding: 22px 20px 20px;
 }
 
 .stat .n {
-  font-size: 28px;
-  font-weight: 750;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+  font-family: var(--font-display);
+  font-size: 44px;
+  line-height: 1;
 }
 
 .stat .l {
+  margin-top: 10px;
   font-size: 13px;
-  color: var(--ink-3);
-  font-weight: 600;
+  color: var(--ink-2);
+  line-height: 1.35;
 }
 
-.profile-grid {
+.palate-section {
   display: grid;
-  gap: 28px;
-  margin-top: 28px;
+  gap: 18px;
 }
 
-@media (min-width: 900px) {
-  .profile-grid {
-    grid-template-columns: 1fr 1fr;
-  }
+.palate-section > .title-lg,
+.palate-section > .eyebrow,
+.palate-section > .footnote {
+  padding: 0 var(--text-in);
+}
+
+.palate-section .chips {
+  padding: 0 var(--text-in);
 }
 
 .bars {
   display: grid;
-  gap: 10px;
+  gap: 16px;
+  padding: 0 var(--text-in);
 }
 
 .bar-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px 12px;
+  gap: 8px 12px;
   font-size: 14px;
 }
 
@@ -3063,25 +3208,157 @@ details.more > .more-body {
 
 .bar-row .track {
   grid-column: 1 / -1;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--surface-2);
+  height: 10px;
+  border-radius: 5px;
+  background: var(--tone);
   overflow: hidden;
 }
 
 .bar-row .track i {
   display: block;
   height: 100%;
-  background: var(--wine);
-  border-radius: 3px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, rgba(122, 31, 53, 0.35), var(--wine));
+  transform-origin: left;
+  animation: grow 0.9s var(--glide);
+}
+
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.love-pill,
+.skip-pill {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: var(--pill);
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.love-pill {
+  background: #f3e3e3;
+  color: var(--wine-deep);
+}
+
+.skip-pill {
+  background: var(--tone);
+  color: var(--ink-3);
+}
+
+.folds {
+  display: grid;
+  gap: 10px;
+}
+
+.fold {
+  border-radius: var(--r-tone);
+  background: var(--tone);
+  overflow: hidden;
+}
+
+.fold-head {
+  width: 100%;
+  min-height: 72px;
+  border: 0;
+  background: none;
+  padding: 14px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+
+.fold-title {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.fold-status {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.fold-mark {
+  color: var(--ink-3);
+  flex: none;
+}
+
+.fold-body {
+  padding: 0 22px 22px;
+  animation: route-in 0.35s var(--glide);
+}
+
+.fold-content {
+  display: grid;
+  gap: 14px;
+}
+
+.fold-content .url-row,
+.url-row {
+  display: flex;
+  gap: 8px;
+}
+
+.url-row .input {
+  flex: 1;
+}
+
+.key-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+  padding: 0 10px 0 20px;
+  border-radius: 20px;
+  background: #fff;
+}
+
+.key-row code {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.text-link.danger {
+  color: var(--danger);
 }
 
 .card-box {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  padding: 18px;
+  border-radius: var(--r-tone);
+  background: var(--tone);
+  padding: 22px;
   display: grid;
   gap: 12px;
+}
+
+@media (min-width: 900px) {
+  .palate-page {
+    gap: 56px;
+    padding-top: 24px;
+  }
+  .palate-hero {
+    margin: 0;
+    padding: 56px 56px 52px;
+    border-radius: var(--r-hero);
+  }
+  .palate-summary {
+    font-size: 46px;
+  }
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .toast {
@@ -3107,12 +3384,38 @@ details.more > .more-body {
   }
 }
 
+/* The count badges bloom when a bottle is saved */
+.count-badge,
+.badge-dot.pop {
+  animation: pop 0.5s var(--spring);
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+}
+
+/* Reduced motion: no lifts, no overshoot, no animation */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation: none !important;
     transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .lift:hover .bottle,
+  .lift:active .bottle,
+  .card:hover .bottle,
+  .card:active .bottle,
+  .photo-stage:hover .bottle,
+  .photo-stage:active .bottle,
+  .pick-card:hover,
+  .snap-tile:hover,
+  .rating-option[aria-pressed='true'] {
+    transform: none !important;
   }
 }
 
@@ -3721,63 +4024,196 @@ details.more > .more-body {
   }
 }
 
-/* ---------- Your taste ---------- */
+/* ---------- Want to try ---------- */
 
-.taste-card {
+.want-page {
   display: grid;
-  gap: 8px;
-  margin-top: 8px;
-  padding: 18px;
-  border-radius: var(--radius-xl);
-  background: var(--wine-soft);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 30px;
+  padding-top: 10px;
 }
 
-.taste-line {
-  margin: 0;
-  font-size: 17px;
-  line-height: 1.4;
-  font-weight: 560;
-  letter-spacing: -0.005em;
+.page-top {
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
-.taste-line:not(:nth-of-type(1)) {
-  font-size: 15px;
-  font-weight: 450;
-  color: var(--ink-2);
+.want-intro {
+  display: grid;
+  gap: 12px;
+  padding: 0 var(--text-in);
 }
 
-.taste-quote {
-  margin: 0;
-  font-size: 15px;
-  font-style: italic;
-  color: var(--ink-2);
+.want-group {
+  display: grid;
+  gap: 16px;
 }
 
-.taste-tags {
+.want-group-head {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 var(--text-in);
 }
 
-.taste-tags .tag {
-  height: 28px;
-  padding: 0 11px;
-  border-radius: var(--pill);
+.want-group-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 26px;
+}
+
+.want-group-head h2 em {
+  font-style: italic;
+}
+
+.want-group-head span {
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.want-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.want-card {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 16px;
+  padding: 12px;
+  border-radius: var(--r-row);
+  background: var(--card);
+  box-shadow: var(--sh-row);
+}
+
+.want-card .tile {
+  aspect-ratio: auto;
+  height: 150px;
+  border-radius: 21px;
+}
+
+.wc-body {
+  min-width: 0;
+  padding-top: 8px;
+}
+
+.wc-name {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-size: 19px;
+  line-height: 1.15;
+  color: inherit;
+  text-decoration: none;
+}
+
+.wc-price {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.wc-price strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-right: 4px;
+}
+
+.wc-price a {
   display: inline-flex;
   align-items: center;
-  font-size: 13px;
-  font-weight: 600;
+  gap: 2px;
+  min-height: 32px;
+  color: inherit;
+  text-decoration: none;
 }
 
-.tag-good {
-  background: #fff;
+.wc-price a:hover {
   color: var(--wine);
 }
 
-.tag-bad {
-  background: transparent;
-  color: var(--ink-3);
-  text-decoration: line-through;
-  text-decoration-thickness: 1px;
+.wc-reason {
+  margin: 4px 0 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ink-soft);
 }
 
+.wc-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+}
+
+.wc-actions .btn {
+  flex: 1;
+  min-height: 50px;
+}
+
+.wc-actions .btn.is-saved:disabled {
+  opacity: 1;
+}
+
+@media (min-width: 900px) {
+  .want-page {
+    gap: 40px;
+    padding-top: 24px;
+  }
+  .want-headline {
+    font-size: 64px;
+  }
+  .want-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+/* ---------- Tap targets: at least 44px, without changing the look ---------- */
+
+.pc-want,
+.pc-pass {
+  flex: none;
+  min-width: 44px;
+}
+
+.pc-link,
+.text-link {
+  min-width: 44px;
+  justify-content: center;
+}
+
+/* Small text links get a taller invisible tap area that doesn't change the layout. */
+.offers a,
+.pr-link,
+.wc-price a,
+.wc-name {
+  position: relative;
+}
+
+.offers a::before,
+.pr-link::before,
+.wc-price a::before,
+.wc-name::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+.hero-credit::before {
+  content: '';
+  position: absolute;
+  inset: -14px -10px;
+}
+
+.offers a {
+  display: block;
+}

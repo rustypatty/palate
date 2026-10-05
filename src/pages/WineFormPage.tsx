@@ -1,9 +1,9 @@
-import { ArrowLeft, Barcode } from 'lucide-react';
+import { Barcode, ChevronDown, Type, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AboutWine } from '../components/AboutWine';
 import { BarcodeScanner } from '../components/BarcodeScanner';
-import { LabelSnap } from '../components/LabelSnap';
+import { LabelSnap, snapTile } from '../components/LabelSnap';
 import { Stepper, TagInput } from '../components/Inputs';
 import { PhotoChoices } from '../components/PhotoChoices';
 import { PhotoPicker } from '../components/PhotoPicker';
@@ -14,7 +14,7 @@ import { adoptWant } from '../lib/lists';
 import { useWines } from '../hooks';
 import { COMMON_COUNTRIES, COMMON_GRAPES, STYLES } from '../lib/constants';
 import { photoFromFile, photoFromUrl } from '../lib/image';
-import { LabelReadError, lookUpWine, readingToDraft, type WineLookup } from '../lib/labelReader';
+import { LabelReadError, lookUpWine, readingToDraft, type LabelReading, type WineLookup } from '../lib/labelReader';
 import { tally } from '../lib/filters';
 import type { Photo, WineDraft } from '../types';
 
@@ -140,16 +140,82 @@ export function WineFormPage() {
     }
   };
 
+  const onLabelRead = async (reading: LabelReading, file: File) => {
+    if (!reading.is_wine_label) return;
+    const found = readingToDraft(reading);
+    const photo = draft.photo ?? (await photoFromFile(file, { name: 'Your photo' }));
+    // Fill only what's still empty, so nothing you typed is overwritten.
+    setDraft((d) => {
+      if (!d) return d;
+      const next = { ...d, photo: d.photo ?? photo };
+      for (const [k, v] of Object.entries(found) as [keyof WineDraft, never][]) {
+        const cur = next[k] as unknown;
+        const empty = cur === '' || cur === null || (Array.isArray(cur) && cur.length === 0);
+        const has = !(v === '' || v === null || (Array.isArray(v) && (v as unknown[]).length === 0));
+        if (empty && has) (next as Record<string, unknown>)[k] = v;
+      }
+      return next;
+    });
+    if (!vintageText && found.vintage != null) setVintageText(String(found.vintage));
+    toast(reading.confidence === 'high' ? 'Filled in from the label' : 'Filled in from the label — please double-check');
+
+    // Then confirm style/grapes online and look for a clean photo of the same bottle.
+    const usedSnap = !draft.photo;
+    if (usedSnap) setSnapPhoto(photo);
+    snapFill.current = { style: found.style ?? null, grapes: found.grapes ?? [] };
+    setLookingUp(true);
+    setLookupNote(null);
+    setPhotoChoices([]);
+    try {
+      const outcome = await lookUpWine(reading, file);
+      if (!outcome.ok) {
+        setLookupNote(`Couldn’t confirm colour and grapes online (${outcome.reason}). Left blank — check the label.`);
+        return;
+      }
+      const l = outcome.lookup;
+      const clean = usedSnap && l.photo ? await photoFromUrl(l.photo.url, { name: l.photo.siteName, pageUrl: l.photo.pageUrl, title: l.photo.title }) : null;
+      setDraft((d) => {
+        if (!d) return d;
+        const next = { ...d };
+        const filled = snapFill.current;
+        // Only replace values the label reading put there (or left empty), never your own edits.
+        if (l.style !== 'unknown' && (d.style === null || d.style === filled?.style)) next.style = l.style;
+        if (l.grapes.length && (d.grapes.length === 0 || d.grapes.join() === filled?.grapes.join())) next.grapes = l.grapes;
+        if (clean && samePhoto(d.photo, photo)) next.photo = clean;
+        if (l.about && !d.about) next.about = l.about;
+        return next;
+      });
+      toast(clean ? `Checked online and swapped in a clean photo from ${l.photo!.siteName}` : `Details checked online (${l.sourceName})`);
+      if (!clean && l.photoNote) setLookupNote(`${l.photoNote} Keeping your photo.`);
+      if (!clean && usedSnap) setPhotoChoices(l.candidates);
+    } catch (e) {
+      if (e instanceof LabelReadError) setLookupNote(e.message);
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
   return (
     <form className="form" onSubmit={onSubmit} noValidate>
-      <div className="page-head" style={{ paddingBottom: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button type="button" className="icon-btn" onClick={() => navigate(-1)} aria-label="Back">
-            <ArrowLeft size={20} />
-          </button>
-          <h1 style={{ fontSize: 24 }}>{editing ? 'Edit wine' : 'Add a wine'}</h1>
-        </div>
+      <div className="form-top">
+        <button type="button" className="icon-btn" onClick={() => navigate(-1)} aria-label="Close">
+          <X size={20} strokeWidth={1.7} />
+        </button>
       </div>
+      <header className="form-intro">
+        <div className="eyebrow">{editing ? 'Edit wine' : 'Add a wine'}</div>
+        <h1 className="headline form-headline">
+          {editing ? (
+            <>
+              Edit the <em>details.</em>
+            </>
+          ) : (
+            <>
+              What are you <em>pouring?</em>
+            </>
+          )}
+        </h1>
+      </header>
 
       {error && (
         <div className="form-error" role="alert">
@@ -158,68 +224,28 @@ export function WineFormPage() {
       )}
 
       {!editing && (
-        <div className="callout info" style={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-          <span>Snap the front label and Claude fills in the details for you.</span>
-          <LabelSnap
-            className="btn btn-dark btn-sm"
-            label="Snap label"
-            onRead={async (reading, file) => {
-              if (!reading.is_wine_label) return;
-              const found = readingToDraft(reading);
-              const photo = draft.photo ?? (await photoFromFile(file, { name: 'Your photo' }));
-              // Fill only what's still empty, so nothing you typed is overwritten.
-              setDraft((d) => {
-                if (!d) return d;
-                const next = { ...d, photo: d.photo ?? photo };
-                for (const [k, v] of Object.entries(found) as [keyof WineDraft, never][]) {
-                  const cur = next[k] as unknown;
-                  const empty = cur === '' || cur === null || (Array.isArray(cur) && cur.length === 0);
-                  const has = !(v === '' || v === null || (Array.isArray(v) && (v as unknown[]).length === 0));
-                  if (empty && has) (next as Record<string, unknown>)[k] = v;
-                }
-                return next;
-              });
-              if (!vintageText && found.vintage != null) setVintageText(String(found.vintage));
-              toast(reading.confidence === 'high' ? 'Filled in from the label' : 'Filled in from the label — please double-check');
-
-              // Then confirm style/grapes online and look for a clean photo of the same bottle.
-              const usedSnap = !draft.photo;
-              if (usedSnap) setSnapPhoto(photo);
-              snapFill.current = { style: found.style ?? null, grapes: found.grapes ?? [] };
-              setLookingUp(true);
-              setLookupNote(null);
-              setPhotoChoices([]);
-              try {
-                const outcome = await lookUpWine(reading, file);
-                if (!outcome.ok) {
-                  setLookupNote(`Couldn’t confirm colour and grapes online (${outcome.reason}). Left blank — check the label.`);
-                  return;
-                }
-                const l = outcome.lookup;
-                const clean = usedSnap && l.photo ? await photoFromUrl(l.photo.url, { name: l.photo.siteName, pageUrl: l.photo.pageUrl, title: l.photo.title }) : null;
-                setDraft((d) => {
-                  if (!d) return d;
-                  const next = { ...d };
-                  const filled = snapFill.current;
-                  // Only replace values the label reading put there (or left empty), never your own edits.
-                  if (l.style !== 'unknown' && (d.style === null || d.style === filled?.style)) next.style = l.style;
-                  if (l.grapes.length && (d.grapes.length === 0 || d.grapes.join() === filled?.grapes.join())) next.grapes = l.grapes;
-                  if (clean && samePhoto(d.photo, photo)) next.photo = clean;
-                  if (l.about && !d.about) next.about = l.about;
-                  return next;
-                });
-                toast(clean ? `Checked online and swapped in a clean photo from ${l.photo!.siteName}` : `Details checked online (${l.sourceName})`);
-                if (!clean && l.photoNote) setLookupNote(`${l.photoNote} Keeping your photo.`);
-                if (!clean && usedSnap) setPhotoChoices(l.candidates);
-              } catch (e) {
-                if (e instanceof LabelReadError) setLookupNote(e.message);
-              } finally {
-                setLookingUp(false);
-              }
-            }}
-          />
+        <div className="add-ways">
+          <LabelSnap className="snap-tile big" onRead={onLabelRead}>
+            {snapTile('Claude reads the producer, vintage, region and grapes, and fills in the rest for you.')}
+          </LabelSnap>
+          <div className="check-tiles">
+            <button type="button" className="tone-tile" onClick={() => setScanning(true)}>
+              <Barcode size={20} strokeWidth={1.6} />
+              <span>
+                Scan barcode<small>Free · instant</small>
+              </span>
+            </button>
+            <button type="button" className="tone-tile" onClick={() => document.getElementById('producer')?.focus()}>
+              <Type size={20} strokeWidth={1.6} />
+              <span>
+                Type it in<small>Below</small>
+              </span>
+            </button>
+          </div>
         </div>
       )}
+
+      <h2 className="title-lg form-section-title">The details</h2>
 
       {lookingUp && <div className="callout info">Checking the details online and looking for a clean photo of this bottle…</div>}
       {lookupNote && <div className="callout">{lookupNote}</div>}
@@ -285,7 +311,7 @@ export function WineFormPage() {
       <div className="two-col">
         <div className="field">
           <label htmlFor="vintage">Vintage</label>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="vintage-row">
             <input
               id="vintage"
               className="input"
@@ -303,9 +329,9 @@ export function WineFormPage() {
             />
             <button
               type="button"
-              className="chip"
-              style={{ height: 50 }}
+              className="nv-toggle"
               aria-pressed={nv}
+              aria-label="Non-vintage"
               onClick={() => {
                 setVintageText(nv ? '' : 'NV');
                 set({ vintage: nv ? null : 'NV' });
@@ -333,97 +359,105 @@ export function WineFormPage() {
 
       <div className="field">
         <span className="label">How was it?</span>
-        <RatingPicker value={draft.rating} onChange={(rating) => set({ rating })} />
+        <RatingPicker compact value={draft.rating} onChange={(rating) => set({ rating })} />
       </div>
 
       <div className="field">
-        <span className="label">Style</span>
-        <div className="chip-group" role="group" aria-label="Style">
-          {STYLES.map((s) => (
-            <button key={s.value} type="button" className="chip" aria-pressed={draft.style === s.value} onClick={() => set({ style: draft.style === s.value ? null : s.value })}>
-              {s.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="row-between">
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>Bottles in my cellar</div>
-          <div className="muted small">How many you have on hand right now</div>
-        </div>
-        <Stepper value={draft.owned} onChange={(owned) => set({ owned })} label="bottles owned" />
-      </div>
-
-      <div className="two-col">
-        <div className="field">
-          <label htmlFor="country">Country</label>
-          <input id="country" className="input" list="country-list" value={draft.country} onChange={(e) => set({ country: e.target.value })} autoComplete="off" placeholder="e.g. France" />
-          <datalist id="country-list">
-            {suggestions.countries.map((s) => (
-              <option key={s} value={s} />
-            ))}
-          </datalist>
-        </div>
-        <div className="field">
-          <label htmlFor="region">Region</label>
-          <input id="region" className="input" list="region-list" value={draft.region} onChange={(e) => set({ region: e.target.value })} autoComplete="off" placeholder="e.g. Rhône" />
-          <datalist id="region-list">
-            {suggestions.regions.map((s) => (
-              <option key={s} value={s} />
-            ))}
-          </datalist>
-        </div>
-      </div>
-
-      <div className="field">
-        <label htmlFor="grapes">Grapes</label>
-        <TagInput id="grapes" value={draft.grapes} onChange={(grapes) => set({ grapes })} suggestions={suggestions.grapes} placeholder="Type a grape and press Enter" />
-      </div>
-
-      {draft.about && (
-        <div className="field">
-          <span className="label">About this wine</span>
-          <AboutWine about={draft.about} onRemove={() => set({ about: null })} />
-        </div>
-      )}
-
-      <div className="field">
-        <label htmlFor="notes">My tasting notes</label>
+        <label htmlFor="notes">Your notes</label>
         <textarea
           id="notes"
           className="textarea"
           value={draft.notes}
           onChange={(e) => set({ notes: e.target.value })}
-          placeholder="What did you taste? What did you eat with it? Would you serve it to friends?"
+          placeholder="What did it taste like? Would you buy it again?"
         />
       </div>
 
-      <div className="two-col">
-        <div className="field">
-          <label htmlFor="tasted">Tasted on</label>
-          <input id="tasted" className="input" type="date" value={draft.tastedOn ?? ''} max={new Date().toISOString().slice(0, 10)} onChange={(e) => set({ tastedOn: e.target.value || null })} />
-        </div>
-        <div className="field">
-          <label htmlFor="store">Bought at</label>
-          <input id="store" className="input" list="store-list" value={draft.store} onChange={(e) => set({ store: e.target.value })} autoComplete="off" placeholder="Shop or restaurant" />
-          <datalist id="store-list">
-            {suggestions.stores.map((s) => (
-              <option key={s} value={s} />
-            ))}
-          </datalist>
-        </div>
-      </div>
+      <details className="more" open={editing}>
+        <summary>
+          More details — grapes, region, store, cellar <ChevronDown size={16} />
+        </summary>
+        <div className="more-body">
+          <div className="field">
+            <span className="label">Style</span>
+            <div className="chip-group" role="group" aria-label="Style">
+              {STYLES.map((s) => (
+                <button key={s.value} type="button" className="chip" aria-pressed={draft.style === s.value} onClick={() => set({ style: draft.style === s.value ? null : s.value })}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      <div className="field">
-        <label htmlFor="barcode">Barcode</label>
-        <div className="url-row">
-          <input id="barcode" className="input" inputMode="numeric" value={draft.barcode} onChange={(e) => set({ barcode: e.target.value.replace(/\s/g, '') })} placeholder="Optional — lets you scan it in the store" />
-          <button type="button" className="icon-btn" style={{ width: 50, height: 50 }} onClick={() => setScanning(true)} aria-label="Scan barcode">
-            <Barcode size={20} />
-          </button>
+          <div className="tone-card cellar-card">
+            <div>
+              <div className="cellar-title">In my cellar</div>
+              <div className="small muted">How many you have on hand right now</div>
+            </div>
+            <Stepper value={draft.owned} onChange={(owned) => set({ owned })} label="bottles owned" />
+          </div>
+
+          <div className="two-col">
+            <div className="field">
+              <label htmlFor="country">Country</label>
+              <input id="country" className="input" list="country-list" value={draft.country} onChange={(e) => set({ country: e.target.value })} autoComplete="off" placeholder="e.g. France" />
+              <datalist id="country-list">
+                {suggestions.countries.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+            </div>
+            <div className="field">
+              <label htmlFor="region">Region</label>
+              <input id="region" className="input" list="region-list" value={draft.region} onChange={(e) => set({ region: e.target.value })} autoComplete="off" placeholder="e.g. Rhône" />
+              <datalist id="region-list">
+                {suggestions.regions.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+            </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor="grapes">Grapes</label>
+            <TagInput id="grapes" value={draft.grapes} onChange={(grapes) => set({ grapes })} suggestions={suggestions.grapes} placeholder="Type a grape and press Enter" />
+          </div>
+
+          {draft.about && (
+            <div className="field">
+              <span className="label">About this wine</span>
+              <AboutWine about={draft.about} onRemove={() => set({ about: null })} />
+            </div>
+          )}
+
+          <div className="two-col">
+            <div className="field">
+              <label htmlFor="tasted">Tasted on</label>
+              <input id="tasted" className="input" type="date" value={draft.tastedOn ?? ''} max={new Date().toISOString().slice(0, 10)} onChange={(e) => set({ tastedOn: e.target.value || null })} />
+            </div>
+            <div className="field">
+              <label htmlFor="store">Bought at</label>
+              <input id="store" className="input" list="store-list" value={draft.store} onChange={(e) => set({ store: e.target.value })} autoComplete="off" placeholder="Shop or restaurant" />
+              <datalist id="store-list">
+                {suggestions.stores.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+            </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor="barcode">Barcode</label>
+            <div className="search-row">
+              <input id="barcode" className="input" inputMode="numeric" value={draft.barcode} onChange={(e) => set({ barcode: e.target.value.replace(/\s/g, '') })} placeholder="Optional — lets you scan it in the store" />
+              <button type="button" className="icon-btn" style={{ width: 58, height: 58 }} onClick={() => setScanning(true)} aria-label="Scan barcode">
+                <Barcode size={20} strokeWidth={1.6} />
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      </details>
+
       {scanning && (
         <BarcodeScanner
           onDetected={(barcode) => {
@@ -436,10 +470,10 @@ export function WineFormPage() {
       )}
 
       <div className="form-actions">
-        <button type="button" className="btn btn-secondary" onClick={() => navigate(-1)}>
+        <button type="button" className="btn btn-tone" onClick={() => navigate(-1)}>
           Cancel
         </button>
-        <button type="submit" className="btn btn-primary" disabled={saving}>
+        <button type="submit" className="btn btn-wine" disabled={saving}>
           {saving ? 'Saving…' : editing ? 'Save changes' : 'Save wine'}
         </button>
       </div>

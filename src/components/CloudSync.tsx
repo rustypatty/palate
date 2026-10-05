@@ -16,8 +16,17 @@ function ago(t: number, now: number): string {
   return new Date(t).toLocaleDateString();
 }
 
+/** One line for the folded settings row. */
+export function cloudSummary(status: ReturnType<typeof useCloudStatus>, now = Date.now()): string {
+  if (status.state === 'off') return 'Not set up · this device only';
+  if (status.state === 'signed-out') return 'Not signed in · this device only';
+  if (status.state === 'syncing') return 'Syncing…';
+  if (status.state === 'error') return 'Couldn’t sync';
+  return `Signed in · synced ${status.lastSyncedAt ? ago(status.lastSyncedAt, now) : 'just now'}`;
+}
+
 /** Sign in (once per device) and see sync status. */
-export function CloudSync() {
+export function CloudSync({ bare = false }: { bare?: boolean } = {}) {
   const status = useCloudStatus();
   const [email, setEmail] = useState(() => localStorage.getItem('palate.email') ?? '');
   const [step, setStep] = useState<'email' | 'sent'>('email');
@@ -32,8 +41,8 @@ export function CloudSync() {
 
   if (status.state === 'off') {
     return (
-      <section className="card-box">
-        <Title />
+      <section className={bare ? 'fold-content' : 'card-box'}>
+        {!bare && <Title />}
         <p className="small muted" style={{ margin: 0 }}>
           Online storage isn’t set up for this site yet, so your wines are only on this device.
         </p>
@@ -44,8 +53,8 @@ export function CloudSync() {
   if (status.state !== 'signed-out') {
     const when = status.lastSyncedAt ? ago(status.lastSyncedAt, now) : null;
     return (
-      <section className="card-box">
-        <Title />
+      <section className={bare ? 'fold-content' : 'card-box'}>
+        {!bare && <Title />}
         <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
           Signed in as <strong>{status.email}</strong>. Your wines and photos are saved online and stay in step on every device you sign in on.
         </p>
@@ -61,7 +70,7 @@ export function CloudSync() {
               : `Up to date · synced ${when}`}
         </p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button type="button" className="btn btn-outline btn-sm" disabled={status.state === 'syncing'} onClick={() => void syncNow()}>
+          <button type="button" className="btn btn-white btn-sm" disabled={status.state === 'syncing'} onClick={() => void syncNow()}>
             <RefreshCw size={16} /> Sync now
           </button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
@@ -94,8 +103,8 @@ export function CloudSync() {
   const shown = message ?? (status.message ? { kind: 'error' as const, text: status.message } : null);
 
   return (
-    <section className="card-box">
-      <Title />
+    <section className={bare ? 'fold-content' : 'card-box'}>
+      {!bare && <Title />}
       {step === 'email' ? (
         <>
           <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
@@ -121,7 +130,7 @@ export function CloudSync() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-            <button type="submit" className="btn btn-dark" style={{ height: 50 }} disabled={busy || !email.trim()}>
+            <button type="submit" className="btn btn-dark" style={{ minHeight: 58 }} disabled={busy || !email.trim()}>
               {busy ? 'Sending…' : 'Email me a link'}
             </button>
           </form>

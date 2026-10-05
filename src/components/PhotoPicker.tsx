@@ -44,13 +44,13 @@ export function PhotoPicker({
         {busy && <div className="busy">Processing…</div>}
       </div>
       <div className="actions">
-        <button type="button" className="btn btn-outline" onClick={() => cameraRef.current?.click()}>
+        <button type="button" className="btn btn-tone" onClick={() => cameraRef.current?.click()}>
           <Camera size={18} /> Take photo
         </button>
-        <button type="button" className="btn btn-outline" onClick={() => libraryRef.current?.click()}>
+        <button type="button" className="btn btn-tone" onClick={() => libraryRef.current?.click()}>
           <ImagePlus size={18} /> Upload
         </button>
-        <button type="button" className="btn btn-outline" onClick={() => setSearching(true)}>
+        <button type="button" className="btn btn-tone" onClick={() => setSearching(true)}>
           <Globe size={18} /> Find online
         </button>
         {photo && (
