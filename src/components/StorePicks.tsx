@@ -283,12 +283,13 @@ export function StorePicksRow() {
     return (
       <Link to="/store" className="cta-card lift">
         <StoreIcon size={20} strokeWidth={1.7} />
-        <span>
+        <span className="cta-text">
           <strong>
             Heading to <em>{store.name}?</em>
           </strong>
           <span className="small muted">See which bottles there fit your taste.</span>
         </span>
+        <span className="btn btn-wine cta-button">Open In store →</span>
       </Link>
     );
   }
@@ -301,6 +302,7 @@ export function StorePicksRow() {
       }
       sub={`${picks.length} found on ${store.domain} · ${ago(fetchedAt)}`}
       arrows
+      grid={{}}
       action={
         <Link to="/store" className="text-link">
           See all

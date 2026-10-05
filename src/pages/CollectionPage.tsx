@@ -1,15 +1,16 @@
 import { Bookmark, Plus, ScanLine, Search, SlidersHorizontal, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { useToast } from '../components/Toast';
 import { BottleImage, BottlePlaceholder } from '../components/BottleImage';
 import { FilterSheet, SORTS } from '../components/FilterSheet';
-import { MiniWineCard, ShelfRow } from '../components/Shelf';
+import { FillerTile, MiniWineCard, ShelfRow } from '../components/Shelf';
 import { RatePrompt, StorePicksRow } from '../components/StorePicks';
 import { useWantCount, Wordmark } from '../components/Layout';
 import { WineCard } from '../components/WineCard';
-import { useDebounced, useWines } from '../hooks';
+import { useDebounced, useMediaQuery, usePhotoUrl, useWines } from '../hooks';
+import { useBottleBox } from '../components/useTrimmedPhoto';
 import { PRICE_BANDS, STYLE_LABEL } from '../lib/constants';
 import { shownPhoto } from '../lib/image';
 import { lookupBarcode } from '../lib/imageSearch';
@@ -18,6 +19,7 @@ import { buyAgain } from '../lib/recommend';
 import { useTaste } from '../lib/usePicks';
 import type { Wine } from '../types';
 import type { CheckPrefill } from './InStorePage';
+import type { AddPrefill } from './WineFormPage';
 
 const SHELVES: { value: Shelf; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -56,10 +58,8 @@ function Hero({ wines }: { wines: Wine[] }) {
   const owned = wines.reduce((n, w) => n + w.owned, 0);
   const latest = withPhoto[0] ?? loved[0];
   const row = withPhoto.slice(0, 4);
-  // The most recent one stands in the middle, a little taller.
   // The caption names the bottles in the picture (or the latest loved ones if none have photos).
   const captioned = row.length ? row : loved.slice(0, 4);
-  const ordered = row.length > 1 ? [row[1], row[0], ...row.slice(2)] : row;
   const n = loved.length;
 
   // Phone: the loved bottles take turns in the light, each rising into place.
@@ -153,41 +153,128 @@ function Hero({ wines }: { wines: Wine[] }) {
           )}
         </div>
       )}
-      {ordered.length > 0 && (
-        <div className="hero-bottles desktop-only">
-          {ordered.map((w) => (
-            <Link key={w.id} to={`/wine/${w.id}`} className={`hero-bottle lift${w === row[0] ? ' main' : ''}`} aria-label={`Open ${shortProducer(w)}`}>
-              <BottleImage photo={w.photo} alt="" eager />
-            </Link>
-          ))}
-        </div>
-      )}
+      {row.length > 0 && <HeroBottles wines={row} />}
     </section>
   );
 }
 
+const HERO_BOTTLE = 420;
+const HERO_GAP = 48;
+
+/**
+ * Desktop: the loved bottles stand side by side at the same visual height. Each photo's
+ * bottle outline is measured, so a photo with wide margins doesn't make a small bottle.
+ */
+function HeroBottles({ wines }: { wines: Wine[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  const [ratios, setRatios] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setWidth(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // Same height for every bottle; smaller for all of them only if the row wouldn't fit.
+  const sum = wines.reduce((n, w) => n + (ratios[w.id] ?? 0.3), 0);
+  const fit = width ? (width - HERO_GAP * (wines.length - 1)) / sum : HERO_BOTTLE;
+  const height = Math.max(160, Math.min(HERO_BOTTLE, fit));
+  const onRatio = useCallback((id: string, r: number) => setRatios((cur) => (cur[id] === r ? cur : { ...cur, [id]: r })), []);
+  return (
+    <div className="hero-bottles desktop-only" ref={ref}>
+      {wines.map((w) => (
+        <HeroBottle key={w.id} wine={w} height={height} onRatio={onRatio} />
+      ))}
+    </div>
+  );
+}
+
+function HeroBottle({ wine, height, onRatio }: { wine: Wine; height: number; onRatio: (id: string, r: number) => void }) {
+  const url = usePhotoUrl(shownPhoto(wine.photo));
+  const box = useBottleBox(url);
+  const ratio = box ? ((box.right - box.left) / (box.bottom - box.top)) * box.aspect : 0.3;
+  useEffect(() => {
+    if (box !== undefined) onRatio(wine.id, ratio);
+  }, [box, ratio, wine.id, onRatio]);
+  const label = `Open ${shortProducer(wine)}`;
+  if (!url || box === undefined) return <span className="hero-bottle-m" style={{ width: height * ratio, height }} aria-hidden="true" />;
+  if (box === null) {
+    // Couldn't measure (e.g. the photo's site doesn't allow it): show it whole at the same height.
+    return (
+      <Link to={`/wine/${wine.id}`} className="hero-bottle-m lift" style={{ width: height * 0.36, height }} aria-label={label}>
+        <img className="bottle contain" src={url} alt="" />
+      </Link>
+    );
+  }
+  const imgH = height / (box.bottom - box.top);
+  const imgW = imgH * box.aspect;
+  return (
+    <Link to={`/wine/${wine.id}`} className="hero-bottle-m lift" style={{ width: height * ratio, height }} aria-label={label}>
+      <img className="bottle" src={url} alt="" style={{
+          width: imgW,
+          height: imgH,
+          left: -box.left * imgW,
+          top: -box.top * imgH,
+          // Only the bottle shows; the photo's margins can't tint the neighbours.
+          clipPath: `inset(${box.top * 100}% ${(1 - box.right) * 100}% ${(1 - box.bottom) * 100}% ${box.left * 100}%)`,
+        }} />
+    </Link>
+  );
+}
+
 /** Suggestion rows above the collection, shown only while browsing. */
-function HomeRows({ wines }: { wines: Wine[] }) {
+function HomeRows({ wines, onShow }: { wines: Wine[]; onShow: (shelf: Shelf) => void }) {
   const taste = useTaste();
+  const wide = useMediaQuery('(min-width: 1024px)');
   // Loved, and none left at home: the ones to buy again.
-  const shortlist = useMemo(() => buyAgain(wines).slice(0, 12), [wines]);
+  const shortlist = useMemo(() => buyAgain(wines), [wines]);
   const cellar = useMemo(() => wines.filter((w) => w.owned > 0).sort((a, b) => b.updatedAt - a.updatedAt), [wines]);
+  const seeAll = (shelf: Shelf) => (
+    <button type="button" className="text-link" onClick={() => onShow(shelf)}>
+      See all
+    </button>
+  );
+  const shortRow = shortlist.length > 0 && (
+    <ShelfRow
+      title="Your shortlist"
+      sub="Loved it — buy again"
+      grid={{ seeAll: seeAll('loved'), filler: <FillerTile to="/add" label="Add a loved wine" state={{ draft: { rating: 'loved' } } satisfies AddPrefill} /> }}
+    >
+      {shortlist.slice(0, wide ? undefined : 12).map((wine) => (
+        <MiniWineCard key={wine.id} wine={wine} />
+      ))}
+    </ShelfRow>
+  );
+  const cellarRow = cellar.length > 0 && (
+    <ShelfRow
+      title="In your cellar"
+      sub={(() => {
+        const n = cellar.reduce((t, w) => t + w.owned, 0);
+        return `${n} ${n === 1 ? 'bottle' : 'bottles'} on hand`;
+      })()}
+      grid={{ seeAll: seeAll('owned'), filler: <FillerTile to="/add" label="Add a bottle you own" state={{ draft: { owned: 1 } } satisfies AddPrefill} /> }}
+    >
+      {cellar.map((wine) => (
+        <MiniWineCard key={wine.id} wine={wine} note={`${wine.owned} in cellar`} />
+      ))}
+    </ShelfRow>
+  );
+  // Two short rows sit side by side on a wide screen.
+  const pair = wide && shortlist.length > 0 && cellar.length > 0 && shortlist.length <= 4 && cellar.length <= 4;
   return (
     <div className="home-rows">
       {taste && !taste.enough ? <RatePrompt rated={taste.rated} /> : <StorePicksRow />}
-      {shortlist.length > 0 && (
-        <ShelfRow title="Your shortlist" sub="Loved it — buy again">
-          {shortlist.map((wine) => (
-            <MiniWineCard key={wine.id} wine={wine} />
-          ))}
-        </ShelfRow>
-      )}
-      {cellar.length > 0 && (
-        <ShelfRow title="In your cellar" sub={`${cellar.reduce((n, w) => n + w.owned, 0)} bottles on hand`}>
-          {cellar.map((wine) => (
-            <MiniWineCard key={wine.id} wine={wine} note={`${wine.owned} in cellar`} />
-          ))}
-        </ShelfRow>
+      {pair ? (
+        <div className="shelf-pair">
+          {shortRow}
+          {cellarRow}
+        </div>
+      ) : (
+        <>
+          {shortRow}
+          {cellarRow}
+        </>
       )}
     </div>
   );
@@ -331,7 +418,15 @@ export function CollectionPage() {
         {filterButton}
       </div>
 
-      {browsing && <HomeRows wines={wines} />}
+      {browsing && (
+        <HomeRows
+          wines={wines}
+          onShow={(shelf) => {
+            set({ shelf });
+            window.requestAnimationFrame(() => document.querySelector('.collection')?.scrollIntoView({ behavior: 'smooth' }));
+          }}
+        />
+      )}
 
       <section className="collection" aria-label="Your collection">
         <div className="collection-head">
