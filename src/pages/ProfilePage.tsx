@@ -1,8 +1,8 @@
-import { Download, HardDrive, KeyRound, Upload } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Download, Minus, Plus, Upload } from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
-import { CloudSync, useCloudStatus } from '../components/CloudSync';
-import { TasteCard } from '../components/TasteCard';
+import { CloudSync, cloudSummary, useCloudStatus } from '../components/CloudSync';
+import { TasteHeader, TasteQuote } from '../components/TasteCard';
 import { useToast } from '../components/Toast';
 import { useWines } from '../hooks';
 import { downloadBlob, exportBackup, importBackup } from '../lib/backup';
@@ -13,31 +13,7 @@ import { apiKeyProblem, getApiKey, normalizeApiKey, setApiKey, testApiKey } from
 import { buildTaste } from '../lib/taste';
 import type { Wine } from '../types';
 
-function Bars({ title, rows, empty }: { title: string; rows: { value: string; count: number }[]; empty: string }) {
-  const max = Math.max(1, ...rows.map((r) => r.count));
-  return (
-    <section>
-      <h2 className="section-title">{title}</h2>
-      {rows.length === 0 ? (
-        <p className="muted small">{empty}</p>
-      ) : (
-        <div className="bars">
-          {rows.slice(0, 6).map((r) => (
-            <div key={r.value} className="bar-row">
-              <span className="name">{r.value}</span>
-              <span className="muted">{r.count}</span>
-              <span className="track">
-                <i style={{ width: `${(r.count / max) * 100}%` }} />
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function LabelReadingSettings() {
+function LabelReadingSettings({ onFocusRequest, onChange }: { onFocusRequest: () => void; onChange: () => void }) {
   const location = useLocation();
   const focusKey = (location.state as { focusKey?: number } | null)?.focusKey;
   const inputRef = useRef<HTMLInputElement>(null);
@@ -48,8 +24,11 @@ function LabelReadingSettings() {
 
   useEffect(() => {
     if (!focusKey) return;
-    boxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    inputRef.current?.focus({ preventScroll: true });
+    onFocusRequest();
+    window.setTimeout(() => {
+      boxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      inputRef.current?.focus({ preventScroll: true });
+    }, 50);
   }, [focusKey]);
 
   const save = async () => {
@@ -65,6 +44,7 @@ function LabelReadingSettings() {
     if (result === true) {
       setApiKey(key);
       setSaved(key);
+      onChange();
       setDraft('');
       setStatus({ kind: 'ok', text: 'Key works. You can snap labels now.' });
     } else {
@@ -73,29 +53,25 @@ function LabelReadingSettings() {
   };
 
   return (
-    <section className="card-box" ref={boxRef}>
-      <h2 className="section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <KeyRound size={14} /> Label reading with Claude
-      </h2>
+    <section className="fold-content" ref={boxRef}>
       <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
-        “Snap the label” sends the photo to Anthropic’s Claude, which reads the producer, wine, vintage, region and grapes. It uses your own Anthropic
-        API key, billed to your Anthropic account — typically 2–3 cents per label. Create a key at{' '}
+        Snap the label sends the photo to Anthropic’s Claude, which reads the producer, wine, vintage, region and grapes. It uses your own API key,
+        billed to your Anthropic account — typically 2–3¢ a label. Create one at{' '}
         <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">
           console.anthropic.com
         </a>
         .
       </p>
       {saved ? (
-        <div className="row-between">
-          <span className="small">
-            Key saved on this device: <code>{`${saved.slice(0, 10)}…${saved.slice(-4)}`}</code>
-          </span>
+        <div className="key-row">
+          <code>{`${saved.slice(0, 10)}…${saved.slice(-4)}`}</code>
           <button
             type="button"
-            className="btn btn-danger btn-sm"
+            className="text-link danger"
             onClick={() => {
               setApiKey('');
               setSaved('');
+              onChange();
               setStatus(null);
             }}
           >
@@ -116,7 +92,7 @@ function LabelReadingSettings() {
           <input
             id="api-key"
             ref={inputRef}
-            className="input"
+            className="input white"
             type="password"
             autoComplete="off"
             spellCheck={false}
@@ -124,7 +100,7 @@ function LabelReadingSettings() {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
           />
-          <button type="submit" className="btn btn-dark" style={{ height: 50 }} disabled={!draft.trim() || status?.kind === 'busy'}>
+          <button type="submit" className="btn btn-dark" style={{ minHeight: 58 }} disabled={!draft.trim() || status?.kind === 'busy'}>
             Save
           </button>
         </form>
@@ -157,6 +133,9 @@ export function ProfilePage() {
   const [usage, setUsage] = useState<string | null>(null);
   const cloud = useCloudStatus();
   const online = cloud.state === 'syncing' || cloud.state === 'synced' || cloud.state === 'error';
+  const [open, setOpen] = useState<string | null>(null);
+  const [, setKeyTick] = useState(0);
+  const keySaved = Boolean(getApiKey());
 
   useEffect(() => {
     navigator.storage?.persisted?.().then(setPersisted).catch(() => {});
@@ -186,18 +165,17 @@ export function ProfilePage() {
 
   if (wines === undefined) return null;
 
+  const pills = [...new Set(taste?.enough ? taste.likes.filter((a) => a.kind !== 'country').map((a) => a.value) : [...stats.grapes, ...stats.regions].map((t) => t.value))].slice(0, 12);
+  const skips = [...new Set(taste?.dislikes.length ? taste.dislikes.map((a) => a.value) : stats.passes.map((t) => t.value))].slice(0, 8);
+  const maxCountry = Math.max(1, ...stats.countries.map((c) => c.count));
+  const toggle = (k: string) => setOpen((o) => (o === k ? null : k));
+
   return (
-    <div>
-      <div className="page-head">
-        <div>
-          <h1>My palate</h1>
-          <p className="sub">What your ratings say about what you like.</p>
-        </div>
-      </div>
+    <div className="palate-page">
+      {taste && <TasteHeader taste={taste} />}
+      {taste && <TasteQuote taste={taste} />}
 
-      {taste && <TasteCard taste={taste} />}
-
-      <div className="stats" style={{ marginTop: 16 }}>
+      <div className="stats">
         <div className="stat">
           <div className="n">{stats.total}</div>
           <div className="l">Wines</div>
@@ -216,64 +194,135 @@ export function ProfilePage() {
         </div>
       </div>
 
-      <div className="profile-grid">
-        <Bars title="Grapes you love" rows={stats.grapes} empty="Rate a few wines “Loved it” to see patterns." />
-        <Bars title="Countries you love" rows={stats.countries} empty="Add countries to wines you love." />
-        <Bars title="Regions you love" rows={stats.regions} empty="Add regions to wines you love." />
-        <Bars title="Grapes you’d skip" rows={stats.passes} empty="Nothing you’d avoid yet." />
-      </div>
-
-      <div className="profile-grid">
-        <CloudSync />
-        <LabelReadingSettings />
-        <section className="card-box">
-          <h2 className="section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <HardDrive size={14} /> Your data
-          </h2>
-          <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
-            {online
-              ? `Your wines and photos are stored on this device${usage ? ` (${usage})` : ''} and saved online. A backup file is an extra copy you keep yourself.`
-              : `Your wines and photos are stored privately on this device${usage ? ` (${usage})` : ''}. Export a backup now and then, and use it to move your collection to another phone or computer.`}
-          </p>
-          {persisted === false && !online && (
-            <p className="small muted" style={{ margin: 0 }}>
-              Tip: add Palate to your home screen so your browser keeps the data safe long-term.
-            </p>
-          )}
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn btn-dark"
-              disabled={!wines.length}
-              onClick={async () => {
-                const blob = await exportBackup();
-                downloadBlob(blob, `palate-backup-${new Date().toISOString().slice(0, 10)}.json`);
-              }}
-            >
-              <Download size={18} /> Export backup
-            </button>
-            <button type="button" className="btn btn-outline" onClick={() => fileRef.current?.click()}>
-              <Upload size={18} /> Restore backup
-            </button>
+      <section className="palate-section">
+        <h2 className="title-lg">Where you love</h2>
+        {stats.countries.length === 0 ? (
+          <p className="footnote">Add countries to wines you love to see where they come from.</p>
+        ) : (
+          <div className="bars">
+            {stats.countries.slice(0, 6).map((r) => (
+              <div key={r.value} className="bar-row">
+                <span className="name">{r.value}</span>
+                <span className="muted">{r.count} loved</span>
+                <span className="track">
+                  <i style={{ width: `${(r.count / maxCountry) * 100}%` }} />
+                </span>
+              </div>
+            ))}
           </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={async (e) => {
-              const f = e.target.files?.[0];
-              e.target.value = '';
-              if (!f) return;
-              try {
-                const r = await importBackup(f);
-                toast(`Restored ${r.wines} ${r.wines === 1 ? 'wine' : 'wines'}`);
-              } catch (err) {
-                toast(err instanceof Error ? err.message : 'Couldn’t restore that file');
-              }
-            }}
-          />
-        </section>
+        )}
+      </section>
+
+      <section className="palate-section">
+        <h2 className="title-lg">Grapes &amp; regions</h2>
+        {pills.length === 0 ? (
+          <p className="footnote">Rate a few wines “Loved it” to see patterns.</p>
+        ) : (
+          <div className="chips">
+            {pills.map((v) => (
+              <span key={v} className="love-pill">
+                {v}
+              </span>
+            ))}
+          </div>
+        )}
+        {skips.length > 0 && (
+          <>
+            <div className="eyebrow" style={{ marginTop: 22 }}>
+              You’d skip
+            </div>
+            <div className="chips">
+              {skips.map((v) => (
+                <span key={v} className="skip-pill">
+                  {v}
+                </span>
+              ))}
+            </div>
+          </>
+        )}
+        <p className="footnote" style={{ marginTop: 18 }}>
+          It updates as you rate more{taste?.price ? '.' : '. Add prices to see your usual range.'}
+        </p>
+      </section>
+
+      <section className="palate-section">
+        <h2 className="title-lg">Settings</h2>
+        <div className="folds">
+          <Fold title="Sync across devices" status={cloudSummary(cloud)} open={open === 'sync'} onToggle={() => toggle('sync')}>
+            <CloudSync bare />
+          </Fold>
+          <Fold title="Label reading with Claude" status={keySaved ? 'Key saved on this device' : 'No key yet'} open={open === 'key'} onToggle={() => toggle('key')}>
+            <LabelReadingSettings onFocusRequest={() => setOpen('key')} onChange={() => setKeyTick((t) => t + 1)} />
+          </Fold>
+          <Fold title="Your data" status={usage ? `${usage} on this device` : 'On this device'} open={open === 'data'} onToggle={() => toggle('data')}>
+            <div className="fold-content">
+              <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
+                {online
+                  ? `Your wines and photos are stored on this device${usage ? ` (${usage})` : ''} and saved online. A backup file is an extra copy you keep yourself.`
+                  : `Your wines and photos are stored privately on this device${usage ? ` (${usage})` : ''}. Export a backup now and then, and use it to move your collection to another phone or computer.`}
+              </p>
+              {persisted === false && !online && (
+                <p className="small muted" style={{ margin: 0 }}>
+                  Tip: add Palate to your home screen so your browser keeps the data safe long-term.
+                </p>
+              )}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-dark"
+                  disabled={!wines.length}
+                  onClick={async () => {
+                    const blob = await exportBackup();
+                    downloadBlob(blob, `palate-backup-${new Date().toISOString().slice(0, 10)}.json`);
+                  }}
+                >
+                  <Download size={18} /> Export backup
+                </button>
+                <button type="button" className="btn btn-white" onClick={() => fileRef.current?.click()}>
+                  <Upload size={18} /> Restore backup
+                </button>
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="application/json,.json"
+                hidden
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!f) return;
+                  try {
+                    const r = await importBackup(f);
+                    toast(`Restored ${r.wines} ${r.wines === 1 ? 'wine' : 'wines'}`);
+                  } catch (err) {
+                    toast(err instanceof Error ? err.message : 'Couldn’t restore that file');
+                  }
+                }}
+              />
+            </div>
+          </Fold>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/** A settings row that folds away: title, one-line status, and +/−. */
+function Fold({ title, status, open, onToggle, children }: { title: string; status: string; open: boolean; onToggle: () => void; children: ReactNode }) {
+  const id = useId();
+  return (
+    <div className={`fold${open ? ' open' : ''}`}>
+      <button type="button" className="fold-head" aria-expanded={open} aria-controls={id} onClick={onToggle}>
+        <span>
+          <span className="fold-title">{title}</span>
+          <span className="fold-status">{status}</span>
+        </span>
+        <span className="fold-mark" aria-hidden="true">
+          {open ? <Minus size={18} strokeWidth={1.6} /> : <Plus size={18} strokeWidth={1.6} />}
+        </span>
+      </button>
+      <div id={id} className="fold-body" hidden={!open}>
+        {children}
       </div>
     </div>
   );

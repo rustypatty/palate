@@ -1,4 +1,4 @@
-import { ExternalLink, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
 import { useLists, useWines } from '../hooks';
@@ -10,7 +10,7 @@ import { possessive, storeById, type StoreId, type StoreItem } from '../lib/stor
 import { useAdvisor, useAllStoreItems, useBudget, useTaste } from '../lib/usePicks';
 import type { StoreOffer, Wine } from '../types';
 import { BottlePlaceholder } from './BottleImage';
-import { PickCard, ShelfRow } from './Shelf';
+import { cleanReason, PickCard, ShelfRow } from './Shelf';
 import { useToast } from './Toast';
 
 // Searches already tried this session, so a failure doesn't retry (and bill) in a loop.
@@ -67,7 +67,10 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
         const a = advisor.advise({ query: `${item.title} ${item.context ?? ''}`, style: item.style, partial: false });
         return a.verdict.level !== 'skip' && !a.exact.some((w) => w.rating === 'wouldnt');
       })
-      .map((item) => ({ item, offers: item.offers as StoreOffer[], reason: wine.likeThis!.bottles.find((b) => b.key === item.key)?.reason ?? '' }))
+      .map((item) => {
+        const bottle = wine.likeThis!.bottles.find((b) => b.key === item.key);
+        return { item, offers: item.offers as StoreOffer[], reason: bottle?.reason ?? '', bottle };
+      })
       .slice(0, 12);
   }, [wine, advisor, lists, entries, budget]);
 
@@ -85,11 +88,11 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
       : `At ${stores}`;
 
   const action = running ? null : hasKey ? (
-    <button type="button" className="shelf-link" style={{ background: 'none', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={start}>
-      <RefreshCw size={13} /> {found ? 'New search' : 'Find bottles'} · {LIKE_COST}
+    <button type="button" className="btn btn-tone btn-sm" onClick={start}>
+      <RefreshCw size={14} strokeWidth={1.8} /> {found ? 'New search' : 'Find bottles'} · {LIKE_COST}
     </button>
   ) : (
-    <Link to="/profile" state={{ focusKey: Date.now() }} className="shelf-link">
+    <Link to="/profile" state={{ focusKey: Date.now() }} className="btn btn-tone btn-sm">
       Add key
     </Link>
   );
@@ -97,22 +100,33 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
   return (
     // min-width 0: inside the page's grid, a scrolling row must not widen the page.
     <div style={{ minWidth: 0 }}>
-      <ShelfRow title="Bottles like this to buy" sub={sub} action={action}>
+      <ShelfRow
+        title={
+          <>
+            Bottles like this <em>to buy</em>
+          </>
+        }
+        sub={sub}
+        below={action}
+      >
         {running
           ? [0, 1, 2, 3].map((i) => (
-              <div key={i} className="mini-card skeleton" aria-hidden="true">
+              <div key={i} className="pick-card skeleton" aria-hidden="true">
                 <div className="tile">
                   <BottlePlaceholder />
                 </div>
-                <div className="mini-t">&nbsp;</div>
+                <div className="pc-body">
+                  <div className="sk-line" />
+                  <div className="sk-line short" />
+                </div>
               </div>
             ))
-          : cards.map(({ item, offers, reason }) => {
+          : cards.map(({ item, offers, reason, bottle }) => {
               const store = storeById(((offers.find((o) => o.storeId === 'totalwine') ?? offers[0])?.storeId ?? 'totalwine') as StoreId);
               return (
                 <PickCard
                   key={item.key}
-                  pick={{ item, reason }}
+                  pick={{ item, reason, producer: bottle?.producer, name: bottle ? [bottle.wine, bottle.vintage].filter(Boolean).join(' ') : undefined }}
                   offers={offers}
                   saved={saved.has(item.key)}
                   onWant={async () => (await saveToWant(item, store, reason), toast('Saved to Want to try'))}
@@ -122,7 +136,7 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
             })}
       </ShelfRow>
       {!running && !failed && cards.length === 0 && (
-        <p className="small muted" style={{ margin: '4px 0 0' }}>
+        <p className="footnote">
           {!hasKey
             ? `Add your Anthropic API key in My palate to find bottles like this at ${stores}.`
             : found
@@ -139,9 +153,9 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
         </p>
       )}
       {!running && found && found.tips.length > 0 && (
-        <div className="small muted" style={{ marginTop: 8 }}>
-          <strong style={{ color: 'var(--ink-2)' }}>Also look for</strong>
-          <ul style={{ margin: '2px 0 0', paddingLeft: 18 }}>
+        <div className="tone-card" style={{ marginTop: 22 }}>
+          <h3>Also look for</h3>
+          <ul className="bullets">
             {found.tips.slice(0, 4).map((t) => (
               <li key={t}>{t}</li>
             ))}
@@ -149,7 +163,7 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
         </div>
       )}
       {failed && !running && (
-        <p className="small" role="alert" style={{ color: 'var(--danger)', margin: '6px 0 0' }}>
+        <p className="small" role="alert" style={{ color: 'var(--danger)', margin: '6px 0 0', padding: '0 var(--text-in)' }}>
           Couldn’t search the stores: {failed}.
         </p>
       )}
@@ -163,14 +177,11 @@ export function SuggestionNote({ wine }: { wine: Wine }) {
   if (!s) return null;
   return (
     <div className="suggestion-note">
-      <div className="small">
-        <strong>{wine.list === 'want' ? 'On your Want to try list' : `Suggested at ${s.source}`}</strong>
-        {wine.list === 'want' && <span className="muted"> · suggested at {s.source}</span>}
-      </div>
-      {s.reason && <div className="small">{s.reason}</div>}
+      <div className="why-label">{wine.list === 'want' ? `On your Want to try list · from ${s.source}` : `Suggested at ${s.source}`}</div>
+      {s.reason && <p className="reason">{cleanReason(s.reason)}</p>}
       {s.url && (
-        <a href={s.url} target="_blank" rel="noreferrer" className="small" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <ExternalLink size={13} /> See it on {possessive(s.source)} website
+        <a href={s.url} target="_blank" rel="noreferrer" className="pr-link">
+          See it on {possessive(s.source)} website <ArrowUpRight size={14} strokeWidth={1.6} />
         </a>
       )}
     </div>

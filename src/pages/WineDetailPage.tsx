@@ -1,4 +1,4 @@
-import { ArrowLeft, BookmarkX, Globe, Pencil, ShoppingBag, Sparkles, Trash2 } from 'lucide-react';
+import { BookmarkX, ChevronLeft, Globe, Pencil, ShoppingBag } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AboutWine } from '../components/AboutWine';
@@ -13,6 +13,9 @@ import { useWine } from '../hooks';
 import { RATING_LABEL, STYLE_LABEL } from '../lib/constants';
 import { formatDate, formatPrice, fullName, placeLabel } from '../lib/format';
 import { hasApiKey, LabelReadError, lookUpWine } from '../lib/labelReader';
+
+/** Rough cost of looking up published notes (a few web searches and page reads). */
+const NOTES_COST = '~10¢';
 
 export function WineDetailPage() {
   const { id } = useParams();
@@ -80,6 +83,10 @@ export function WineDetailPage() {
 
   const back = () => (window.history.length > 1 ? navigate(-1) : navigate('/'));
   const title = wine.name || wine.producer || 'Untitled wine';
+  // Only when the name really starts with the region ("Châteauneuf-du-Pape Cuvée Réservée") is the rest set in italic.
+  const region = wine.region.trim();
+  const rest = region && title.startsWith(region + ' ') ? title.slice(region.length + 1).trim() : '';
+  const split = rest ? [region, rest] : null;
   const facts: [string, string][] = [
     ['Vintage', wine.vintage === null ? '' : String(wine.vintage)],
     ['Style', wine.style ? STYLE_LABEL[wine.style] : ''],
@@ -92,48 +99,67 @@ export function WineDetailPage() {
     ['Barcode', wine.barcode],
   ];
   const shown = facts.filter(([, v]) => v);
+  // Notes: the first short line reads as a quote, the rest as body text.
+  const notes = wine.notes.trim();
+  const lines = notes.split(/\n+/);
+  const firstSentence = notes.match(/^.{3,90}?[.!?](?=\s|$)/)?.[0];
+  const candidate = lines.length > 1 && lines[0].length <= 90 ? lines[0] : notes.length <= 90 ? notes : firstSentence ?? '';
+  // Don't cut a quotation in half.
+  const quote = (candidate.match(/["“”]/g)?.length ?? 0) % 2 ? '' : candidate.replace(/^["“](.*)["”]$/, '$1');
+  const body = quote ? notes.slice(notes.indexOf(candidate) + candidate.length).trim() : notes;
+  const credit = wine.photo?.source && wine.photo.source.name !== 'Your photo' ? wine.photo.source : null;
 
   return (
     <div className="detail">
-      <div className="hero">
-        <BottleImage photo={wine.photo} alt={`Bottle of ${fullName(wine)}`} eager />
+      <div className="photo-stage">
+        <div className="photo-bottle lift">
+          <BottleImage photo={wine.photo} alt={`Bottle of ${fullName(wine)}`} eager />
+        </div>
         <div className="hero-actions">
-          <button type="button" className="icon-btn on-image" onClick={back} aria-label="Back">
-            <ArrowLeft size={20} />
+          <button type="button" className="icon-btn frost" onClick={back} aria-label="Back">
+            <ChevronLeft size={22} strokeWidth={1.7} />
           </button>
-          <Link to={`/wine/${wine.id}/edit`} className="icon-btn on-image" aria-label="Edit wine">
-            <Pencil size={18} />
+          <Link to={`/wine/${wine.id}/edit`} className="icon-btn frost" aria-label="Edit wine">
+            <Pencil size={18} strokeWidth={1.7} />
           </Link>
         </div>
         {!wine.photo && (
-          <Link to={`/wine/${wine.id}/edit`} state={{ findPhoto: true }} className="btn btn-outline btn-sm hero-cta">
+          <Link to={`/wine/${wine.id}/edit`} state={{ findPhoto: true }} className="btn btn-white btn-sm hero-cta">
             <Globe size={16} /> Find a photo
           </Link>
         )}
-        {wine.photo?.source && wine.photo.source.name !== 'Your photo' && (
-          <a className="hero-credit" href={wine.photo.source.pageUrl} target="_blank" rel="noreferrer">
-            Photo: {wine.photo.source.name}
-          </a>
-        )}
+        {credit &&
+          (credit.pageUrl ? (
+            <a className="hero-credit" href={credit.pageUrl} target="_blank" rel="noreferrer">
+              Photo · {credit.name}
+            </a>
+          ) : (
+            <span className="hero-credit">Photo · {credit.name}</span>
+          ))}
       </div>
 
-      <div style={{ display: 'grid', gap: 22 }}>
+      <div className="detail-body">
         <div className="detail-title">
-          {wine.producer && wine.name && <div className="producer">{wine.producer}</div>}
-          <h1>{title}</h1>
-          <div className="meta">
-            <span>{[wine.vintage !== null ? String(wine.vintage) : null, placeLabel(wine)].filter(Boolean).join(' · ')}</span>
-            {wine.price !== null && <span className="price-tag">{formatPrice(wine.price)}</span>}
-          </div>
+          {wine.producer && wine.name && <div className="eyebrow">{wine.producer}</div>}
+          <h1>
+            {split ? (
+              <>
+                {split[0]} <em>{split[1]}</em>
+              </>
+            ) : (
+              title
+            )}
+          </h1>
+          <div className="meta">{[wine.vintage !== null ? String(wine.vintage) : null, placeLabel(wine)].filter(Boolean).join(' · ')}</div>
         </div>
 
         <SuggestionNote wine={wine} />
 
         {wine.list === 'want' && (
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div className="detail-actions">
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-dark btn-lg"
               onClick={async () => {
                 await updateWine(wine.id, { list: null, owned: Math.max(1, wine.owned) });
                 toast('Added to your wines');
@@ -143,7 +169,7 @@ export function WineDetailPage() {
             </button>
             <button
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-tone btn-lg"
               onClick={async () => {
                 await deleteWine(wine.id);
                 toast('Removed from Want to try');
@@ -156,7 +182,7 @@ export function WineDetailPage() {
         )}
 
         <div>
-          {wine.list === 'want' && <div className="muted small" style={{ marginBottom: 6 }}>Tried it already? Rate it and it moves into your wines.</div>}
+          {wine.list === 'want' && <p className="footnote" style={{ marginBottom: 10 }}>Tried it already? Rate it and it moves into your wines.</p>}
           <RatingPicker
             value={wine.rating}
             onChange={async (rating) => {
@@ -171,64 +197,68 @@ export function WineDetailPage() {
           />
         </div>
 
-        <div className="row-between section">
+        <div className="tone-card cellar-card">
           <div>
-            <div style={{ fontWeight: 700 }}>In my cellar</div>
-            <div className="muted small">{wine.owned === 0 ? 'None on hand' : `${wine.owned} ${wine.owned === 1 ? 'bottle' : 'bottles'} on hand`}</div>
+            <div className="cellar-title">In my cellar</div>
+            <div className="small muted">{wine.owned === 0 ? 'None on hand' : `${wine.owned} ${wine.owned === 1 ? 'bottle' : 'bottles'} on hand`}</div>
           </div>
           <Stepper value={wine.owned} onChange={(owned) => updateWine(wine.id, { owned })} label="bottles owned" />
         </div>
 
-        <div className="section">
-          <h2>About this wine</h2>
+        <section className="detail-section">
+          <div className="section-head">
+            <h2 className="eyebrow">My notes</h2>
+            <Link to={`/wine/${wine.id}/edit`} className="text-link">
+              Edit
+            </Link>
+          </div>
+          {notes ? (
+            <>
+              {quote && <p className="notes-quote">“{quote}”</p>}
+              {body && <p className="notes">{body}</p>}
+            </>
+          ) : (
+            <p className="notes muted">No notes yet. What did you think?</p>
+          )}
+        </section>
+
+        <section className="tone-card about-card">
+          <h2 className="eyebrow">About this wine</h2>
           {wine.about ? (
             <AboutWine about={wine.about} />
           ) : (
-            <div className="row-between">
-              <p className="notes muted" style={{ margin: 0 }}>
-                {canLookUp ? 'No published tasting notes yet.' : 'Add your Anthropic API key in My palate to fetch published tasting notes.'}
-              </p>
+            <>
+              <p className="notes">{canLookUp ? 'No published tasting notes yet.' : 'Add your Anthropic API key in My palate to fetch published tasting notes.'}</p>
               {canLookUp && (
-                <button type="button" className="btn btn-outline btn-sm" onClick={fetchNotes} disabled={fetching}>
-                  <Sparkles size={14} /> {fetching ? 'Looking up…' : 'Get tasting notes'}
+                <button type="button" className="btn btn-white" onClick={fetchNotes} disabled={fetching}>
+                  {fetching ? 'Looking up…' : `Get tasting notes · ${NOTES_COST}`}
                 </button>
               )}
-            </div>
+            </>
           )}
-        </div>
-
-        <div className="section">
-          <div className="row-between" style={{ marginBottom: 12 }}>
-            <h2 style={{ margin: 0 }}>My tasting notes</h2>
-            <Link to={`/wine/${wine.id}/edit`} className="btn btn-ghost btn-sm">
-              <Pencil size={14} /> Edit
-            </Link>
-          </div>
-          {wine.notes ? <p className="notes">{wine.notes}</p> : <p className="notes muted">No notes yet. What did you think?</p>}
-        </div>
+        </section>
 
         {shown.length > 0 && (
-          <div className="section">
-            <h2>Details</h2>
+          <section className="detail-section">
             <dl className="facts">
               {shown.map(([k, v]) => (
                 <div key={k}>
-                  <dt>{k}</dt>
+                  <dt className="eyebrow">{k}</dt>
                   <dd>{v}</dd>
                 </div>
               ))}
             </dl>
-          </div>
+          </section>
         )}
 
         <MoreLikeThis wine={wine} />
 
-        <div className="detail-footer section">
-          <Link to={`/wine/${wine.id}/edit`} className="btn btn-dark">
-            <Pencil size={16} /> Edit details
+        <div className="detail-footer">
+          <Link to={`/wine/${wine.id}/edit`} className="btn btn-dark btn-lg">
+            Edit details
           </Link>
-          <button type="button" className="btn btn-danger" onClick={() => setConfirmDelete(true)}>
-            <Trash2 size={16} /> Delete
+          <button type="button" className="btn btn-danger btn-lg" onClick={() => setConfirmDelete(true)}>
+            Delete
           </button>
         </div>
       </div>
@@ -239,12 +269,12 @@ export function WineDetailPage() {
           onClose={() => setConfirmDelete(false)}
           footer={
             <>
-              <button type="button" className="btn btn-secondary" onClick={() => setConfirmDelete(false)}>
+              <button type="button" className="btn btn-tone" onClick={() => setConfirmDelete(false)}>
                 Keep it
               </button>
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-dark"
                 style={{ background: 'var(--danger)' }}
                 onClick={async () => {
                   await deleteWine(wine.id);

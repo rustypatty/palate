@@ -1,54 +1,93 @@
-import { Bookmark, BookmarkCheck, ExternalLink, X } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { ArrowUpRight, Bookmark, Check, ChevronLeft, ChevronRight, Heart, X } from 'lucide-react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { formatPrice, vintageLabel } from '../lib/format';
 import { offerLabel } from '../lib/likeThis';
 import { possessive, type StoreItem, type SuggestedItem } from '../lib/stores';
 import type { StoreOffer, Wine } from '../types';
 import { BottleImage, BottlePlaceholder } from './BottleImage';
-import { RatingBadge } from './Rating';
 
-/** A titled, horizontally scrolling row ("Buy again", "Want to try"…). */
-export function ShelfRow({ title, sub, action, children }: { title: string; sub?: string; action?: ReactNode; children: ReactNode }) {
+/** A titled, horizontally scrolling row ("Best bets", "Your shortlist"…). */
+export function ShelfRow({
+  title,
+  sub,
+  action,
+  below,
+  arrows = false,
+  children,
+}: {
+  title: ReactNode;
+  sub?: ReactNode;
+  action?: ReactNode;
+  /** Something under the heading, such as a "New search" button. */
+  below?: ReactNode;
+  /** Previous/next buttons on desktop. */
+  arrows?: boolean;
+  children: ReactNode;
+}) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const page = (dir: 1 | -1) => {
+    const el = scroller.current;
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: 'smooth' });
+  };
   return (
-    <section className="shelf" aria-label={title}>
+    <section className="shelf" aria-label={typeof title === 'string' ? title : undefined}>
       <div className="shelf-head">
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h2>{title}</h2>
           {sub && <p>{sub}</p>}
         </div>
-        {action}
+        <div className="shelf-actions">
+          {action}
+          {arrows && (
+            <span className="desktop-only shelf-arrows">
+              <button type="button" className="icon-btn" onClick={() => page(-1)} aria-label="Scroll back">
+                <ChevronLeft size={18} />
+              </button>
+              <button type="button" className="icon-btn" onClick={() => page(1)} aria-label="Scroll forward">
+                <ChevronRight size={18} />
+              </button>
+            </span>
+          )}
+        </div>
       </div>
-      <div className="shelf-scroll">{children}</div>
+      {below && <div className="shelf-below">{below}</div>}
+      <div className="shelf-scroll" ref={scroller}>
+        {children}
+      </div>
     </section>
   );
 }
 
-/** One of your wines, small. */
+/** One of your wines, small, on a burgundy-tinted shelf. */
 export function MiniWineCard({ wine, note }: { wine: Wine; note?: string }) {
+  const loved = !note && wine.rating === 'loved';
   return (
-    <Link to={`/wine/${wine.id}`} className="mini-card">
-      <div className="tile">
+    <Link to={`/wine/${wine.id}`} className="mini-card lift">
+      <div className="tile shelf-stage">
         <BottleImage photo={wine.photo} alt="" />
-        {wine.rating && <RatingBadge rating={wine.rating} />}
       </div>
       <div className="mini-t">{wine.name || wine.producer || 'Untitled wine'}</div>
-      <div className="mini-s">{note ?? ([wine.name ? wine.producer : '', vintageLabel(wine)].filter(Boolean).join(' · ') || ' ')}</div>
+      <div className={`mini-s${loved ? ' loved' : ''}`}>
+        {loved ? (
+          <>
+            <Heart size={11} fill="currentColor" strokeWidth={0} /> Loved
+          </>
+        ) : (
+          (note ?? ([wine.name ? wine.producer : '', vintageLabel(wine)].filter(Boolean).join(' · ') || ' '))
+        )}
+      </div>
     </Link>
   );
 }
 
 type Item = StoreItem | SuggestedItem;
 
-/** The store's photo of this bottle; the plain placeholder if there's none or it won't load. */
-function StorePhoto({ src }: { src: string | null }) {
+/** The store's photo of this bottle; the silhouette if there's none or it won't load. */
+export function StorePhoto({ src }: { src: string | null }) {
   const [failed, setFailed] = useState<string | null>(null);
   if (!src || failed === src) return <BottlePlaceholder />;
   return <img className="bottle" src={src} alt="" loading="lazy" decoding="async" draggable={false} onError={() => setFailed(src)} />;
-}
-
-function itemPhoto(item: Item) {
-  return <StorePhoto src={item.image} />;
 }
 
 interface PickActions {
@@ -57,70 +96,146 @@ interface PickActions {
   onPass: () => void;
 }
 
-/** A store suggestion, small, for scrolling rows. */
 /** What a pick card needs: the bottle and why. */
 export interface PickLike {
   item: Item;
   reason: string;
+  /** Producer and wine name, when known separately from the listing's title. */
+  producer?: string;
+  name?: string;
 }
 
+/** Reasons read better without dashes: a comma, or a full stop before a new sentence. */
+export function cleanReason(text: string): string {
+  return text.replace(/\s*[—–]\s*(?=([A-Z])?)/g, (_m, cap?: string) => (cap ? '. ' : ', '));
+}
+
+/** Producer (eyebrow) and wine name (the big line), split where the listing allows. */
+export function pickNames(pick: PickLike): { producer: string; name: string } {
+  const s = pick.item as Partial<SuggestedItem>;
+  const producer = pick.producer ?? s.producer ?? '';
+  const wine = pick.name ?? s.wine ?? '';
+  if (!producer || !wine) return { producer: '', name: pick.item.title };
+  const vintage = pick.item.vintage !== null && !wine.includes(String(pick.item.vintage)) ? ` ${pick.item.vintage}` : '';
+  return { producer, name: wine + vintage };
+}
+
+/** The dashed row left behind by "Not for me", with Undo. */
+export function HiddenRow({ label, onUndo, card = false }: { label: string; onUndo: () => void; card?: boolean }) {
+  return (
+    <div className={`hidden-row${card ? ' as-card' : ''}`} role="status">
+      <span>
+        Hidden · <em>{label}</em>
+      </span>
+      <button type="button" className="text-link" onClick={onUndo}>
+        Undo
+      </button>
+    </div>
+  );
+}
+
+/** A store suggestion for scrolling rows (Best bets, Bottles like this). */
 export function PickCard({ pick, saved, onWant, onPass, storeName, offers }: { pick: PickLike; storeName?: string; offers?: StoreOffer[] } & PickActions) {
   const { item } = pick;
+  const { producer, name } = pickNames(pick);
   return (
-    <div className="mini-card pick-card">
+    <div className="pick-card lift">
       <a href={item.url} target="_blank" rel="noreferrer" className="tile" aria-label={`${item.title} on the store’s website`}>
-        {itemPhoto(item)}
+        <StorePhoto src={item.image} />
       </a>
-      <div className="mini-t">{item.title}</div>
-      {offers?.length ? (
-        <div className="offers">
-          {offers.slice(0, 3).map((o) => (
-            <a key={o.storeId} href={o.url} target="_blank" rel="noreferrer">
-              {offerLabel(o)}
-            </a>
-          ))}
-        </div>
-      ) : (
-        <div className="mini-s">{[item.price !== null ? formatPrice(item.price) : '', storeName].filter(Boolean).join(' · ') || ' '}</div>
-      )}
-      <div className="pick-reason">{pick.reason}</div>
-      <div className="pick-actions">
-        <button type="button" className={`pick-btn${saved ? ' on' : ''}`} onClick={onWant} disabled={saved} aria-label={saved ? 'On your Want to try list' : 'Want to try'}>
-          {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
+      <div className="pc-body">
+        <div className="pc-producer">{producer || ' '}</div>
+        <div className="pc-name">{name}</div>
+        {offers?.length ? (
+          <div className="offers">
+            {offers.slice(0, 3).map((o) => (
+              <a key={o.storeId} href={o.url} target="_blank" rel="noreferrer">
+                {offerLabel(o)}
+              </a>
+            ))}
+          </div>
+        ) : (
+          <div className="pc-price">
+            {item.price !== null && <strong>{formatPrice(item.price)}</strong>} {storeName && <span>{storeName}</span>}
+          </div>
+        )}
+        <p className="pc-reason">{cleanReason(pick.reason)}</p>
+      </div>
+      <div className="pc-actions">
+        <button
+          type="button"
+          className={`pc-want${saved ? ' is-saved' : ''}`}
+          onClick={onWant}
+          disabled={saved}
+          aria-label={saved ? 'Saved to Want to try' : 'Want to try'}
+        >
+          {saved ? <Bookmark size={17} fill="currentColor" /> : <Bookmark size={17} strokeWidth={1.7} />}
+          <span className="pc-label">{saved ? '✓ Saved' : 'Want to try'}</span>
         </button>
-        <button type="button" className="pick-btn" onClick={onPass} aria-label="Not for me">
-          <X size={16} />
+        <button type="button" className="pc-pass" onClick={onPass} aria-label="Not for me">
+          <X size={16} strokeWidth={1.8} />
         </button>
+        <a href={item.url} target="_blank" rel="noreferrer" className="pc-link" aria-label={`See it on ${storeName ? possessive(storeName) : 'the store’s'} website`}>
+          <span className="pc-link-text">Link</span> <ArrowUpRight size={15} strokeWidth={1.6} />
+        </a>
       </div>
     </div>
   );
 }
 
-/** A store suggestion as a full-width row, for the In-store list. */
-export function PickRow({ pick, saved, onWant, onPass, storeName }: { pick: PickLike; storeName: string } & PickActions) {
+/** A store suggestion as a full card, for the In store list. */
+export function PickRow({
+  pick,
+  saved,
+  onWant,
+  onPass,
+  storeName,
+  domain,
+  n,
+}: { pick: PickLike; storeName: string; domain: string; n: number } & PickActions) {
   const { item } = pick;
+  const { producer, name } = pickNames(pick);
   const size = item.sizeMl && item.sizeMl !== 750 ? (item.sizeMl >= 1000 ? `${item.sizeMl / 1000} L` : `${item.sizeMl} ml`) : '';
   return (
-    <div className="pick-row">
+    <article className="pick-row lift">
       <a href={item.url} target="_blank" rel="noreferrer" className="tile" aria-label={`${item.title} on ${possessive(storeName)} website`}>
-        {itemPhoto(item)}
+        <StorePhoto src={item.image} />
       </a>
-      <div className="body">
-        <div className="t">{item.title}</div>
-        <div className="s">{[item.price !== null ? formatPrice(item.price) : '', size].filter(Boolean).join(' · ')}</div>
-        <div className="pick-reason">{pick.reason}</div>
-        <div className="pick-row-actions">
-          <button type="button" className={`btn btn-sm ${saved ? 'btn-ghost' : 'btn-outline'}`} onClick={onWant} disabled={saved}>
-            {saved ? <BookmarkCheck size={15} /> : <Bookmark size={15} />} {saved ? 'Saved' : 'Want to try'}
-          </button>
-          <button type="button" className="btn btn-sm btn-ghost" onClick={onPass}>
-            <X size={15} /> Not for me
-          </button>
-          <a href={item.url} target="_blank" rel="noreferrer" className="btn btn-sm btn-ghost" aria-label={`Check stock on ${possessive(storeName)} website`} title="Check stock">
-            <ExternalLink size={15} />
-          </a>
+      <div className="pr-head">
+        <div className="pr-no">No. {String(n).padStart(2, '0')}</div>
+        {producer && <div className="pr-producer">{producer}</div>}
+        <h3 className="pr-name">{name}</h3>
+        <div className="pr-price">
+          {item.price !== null ? formatPrice(item.price) : 'Price on website'}
+          {size && <span className="pr-size"> · {size}</span>}
         </div>
+        <a className="pr-link" href={item.url} target="_blank" rel="noreferrer">
+          {storeName} · {domain} <ArrowUpRight size={14} strokeWidth={1.6} />
+        </a>
       </div>
-    </div>
+      <div className="pr-why">
+        <div className="why-label">Why you’ll like it</div>
+        <p className="reason">{cleanReason(pick.reason)}</p>
+      </div>
+      <div className="pr-actions">
+        <button type="button" className={`btn btn-dark btn-lg${saved ? ' is-saved' : ''}`} onClick={onWant} disabled={saved}>
+          {saved ? (
+            <>
+              <Check size={17} /> Saved<span className="desktop-inline"> to Want to try</span>
+            </>
+          ) : (
+            <>
+              <Bookmark size={17} strokeWidth={1.7} /> Want to try
+            </>
+          )}
+        </button>
+        <button type="button" className="btn btn-tone btn-lg" onClick={onPass}>
+          Not for me
+        </button>
+        <a className="pr-link pr-link-wide" href={item.url} target="_blank" rel="noreferrer">
+          {storeName} · {domain} <ArrowUpRight size={14} strokeWidth={1.6} />
+        </a>
+      </div>
+    </article>
   );
 }

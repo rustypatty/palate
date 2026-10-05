@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { STYLE_LABEL } from '../lib/constants';
 import { formatPrice, fullName, vintageLabel } from '../lib/format';
 import type { Wine } from '../types';
-import { BottleGlyph, BottleImage } from './BottleImage';
+import { BottleImage } from './BottleImage';
 import { RatingBadge } from './Rating';
 
 export function WineCard({ wine, eager }: { wine: Wine; eager?: boolean }) {
@@ -12,29 +12,21 @@ export function WineCard({ wine, eager }: { wine: Wine; eager?: boolean }) {
       <div className="tile">
         <BottleImage photo={wine.photo} alt="" eager={eager} />
         {wine.rating && <RatingBadge rating={wine.rating} />}
-        {wine.owned > 0 && (
-          <span className="owned-badge" title={`${wine.owned} in your cellar`}>
-            <BottleGlyph />
-            {wine.owned}
-            <span className="sr-only"> in your cellar</span>
-          </span>
-        )}
+        {wine.owned > 0 && <span className="owned-badge">{wine.owned} in cellar</span>}
       </div>
       <div className="card-body">
-        <div className="card-producer">{wine.producer || ' '}</div>
+        {wine.producer && wine.name && <div className="card-producer">{wine.producer}</div>}
         <div className="card-name">{wine.name || wine.producer || 'Untitled wine'}</div>
-        <div className="card-meta">
-          <span>{[vintageLabel(wine), place].filter(Boolean).join(' · ')}</span>
-          {wine.price !== null && <span className="price">{formatPrice(wine.price)}</span>}
-        </div>
+        <div className="card-meta">{[vintageLabel(wine), place].filter(Boolean).join(' · ') || ' '}</div>
       </div>
     </Link>
   );
 }
 
+/** A small row for lists: your safe bets, wines you've had. */
 export function WineRow({ wine }: { wine: Wine }) {
   return (
-    <Link to={`/wine/${wine.id}`} className="row-card">
+    <Link to={`/wine/${wine.id}`} className="row-card lift">
       <div className="tile">
         <BottleImage photo={wine.photo} alt="" />
       </div>

@@ -1,39 +1,51 @@
-import { Sparkles } from 'lucide-react';
+import { Fragment, type ReactNode } from 'react';
 import type { TasteProfile } from '../lib/taste';
-import { RatePrompt } from './StorePicks';
+import { MIN_RATED } from '../lib/taste';
 
-/** "Your taste", in plain language, on the My palate page. */
-export function TasteCard({ taste }: { taste: TasteProfile }) {
-  if (!taste.enough) return <RatePrompt rated={taste.rated} />;
-  const likes = taste.likes.filter((a) => a.kind !== 'country').slice(0, 6);
-  const avoid = taste.dislikes.slice(0, 4);
+/** Put the places you love in italics inside the summary sentence. */
+function emphasise(line: string, words: string[]): ReactNode {
+  const hits = words.filter((w) => w && line.includes(w)).sort((a, b) => b.length - a.length);
+  if (!hits.length) return line;
+  const re = new RegExp(`(${hits.map((h) => h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`);
+  return line.split(re).map((part, i) => (hits.includes(part) ? <em key={i}>{part}</em> : <Fragment key={i}>{part}</Fragment>));
+}
+
+/** "Your taste", in plain language, in the golden header of My palate. */
+export function TasteHeader({ taste }: { taste: TasteProfile }) {
+  if (!taste.enough) {
+    const left = MIN_RATED - taste.rated;
+    return (
+      <header className="palate-hero">
+        <div className="eyebrow">My palate · from {taste.rated} rated wines</div>
+        <h1 className="palate-summary">
+          Rate {left} more {left === 1 ? 'wine' : 'wines'} and Palate will <em>describe your taste.</em>
+        </h1>
+        <p className="palate-more">Every “Loved it” and “Wouldn’t buy again” sharpens it — and switches on store suggestions.</p>
+      </header>
+    );
+  }
+  const lines = taste.summary.filter((l) => !l.startsWith('In your words'));
+  const places = taste.likes.filter((a) => a.kind === 'region' || a.kind === 'area').map((a) => a.value);
   return (
-    <section className="taste-card">
-      <h2 className="section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Sparkles size={14} /> Your taste
-      </h2>
-      {taste.summary.map((line) => (
-        <p key={line} className={line.startsWith('In your words') ? 'taste-quote' : 'taste-line'}>
-          {line}
-        </p>
-      ))}
-      {likes.length > 0 && (
-        <div className="taste-tags" aria-label="You enjoy">
-          {likes.map((a) => (
-            <span key={`${a.kind}:${a.value}`} className="tag tag-good">
-              {a.value}
-            </span>
-          ))}
-          {avoid.map((a) => (
-            <span key={`${a.kind}:${a.value}`} className="tag tag-bad">
-              {a.value}
-            </span>
-          ))}
-        </div>
-      )}
-      <p className="small muted" style={{ margin: 0 }}>
-        From your {taste.rated} rated wines. It updates as you rate more{taste.price ? '' : ' — add prices to see your usual range'}.
-      </p>
-    </section>
+    <header className="palate-hero">
+      <div className="eyebrow">My palate · from {taste.rated} rated wines</div>
+      {lines[0] && <h1 className="palate-summary">{emphasise(lines[0], places)}</h1>}
+      {lines.length > 1 && <p className="palate-more">{lines.slice(1).join(' ')}</p>}
+    </header>
+  );
+}
+
+/** The first thing you said you're after, as a pull quote. */
+export function TasteQuote({ taste }: { taste: TasteProfile }) {
+  const wish = taste.wishes[0];
+  if (!wish) return null;
+  return (
+    <figure className="pull-quote">
+      <span className="mark" aria-hidden="true">
+        “
+      </span>
+      <blockquote>{wish.replace(/[“”"]/g, '')}</blockquote>
+      <figcaption className="eyebrow">In your words</figcaption>
+    </figure>
   );
 }

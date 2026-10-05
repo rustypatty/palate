@@ -5,7 +5,7 @@ export function AboutWine({ about, onRemove }: { about: About; onRemove?: () => 
   return (
     <div className="about-wine">
       <p className="notes" style={{ margin: 0 }}>{about.text}</p>
-      <div className="row-between small" style={{ marginTop: 6 }}>
+      <div className="row-between small" style={{ marginTop: 10, flexWrap: 'wrap' }}>
         <span className="muted">
           Source:{' '}
           {about.sourceUrl ? (
