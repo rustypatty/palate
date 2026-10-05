@@ -1,5 +1,5 @@
 import { Bookmark, Plus, ScanLine, Search, SlidersHorizontal, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { useToast } from '../components/Toast';
@@ -60,6 +60,32 @@ function Hero({ wines }: { wines: Wine[] }) {
   const captioned = row.length ? row : loved.slice(0, 4);
   const ordered = row.length > 1 ? [row[1], row[0], ...row.slice(2)] : row;
   const n = loved.length;
+
+  // Phone: the loved bottles take turns in the light, each rising into place.
+  const slides = withPhoto.slice(0, 8);
+  const [slide, setSlide] = useState(0);
+  const [leavingIdx, setLeavingIdx] = useState<number | null>(null);
+  const touchX = useRef(0);
+  const go = (i: number) => {
+    if (slides.length < 2) return;
+    const next = (i + slides.length) % slides.length;
+    if (next === slide) return;
+    setLeavingIdx(slide);
+    setSlide(next);
+  };
+  useEffect(() => {
+    if (slides.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const t = window.setTimeout(() => go(slide + 1), 5000);
+    return () => window.clearTimeout(t);
+  }, [slide, slides.length]);
+  useEffect(() => {
+    if (leavingIdx === null) return;
+    const t = window.setTimeout(() => setLeavingIdx(null), 800);
+    return () => window.clearTimeout(t);
+  }, [leavingIdx, slide]);
+  const shown = slides[Math.min(slide, slides.length - 1)] ?? latest;
+  const leaving = leavingIdx !== null ? slides[leavingIdx] : undefined;
+
   return (
     <section className="hero-block" aria-label="Welcome">
       <div className="hero-text">
@@ -69,22 +95,25 @@ function Hero({ wines }: { wines: Wine[] }) {
             <>
               Bottles worth <em>remembering.</em>
             </>
+          ) : n === 1 ? (
+            <>
+              A bottle you’d pour <em>again.</em>
+            </>
           ) : (
             <>
-              {n < NUMBER_WORDS.length ? NUMBER_WORDS[n] : n} {n === 1 ? 'bottle' : 'bottles'} you’d pour <em>again.</em>
+              The bottles you’d pour <em>again.</em>
             </>
           )}
         </h1>
         <p className="hero-sub">
-          {wines.length} {wines.length === 1 ? 'wine' : 'wines'} · {owned} in your cellar
+          {[n ? `${n} loved` : '', `${wines.length} ${wines.length === 1 ? 'wine' : 'wines'}`, `${owned} in your cellar`].filter(Boolean).join(' · ')}
         </p>
-        {latest && (
-          <div className="hero-caption mobile-only">
-            <div className="eyebrow">Last loved</div>
-            <div className="hero-caption-name">
-              {shortProducer(latest)}
-              {latest.name && latest.producer && <br />}
-              {latest.producer ? latest.name : ''}
+        {shown && (
+          <div className="hero-caption mobile-only" aria-live="polite">
+            <div className="eyebrow">{slide === 0 ? 'Last loved' : 'Also loved'}</div>
+            <div className="hero-caption-name" key={shown.id}>
+              <span className="one-line">{shortProducer(shown)}</span>
+              {shown.name && shown.producer && <span className="one-line">{shown.name}</span>}
             </div>
           </div>
         )}
@@ -95,10 +124,33 @@ function Hero({ wines }: { wines: Wine[] }) {
           </div>
         )}
       </div>
-      {latest?.photo && (
-        <Link to={`/wine/${latest.id}`} className="hero-bottle mobile-only lift" aria-label={`Open ${shortProducer(latest)}`}>
-          <BottleImage photo={latest.photo} alt="" eager />
-        </Link>
+      {shown?.photo && (
+        <div
+          className="hero-carousel mobile-only"
+          onTouchStart={(e) => (touchX.current = e.touches[0].clientX)}
+          onTouchEnd={(e) => {
+            const dx = e.changedTouches[0].clientX - touchX.current;
+            if (Math.abs(dx) > 40) go(slide + (dx < 0 ? 1 : -1));
+          }}
+        >
+          {leaving?.photo && (
+            <div className="hero-bottle leaving" aria-hidden="true">
+              <BottleImage photo={leaving.photo} alt="" eager />
+            </div>
+          )}
+          <Link key={shown.id} to={`/wine/${shown.id}`} className="hero-bottle entering lift" aria-label={`Open ${shortProducer(shown)}`}>
+            <BottleImage photo={shown.photo} alt="" eager />
+          </Link>
+          {slides.length > 1 && (
+            <div className="hero-dots" role="group" aria-label="Loved bottles">
+              {slides.map((w, i) => (
+                <button key={w.id} type="button" aria-pressed={i === slide} aria-label={`Show ${shortProducer(w)}`} onClick={() => go(i)}>
+                  <i />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
       {ordered.length > 0 && (
         <div className="hero-bottles desktop-only">

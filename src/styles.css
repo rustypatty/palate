@@ -4235,3 +4235,92 @@ details.more[open] > .more-body {
     font-weight: 500;
   }
 }
+
+/* Phone hero: loved bottles take turns, each rising into the light */
+.hero-carousel {
+  position: absolute;
+  right: 6px;
+  top: 34px;
+  bottom: 30px;
+  width: 44%;
+}
+
+.hero-carousel .hero-bottle {
+  inset: 0 0 26px;
+  width: auto;
+}
+
+/* Animate the photo itself, so it keeps blending into the golden light. */
+.hero-bottle.entering .bottle {
+  animation: bottle-rise 0.8s var(--glide) both;
+}
+
+.hero-bottle.entering::after {
+  animation: fade 0.8s var(--glide);
+}
+
+.hero-bottle.leaving {
+  pointer-events: none;
+}
+
+.hero-bottle.leaving .bottle {
+  animation: bottle-leave 0.7s var(--glide) both;
+}
+
+.hero-bottle.leaving::after {
+  display: none;
+}
+
+@keyframes bottle-rise {
+  from {
+    opacity: 0;
+    transform: translateY(36px);
+  }
+}
+
+@keyframes bottle-leave {
+  to {
+    opacity: 0;
+    transform: translateY(-36px);
+  }
+}
+
+.hero-caption-name {
+  animation: fade 0.6s var(--glide);
+}
+
+.hero-dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -12px;
+  display: flex;
+  justify-content: center;
+}
+
+.hero-dots button {
+  width: 22px;
+  height: 44px;
+  border: 0;
+  background: none;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.hero-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(122, 31, 53, 0.25);
+  transition: width 0.4s var(--glide), background 0.4s var(--glide);
+}
+
+.hero-dots button[aria-pressed='true'] i {
+  width: 16px;
+  background: var(--wine);
+}
+
+.hero-caption-name .one-line {
+  display: block;
+}
