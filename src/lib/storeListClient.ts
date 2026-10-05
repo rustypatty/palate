@@ -139,9 +139,15 @@ function prompt(r: StoreListRequest): string {
   );
 }
 
-export async function findStoreListWithClaude(apiKey: string, req: StoreListRequest, signal?: AbortSignal): Promise<StoreListOutcome> {
+export async function findStoreListWithClaude(
+  apiKey: string,
+  req: StoreListRequest,
+  signal?: AbortSignal,
+  /** Sees each raw response; used by the live test script to show what Claude searched and reported. */
+  onResponse?: (res: Anthropic.Beta.BetaMessage) => void,
+): Promise<StoreListOutcome> {
   // No automatic retries (a retry is billed twice); searching can take a minute or two.
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 600_000 });
+  const client = new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com', dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 600_000 });
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: prompt(req) }];
   const seen = new Set<string>();
   let report: z.infer<typeof ReportSchema> | null = null;
@@ -162,6 +168,7 @@ export async function findStoreListWithClaude(apiKey: string, req: StoreListRequ
           { signal },
         )
         .finalMessage();
+      onResponse?.(res);
       // Remember every page the search actually returned: picks must come from these.
       for (const block of res.content) {
         if (block.type === 'web_search_tool_result' && Array.isArray(block.content)) {
