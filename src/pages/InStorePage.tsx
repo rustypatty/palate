@@ -8,6 +8,7 @@ import { cleanReason, MiniWineCard, ShelfRow } from '../components/Shelf';
 import { PhotoChoices } from '../components/PhotoChoices';
 import { useToast } from '../components/Toast';
 import { ShelfSnap } from '../components/ShelfSnap';
+import { WineListSnap } from '../components/WineListSnap';
 import { StoreChooser, StorePicksPanel } from '../components/StorePicks';
 import { WineRow } from '../components/WineCard';
 import { useDebounced, useLists, useWines } from '../hooks';
@@ -217,6 +218,7 @@ export function InStorePage() {
           <p className="lede mobile-only">Bottles on the shelf that fit your taste.</p>
         </header>
         <ShelfSnap />
+        <WineListSnap />
         <div className="mobile-only">
           <StoreChooser />
         </div>

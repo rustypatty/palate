@@ -4729,3 +4729,109 @@ details.more[open] > .more-body {
     flex: none;
   }
 }
+
+/* ---------- Snap a wine list ---------- */
+.wl-head-actions {
+  display: inline-flex;
+  gap: 16px;
+  align-items: center;
+}
+.wl-head-actions .text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.wl-list {
+  background: var(--tone);
+  border-radius: 20px;
+  padding: 8px 20px 16px;
+}
+.wl-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wl-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(35, 31, 29, 0.06);
+}
+.wl-list li .muted {
+  white-space: nowrap;
+}
+.wl-turn {
+  display: grid;
+  gap: 14px;
+}
+.wl-q {
+  justify-self: end;
+  max-width: 85%;
+  margin: 8px 0 0;
+  padding: 10px 16px;
+  border-radius: 18px 18px 4px 18px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 15px;
+}
+.wl-a {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.wl-reply {
+  margin: 0;
+  padding: 0 var(--text-in);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.wl-pick .reason {
+  margin: 0;
+}
+.wl-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(122, 31, 53, 0.1);
+  color: var(--wine);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  vertical-align: 2px;
+}
+.wl-tag.value {
+  background: rgba(46, 110, 70, 0.12);
+  color: #2e6e46;
+}
+.wl-tag.new {
+  background: rgba(35, 31, 29, 0.08);
+  color: var(--ink);
+}
+.wl-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wl-quick .chip {
+  min-height: 44px;
+}
+.wl-ask {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.wl-ask .btn {
+  min-height: 48px;
+  gap: 6px;
+}
+.wl-cost {
+  font-size: 13px;
+  opacity: 0.8;
+}
