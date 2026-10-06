@@ -130,7 +130,8 @@ export function totalWineImage(pageUrl: string): string | null {
 }
 
 /** The best store photo of this exact bottle: Total Wine's own, else whatever the search found. */
-export function bottlePhoto(b: Pick<LikeBottle, 'offers' | 'image'>): LikeBottle['image'] {
+export function bottlePhoto(b: Pick<LikeBottle, 'offers' | 'image' | 'photoChecked'>): LikeBottle['image'] {
+  if (b.photoChecked) return b.image;
   const tw = b.offers.find((o) => o.storeId === 'totalwine');
   const twImg = tw ? totalWineImage(tw.url) : null;
   if (twImg) return { url: twImg, pageUrl: tw!.url, siteName: 'Total Wine' };
