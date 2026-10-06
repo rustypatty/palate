@@ -1,5 +1,5 @@
-import { Bookmark, Check, ChevronDown, ImagePlus, Plus, Send, Wine as WineIcon, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Bookmark, Check, ChevronDown, ImagePlus, Plus, Send, X } from 'lucide-react';
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, type FormEvent, type Ref } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createWine } from '../db';
 import { useWines } from '../hooks';
@@ -25,24 +25,34 @@ import {
   type SavedList,
 } from '../lib/wineList';
 import type { Wine } from '../types';
+import type { SnapHandle } from './ShelfSnap';
 import { ago } from './StorePicks';
 import { cleanReason } from './Shelf';
 import { useToast } from './Toast';
 
 const TAG_LABEL = { match: 'Best match for you', value: 'Best value', new: 'Something new', '': '' } as const;
 
-/** Your taste and history, plus what's in your cellar right now (so it can say "you just bought that"). */
-function listContext(wines: Wine[], taste: Parameters<typeof shelfContext>[1]): string {
+/** Your taste and history, plus what's in your cellar right now (so it can say "you just bought that"), and your budget. */
+function listContext(wines: Wine[], taste: Parameters<typeof shelfContext>[1], budget: number | null): string {
   const cellar = wines
     .filter((w) => w.owned > 0)
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, 30)
     .map((w) => [w.producer, w.name, w.vintage ?? ''].filter(Boolean).join(' '));
-  return [shelfContext(wines, taste), cellar.length ? `In my cellar right now: ${cellar.join('; ')}.` : ''].filter(Boolean).join('\n\n');
+  return [
+    shelfContext(wines, taste),
+    cellar.length ? `In my cellar right now: ${cellar.join('; ')}.` : '',
+    budget ? `My budget tonight: under $${budget} a bottle, unless I ask otherwise.` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
-/** Snap a wine list: photos of a restaurant's list, then ask about it. */
-export function WineListSnap() {
+/**
+ * Snap a wine list: photos of a restaurant's list, then ask about it. Started from the page's
+ * snap card (through `ref`); `onIdle` says when there's nothing in progress.
+ */
+export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHandle>; onIdle?: (idle: boolean) => void; budget?: number | null }) {
   const wines = useWines();
   const taste = useTaste();
   const toast = useToast();
@@ -59,6 +69,8 @@ export function WineListSnap() {
   const [showList, setShowList] = useState(false);
 
   const thumbs = useMemo(() => photos.map((p) => URL.createObjectURL(p)), [photos]);
+  const idle = photos.length === 0 && !busy;
+  useEffect(() => onIdle?.(idle), [idle, onIdle]);
   useEffect(() => () => thumbs.forEach((u) => URL.revokeObjectURL(u)), [thumbs]);
 
   const update = (s: SavedList | null) => {
@@ -72,6 +84,11 @@ export function WineListSnap() {
     navigate('/profile', { state: { focusKey: Date.now() } });
     return true;
   };
+
+  useImperativeHandle(ref, () => ({
+    camera: () => !needKey() && camera.current?.click(),
+    library: () => !needKey() && library.current?.click(),
+  }));
 
   const add = (files: FileList | null) => {
     if (!files?.length) return;
@@ -114,7 +131,7 @@ export function WineListSnap() {
     setQuestion('');
     setBusy('Thinking it over…');
     try {
-      const out = await askWineList(list, text, listContext(wines ?? [], taste), ctl.signal);
+      const out = await askWineList(list, text, listContext(wines ?? [], taste, budget), ctl.signal);
       if (ctl.signal.aborted) return;
       const turn = out.ok ? { q: text, a: out.answer } : { q: text, a: null, error: `Couldn’t answer: ${out.reason}.` };
       update({ ...list, turns: [...list.turns, turn] });
@@ -172,31 +189,7 @@ export function WineListSnap() {
   );
 
   return (
-    <section className="shelf-snap wine-list" aria-label="Snap a wine list">
-      <div className="check-head">
-        <h2 className="title-lg">Snap a wine list</h2>
-        <p className="footnote">At a restaurant? Photograph the list, then ask what to order for your taste and budget.</p>
-      </div>
-
-      {!list && photos.length === 0 && !busy && (
-        <div className="shelf-start">
-          <button type="button" className="snap-tile shelf-tile" onClick={() => !needKey() && camera.current?.click()}>
-            <span className="snap-icon" aria-hidden="true">
-              <WineIcon size={22} strokeWidth={1.6} />
-            </span>
-            <span className="snap-cost">{listCost(3)}</span>
-            <span className="snap-title">Snap a wine list</span>
-            <span className="snap-sub">One photo per page, straight on. Claude reads every wine and price, then answers your questions.</span>
-          </button>
-          <button type="button" className="tone-tile" onClick={() => !needKey() && library.current?.click()}>
-            <ImagePlus size={20} strokeWidth={1.6} />
-            <span>
-              From your photos<small>Up to {MAX_LIST_PAGES} pages</small>
-            </span>
-          </button>
-        </div>
-      )}
-
+    <section className="shelf-snap wine-list" aria-label="Wine list">
       {photos.length > 0 && (
         <div className="shelf-tray">
           <div className="shelf-thumbs">

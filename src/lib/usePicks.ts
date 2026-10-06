@@ -40,6 +40,10 @@ function usePref<T>(key: string, fallback: T): [T, (v: T) => void] {
 
 export const useStoreChoice = () => usePref<StoreId>('palate.store', 'totalwine');
 export const useBudget = () => usePref<number | null>('palate.budget', null);
+/** In store: shopping, or choosing from a restaurant's list. */
+export const useStoreMode = () => usePref<'shop' | 'restaurant'>('palate.storeMode', 'shop');
+/** A bottle budget at a restaurant, kept apart from the shop budget. */
+export const useRestaurantBudget = () => usePref<number | null>('palate.restaurantBudget', null);
 
 export function useTaste() {
   const wines = useWines();

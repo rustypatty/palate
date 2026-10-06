@@ -1,4 +1,4 @@
-import { Barcode, Bookmark, Heart, Plus, Search, Tag, Type, X } from 'lucide-react';
+import { Barcode, Bookmark, Camera, Heart, Plus, Search, Tag, Type, Wine as WineGlass, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { BarcodeScanner } from '../components/BarcodeScanner';
@@ -7,7 +7,8 @@ import { LabelSnap, snapTile } from '../components/LabelSnap';
 import { cleanReason, MiniWineCard, ShelfRow } from '../components/Shelf';
 import { PhotoChoices } from '../components/PhotoChoices';
 import { useToast } from '../components/Toast';
-import { ShelfSnap } from '../components/ShelfSnap';
+import { ShelfSnap, type SnapHandle } from '../components/ShelfSnap';
+import { SnapCard, type SnapCardContent } from '../components/SnapCard';
 import { WineListSnap } from '../components/WineListSnap';
 import { StoreChooser, StorePicksPanel } from '../components/StorePicks';
 import { WineRow } from '../components/WineCard';
@@ -20,7 +21,9 @@ import { advise, describeCounts, detectStyle, type Signal } from '../lib/insight
 import { LabelReadError, lookUpWine, readingToDraft, readingToQuery, withLookup, type LabelReading, type WineLookup } from '../lib/labelReader';
 import { matchesWant } from '../lib/lists';
 import { storeById } from '../lib/stores';
-import { useStoreChoice } from '../lib/usePicks';
+import { useRestaurantBudget, useStoreChoice, useStoreMode } from '../lib/usePicks';
+import { listCost } from '../lib/wineList';
+import { shelfCost } from '../lib/shelf';
 import { tokens } from '../lib/text';
 import type { WineDraft, WineStyle } from '../types';
 import type { AddPrefill } from './WineFormPage';
@@ -45,6 +48,43 @@ function Meter({ s }: { s: Signal }) {
         <i className="m-liked" style={{ width: pct(s.counts.liked) }} />
         <i className="m-wouldnt" style={{ width: pct(s.counts.wouldnt) }} />
       </div>
+    </div>
+  );
+}
+
+type Mode = 'shop' | 'restaurant';
+
+const CARD: Record<Mode, SnapCardContent> = {
+  shop: {
+    id: 'shop',
+    icon: <Camera size={22} strokeWidth={1.6} />,
+    cost: shelfCost(4),
+    title: 'Snap a shelf',
+    line: 'Photograph a section, labels and prices in view. I’ll rank it for you.',
+    link: 'or choose from photos (up to 10)',
+    label: 'Snap a shelf: take a photo',
+  },
+  restaurant: {
+    id: 'restaurant',
+    icon: <WineGlass size={22} strokeWidth={1.6} />,
+    cost: listCost(3),
+    title: 'Snap the wine list',
+    line: 'One photo per page, straight on. Ask what to order for your taste.',
+    link: 'or choose from photos (up to 10 pages)',
+    label: 'Snap the wine list: take a photo',
+  },
+};
+
+/** "In a shop · At a restaurant". */
+function ModeSwitch() {
+  const [mode, setMode] = useStoreMode();
+  return (
+    <div className="mode-switch" role="group" aria-label="Where are you?">
+      {(['shop', 'restaurant'] as const).map((m) => (
+        <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)}>
+          {m === 'shop' ? 'In a shop' : 'At a restaurant'}
+        </button>
+      ))}
     </div>
   );
 }
@@ -79,6 +119,11 @@ export function InStorePage() {
   }, [loaded]);
   const [storeId] = useStoreChoice();
   const store = storeById(storeId);
+  const [mode] = useStoreMode();
+  const [tableBudget] = useRestaurantBudget();
+  const snap = useRef<SnapHandle>(null);
+  // The card hides while photos are in the tray or being read.
+  const [snapIdle, setSnapIdle] = useState(true);
   const [label, setLabel] = useState<{
     reading: LabelReading | null;
     photo: File;
@@ -213,19 +258,24 @@ export function InStorePage() {
           <div className="eyebrow">In store</div>
           <h1 className="headline store-headline">
             Your sommelier, <br className="mobile-only" />
-            <em>at {store.name}.</em>
+            <em>{mode === 'shop' ? `at ${store.name}.` : 'at the table.'}</em>
           </h1>
-          <p className="lede mobile-only">Bottles on the shelf that fit your taste.</p>
         </header>
-        <ShelfSnap />
-        <WineListSnap />
+        <div className="mobile-only">
+          <ModeSwitch />
+        </div>
         <div className="mobile-only">
           <StoreChooser />
         </div>
-        <StorePicksPanel />
+        {snapIdle && <SnapCard content={CARD[mode]} onCamera={() => snap.current?.camera()} onLibrary={() => snap.current?.library()} />}
+        {mode === 'shop' ? <ShelfSnap key="shop" ref={snap} onIdle={setSnapIdle} /> : <WineListSnap key="restaurant" ref={snap} onIdle={setSnapIdle} budget={tableBudget} />}
+        {mode === 'shop' && <StorePicksPanel />}
       </div>
 
       <aside className="store-side">
+        <div className="desktop-only">
+          <ModeSwitch />
+        </div>
         <div className="side-card desktop-only">
           <StoreChooser variant="list" />
         </div>
