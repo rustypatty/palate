@@ -6,7 +6,7 @@ import { getApiKey } from '../lib/labelReader';
 import { markNotForMe, saveToWant } from '../lib/lists';
 import { possessive, refreshPogos, requestStoreList, storeById, STORES, type StoreId } from '../lib/stores';
 import { MIN_RATED } from '../lib/taste';
-import { useAllStoreItems, useBudget, useStoreChoice, useStorePicks, useTaste } from '../lib/usePicks';
+import { useAllStoreItems, useBudget, useRestaurantBudget, useStoreChoice, useStoreMode, useStorePicks, useTaste } from '../lib/usePicks';
 
 /** Rough cost of one Claude store list, shown on the button. */
 const LIST_COST = '~25¢';
@@ -20,6 +20,14 @@ const BUDGETS: { value: number | null; label: string }[] = [
   { value: 40, label: 'Under $40' },
   { value: 60, label: 'Under $60' },
   { value: 100, label: 'Under $100' },
+];
+
+const RESTAURANT_BUDGETS: { value: number | null; label: string }[] = [
+  { value: null, label: 'Any' },
+  { value: 50, label: 'Under $50' },
+  { value: 80, label: 'Under $80' },
+  { value: 120, label: 'Under $120' },
+  { value: 200, label: 'Under $200' },
 ];
 
 export function ago(t: number, now = Date.now()): string {
@@ -73,11 +81,27 @@ function useStoreCounts(): Map<StoreId, string> {
   }, [entries]);
 }
 
-/** Which store and budget: wrapping pills on a phone, a store list on desktop. */
+/** Which store and budget: wrapping pills on a phone, a store list on desktop. At a restaurant, just the budget. */
 export function StoreChooser({ variant = 'pills' }: { variant?: 'pills' | 'list' }) {
   const [storeId, setStoreId] = useStoreChoice();
   const [budget, setBudget] = useBudget();
+  const [mode] = useStoreMode();
+  const [tableBudget, setTableBudget] = useRestaurantBudget();
   const counts = useStoreCounts();
+  if (mode === 'restaurant') {
+    return (
+      <div className={`store-chooser ${variant}`}>
+        <div className="eyebrow">Budget · per bottle</div>
+        <div className="chips" role="group" aria-label="Budget per bottle">
+          {RESTAURANT_BUDGETS.map((b) => (
+            <button key={b.label} type="button" className="chip outline" aria-pressed={b.value === tableBudget} onClick={() => setTableBudget(b.value)}>
+              {b.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={`store-chooser ${variant}`}>
       <div className="eyebrow">Store</div>

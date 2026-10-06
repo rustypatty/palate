@@ -1,5 +1,5 @@
-import { ArrowUpRight, Bookmark, Camera, Check, ImagePlus, Plus, RefreshCw, ShoppingBag, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowUpRight, Bookmark, Check, ImagePlus, Plus, RefreshCw, ShoppingBag, X } from 'lucide-react';
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createWine } from '../db';
 import { useWines } from '../hooks';
@@ -51,8 +51,17 @@ function asItem(b: ShelfBottle, storeId: string): SuggestedItem {
   };
 }
 
-/** Snap a shelf: photos in, a ranked shortlist out — read against your own ratings. */
-export function ShelfSnap() {
+/** What the page's snap card needs: open the camera or the photo picker. */
+export interface SnapHandle {
+  camera: () => void;
+  library: () => void;
+}
+
+/**
+ * Snap a shelf: photos in, a ranked shortlist out — read against your own ratings.
+ * Started from the page's snap card (through `ref`); `onIdle` says when there's nothing in progress.
+ */
+export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (idle: boolean) => void }) {
   const wines = useWines();
   const taste = useTaste();
   const advisor = useAdvisor();
@@ -69,6 +78,8 @@ export function ShelfSnap() {
   const [shelf, setShelf] = useState<SavedShelf | null>(loadShelf);
 
   const thumbs = useMemo(() => photos.map((p) => URL.createObjectURL(p)), [photos]);
+  const idle = photos.length === 0 && !busy;
+  useEffect(() => onIdle?.(idle), [idle, onIdle]);
   useEffect(() => () => thumbs.forEach((u) => URL.revokeObjectURL(u)), [thumbs]);
 
   const update = (s: SavedShelf | null) => {
@@ -82,6 +93,11 @@ export function ShelfSnap() {
     navigate('/profile', { state: { focusKey: Date.now() } });
     return true;
   };
+
+  useImperativeHandle(ref, () => ({
+    camera: () => !needKey() && camera.current?.click(),
+    library: () => !needKey() && library.current?.click(),
+  }));
 
   const add = (files: FileList | null) => {
     if (!files?.length) return;
@@ -193,30 +209,6 @@ export function ShelfSnap() {
 
   return (
     <section className="shelf-snap" aria-label="Snap a shelf">
-      <div className="check-head">
-        <h2 className="title-lg">Snap a shelf</h2>
-        <p className="footnote">Photos of a section; Palate ranks what’s there for you, with a call on each price.</p>
-      </div>
-
-      {photos.length === 0 && !busy && (
-        <div className="shelf-start">
-          <button type="button" className="snap-tile shelf-tile" onClick={() => !needKey() && camera.current?.click()}>
-            <span className="snap-icon" aria-hidden="true">
-              <Camera size={22} strokeWidth={1.6} />
-            </span>
-            <span className="snap-cost">{shelfCost(4)}</span>
-            <span className="snap-title">Snap a shelf</span>
-            <span className="snap-sub">Take a few photos, labels and price tags in view. Claude reads them and ranks them for you.</span>
-          </button>
-          <button type="button" className="tone-tile" onClick={() => !needKey() && library.current?.click()}>
-            <ImagePlus size={20} strokeWidth={1.6} />
-            <span>
-              From your photos<small>Pick up to {MAX_SHELF_PHOTOS}</small>
-            </span>
-          </button>
-        </div>
-      )}
-
       {photos.length > 0 && (
         <div className="shelf-tray">
           <div className="shelf-thumbs">
