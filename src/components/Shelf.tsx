@@ -18,6 +18,10 @@ export interface ShelfGrid {
   seeAll?: ReactNode;
   /** A tile that ends a short row. */
   filler?: ReactNode;
+  /** How many rows to show (default 2). */
+  rows?: number;
+  /** Narrowest card, in px (default 220). */
+  min?: number;
 }
 
 /**
@@ -50,17 +54,18 @@ export function ShelfRow({
   useEffect(() => {
     const el = scroller.current;
     if (!asGrid || !el) return;
-    const ro = new ResizeObserver(([e]) => setCols(Math.max(1, Math.floor((e.contentRect.width + GRID_GAP) / (GRID_MIN + GRID_GAP)))));
+    const min = grid?.min ?? GRID_MIN;
+    const ro = new ResizeObserver(([e]) => setCols(Math.max(1, Math.floor((e.contentRect.width + GRID_GAP) / (min + GRID_GAP)))));
     ro.observe(el);
     return () => ro.disconnect();
-  }, [asGrid]);
+  }, [asGrid, grid?.min]);
   const page = (dir: 1 | -1) => {
     const el = scroller.current;
     if (el) el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: 'smooth' });
   };
 
   const items = Children.toArray(children);
-  const shown = asGrid ? items.slice(0, cols * 2) : items;
+  const shown = asGrid ? items.slice(0, cols * (grid?.rows ?? 2)) : items;
   const more = asGrid && items.length > shown.length;
   const filler = asGrid && grid?.filler && items.length < cols ? grid.filler : null;
 
@@ -86,7 +91,11 @@ export function ShelfRow({
         </div>
       </div>
       {below && <div className="shelf-below">{below}</div>}
-      <div className={asGrid ? 'shelf-grid' : 'shelf-scroll'} ref={scroller}>
+      <div
+        className={asGrid ? 'shelf-grid' : 'shelf-scroll'}
+        ref={scroller}
+        style={asGrid && grid?.min ? { gridTemplateColumns: `repeat(auto-fill, minmax(${grid.min}px, 1fr))` } : undefined}
+      >
         {shown}
         {filler}
       </div>

@@ -32,19 +32,38 @@ Many appellations make both red and white wine — for example Burgundy villages
 const _check: z.infer<typeof LabelSchema> extends LabelReading ? true : never = true;
 void _check;
 
-async function toBase64Jpeg(photo: Blob): Promise<string> {
-  // ~1500px is plenty for label text and keeps the upload quick on mobile data.
-  const { blob } = await resizeImage(photo, 1500);
-  const bytes = new Uint8Array(await blob.arrayBuffer());
+type ImageType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+
+function base64(bytes: Uint8Array): string {
   let bin = '';
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(bin);
 }
 
+async function toBase64Jpeg(photo: Blob): Promise<string> {
+  // ~1500px is plenty for label text and keeps the upload quick on mobile data.
+  const { blob } = await resizeImage(photo, 1500);
+  return base64(new Uint8Array(await blob.arrayBuffer()));
+}
+
+/** The label photo, resized; or, if this device can't resize it, the photo as it is when small enough. */
+async function labelImage(photo: Blob): Promise<{ data: string; type: ImageType }> {
+  try {
+    return { data: await toBase64Jpeg(photo), type: 'image/jpeg' };
+  } catch {
+    const type = (['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const).find((t) => t === photo.type);
+    // Claude takes images up to 5 MB (base64 grows them by a third).
+    if (!type || photo.size > 3_700_000) {
+      throw new LabelReadError(`This phone couldn’t open the photo (${photo.type || 'unknown type'}). Try taking it with the camera button instead of picking it from your library.`);
+    }
+    return { data: base64(new Uint8Array(await photo.arrayBuffer())), type };
+  }
+}
+
 export async function readLabelWithClaude(apiKey: string, photo: Blob, signal?: AbortSignal): Promise<LabelReading> {
   // Browser use is intentional: the key belongs to the person using the app and never leaves their device except to call Anthropic.
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 1, timeout: 90_000 });
-  const data = await toBase64Jpeg(photo);
+  const image = await labelImage(photo);
 
   try {
     const response = await client.beta.messages.parse(
@@ -58,7 +77,7 @@ export async function readLabelWithClaude(apiKey: string, photo: Blob, signal?: 
           {
             role: 'user',
             content: [
-              { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } },
+              { type: 'image', source: { type: 'base64', media_type: image.type, data: image.data } },
               { type: 'text', text: PROMPT },
             ],
           },

@@ -143,6 +143,40 @@ function reason(e: unknown): string | null {
   return null;
 }
 
+/** Claude looks at the photos and ranks the ones that are this wine (about 2¢). */
+async function pickPhotos(client: Anthropic, wine: string, bottles: BottlePhoto[], snap: Blob | null, signal?: AbortSignal): Promise<BottlePhotoOutcome> {
+  const thumbs = await Promise.all(bottles.map((b) => asBase64(b.thumbUrl, signal)));
+  const shown = bottles.map((b, i) => ({ b, data: thumbs[i] })).filter((x): x is { b: BottlePhoto; data: string } => Boolean(x.data));
+  if (!shown.length) return { ok: false, reason: 'the bottle photos found couldn’t be loaded' };
+  const snapData = snap ? await blobBase64((await resizeImage(snap, 800)).blob).catch(() => null) : null;
+  const content: Anthropic.Beta.BetaContentBlockParam[] = [
+    ...(snapData
+      ? [
+          { type: 'text' as const, text: 'My own photo of the bottle (for comparing the label):' },
+          { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: snapData } },
+        ]
+      : []),
+    ...shown.flatMap((x, i) => [
+      { type: 'text' as const, text: `Image ${i + 1}:` },
+      { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: x.data } },
+    ]),
+    {
+      type: 'text',
+      text:
+        `Which of these images show a whole bottle of ${wine}? Same producer and cuvée on the label; a different vintage is fine. ` +
+        (snapData ? 'Prefer the one whose label matches my photo. ' : '') +
+        'Rank the matches, the cleanest product shot (plain background, whole bottle, upright) first. Leave out anything else.',
+    },
+  ];
+  const pick = await client.beta.messages.parse(
+    { model: MODEL, max_tokens: 2000, output_config: { effort: 'low', format: betaZodOutputFormat(PickSchema) }, messages: [{ role: 'user', content }] },
+    { signal },
+  );
+  const order = (pick.parsed_output?.matches ?? []).map((n) => n - 1).filter((i, k, all) => i >= 0 && i < shown.length && all.indexOf(i) === k);
+  const ranked = [...order.map((i) => shown[i].b), ...shown.map((x) => x.b).filter((_, i) => !order.includes(i))];
+  return { ok: true, photos: ranked, matched: order.length > 0 };
+}
+
 /**
  * Bottle photos of this wine from the web, best first. `matched` is true when Claude
  * confirmed the first one is this wine (and, given your own snap, the same label).
@@ -152,10 +186,19 @@ export async function findBottlePhotosWithClaude(
   wine: string,
   snap: Blob | null,
   signal?: AbortSignal,
+  /** Pages already known to be this wine (e.g. its store pages): tried first, without a web search. */
+  known: { url: string; site: string }[] = [],
 ): Promise<BottlePhotoOutcome> {
   // No automatic retries: a retry would be billed twice.
   const client = new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com', dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 300_000 });
   try {
+    if (known.length) {
+      const onKnown = await bottleImages(known, wine, signal);
+      if (onKnown.length) {
+        const out = await pickPhotos(client, wine, onKnown, snap, signal);
+        if (out.ok && out.matched) return out;
+      }
+    }
     // 1. Pages about this wine.
     const messages: Anthropic.Beta.BetaMessageParam[] = [
       {
@@ -200,36 +243,7 @@ export async function findBottlePhotosWithClaude(
     if (!bottles.length) return { ok: false, reason: 'the pages found had no bottle photos that could be loaded' };
 
     // 4. Claude picks the ones that are this wine.
-    const thumbs = await Promise.all(bottles.map((b) => asBase64(b.thumbUrl, signal)));
-    const shown = bottles.map((b, i) => ({ b, data: thumbs[i] })).filter((x): x is { b: BottlePhoto; data: string } => Boolean(x.data));
-    if (!shown.length) return { ok: false, reason: 'the bottle photos found couldn’t be loaded' };
-    const snapData = snap ? await blobBase64((await resizeImage(snap, 800)).blob).catch(() => null) : null;
-    const content: Anthropic.Beta.BetaContentBlockParam[] = [
-      ...(snapData
-        ? [
-            { type: 'text' as const, text: 'My own photo of the bottle (for comparing the label):' },
-            { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: snapData } },
-          ]
-        : []),
-      ...shown.flatMap((x, i) => [
-        { type: 'text' as const, text: `Image ${i + 1}:` },
-        { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: x.data } },
-      ]),
-      {
-        type: 'text',
-        text:
-          `Which of these images show a whole bottle of ${wine}? Same producer and cuvée on the label; a different vintage is fine. ` +
-          (snapData ? 'Prefer the one whose label matches my photo. ' : '') +
-          'Rank the matches, the cleanest product shot (plain background, whole bottle, upright) first. Leave out anything else.',
-      },
-    ];
-    const pick = await client.beta.messages.parse(
-      { model: MODEL, max_tokens: 2000, output_config: { effort: 'low', format: betaZodOutputFormat(PickSchema) }, messages: [{ role: 'user', content }] },
-      { signal },
-    );
-    const order = (pick.parsed_output?.matches ?? []).map((n) => n - 1).filter((i, k, all) => i >= 0 && i < shown.length && all.indexOf(i) === k);
-    const ranked = [...order.map((i) => shown[i].b), ...shown.map((x) => x.b).filter((_, i) => !order.includes(i))];
-    return { ok: true, photos: ranked, matched: order.length > 0 };
+    return await pickPhotos(client, wine, bottles, snap, signal);
   } catch (e) {
     if (signal?.aborted) return { ok: false, reason: 'cancelled' };
     const r = reason(e);

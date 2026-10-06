@@ -48,6 +48,8 @@ export interface LikeBottle {
   offers: StoreOffer[];
   /** A product photo of the same producer and cuvée from another shop, or null. */
   image: { url: string; pageUrl: string; siteName: string } | null;
+  /** True once the photo was checked to be a real bottle shot (image null: none found). */
+  photoChecked?: boolean;
   reason: string;
 }
 

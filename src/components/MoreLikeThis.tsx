@@ -5,6 +5,7 @@ import { useLists, useWines } from '../hooks';
 import { formatDate } from '../lib/format';
 import { getApiKey } from '../lib/labelReader';
 import { bottleAsItem, checkedSummary, isStale, LIKE_COST, likeSearch, searchLikeThis, storesSearched, withPogoOffers } from '../lib/likeThis';
+import { needsPhotoCheck, settleLikePhotos } from '../lib/likePhotos';
 import { markNotForMe, saveToWant } from '../lib/lists';
 import { possessive, storeById, type StoreId, type StoreItem } from '../lib/stores';
 import { useAdvisor, useAllStoreItems, useBudget, useTaste } from '../lib/usePicks';
@@ -47,6 +48,11 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
       skip: [...(lists?.want ?? []), ...(lists?.passed ?? []), ...all].map(listName).slice(0, 40),
     });
   };
+
+  // Store photos that are only a label, or missing: find real bottle shots (once per search).
+  useEffect(() => {
+    if (hasKey && !running && navigator.onLine && needsPhotoCheck(wine.likeThis?.bottles)) void settleLikePhotos(wine.id);
+  }, [wine.id, hasKey, running, wine.likeThis]);
 
   // Wines you enjoyed: search the first time, and again once the results are a month old.
   useEffect(() => {
@@ -108,6 +114,7 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
         }
         sub={sub}
         below={action}
+        grid={{ rows: Infinity, min: 180 }}
       >
         {running
           ? [0, 1, 2, 3].map((i) => (

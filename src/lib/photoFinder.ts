@@ -67,11 +67,11 @@ export function lastMiss(w: Wine): string | null {
 }
 
 /** Bottle photos of a wine from the web, best first (Claude searches; see bottlePhotoClient). */
-export async function findBottlePhotos(query: string, snap: Blob | null, signal?: AbortSignal) {
+export async function findBottlePhotos(query: string, snap: Blob | null, signal?: AbortSignal, known: { url: string; site: string }[] = []) {
   const { getApiKey } = await import('./labelReader');
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false as const, reason: 'add your Anthropic API key in My palate first' };
-  return (await import('./bottlePhotoClient')).findBottlePhotosWithClaude(apiKey, query, snap, signal);
+  return (await import('./bottlePhotoClient')).findBottlePhotosWithClaude(apiKey, query, snap, signal, known);
 }
 
 // Which wines are being looked up right now, for "Finding a photo…".

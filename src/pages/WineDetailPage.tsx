@@ -134,7 +134,7 @@ export function WineDetailPage() {
         </div>
         {!shownPhoto(wine.photo) && findingPhoto && (
           <span className="btn btn-white btn-sm hero-cta" role="status">
-            <Globe size={16} /> Finding a photo… · {PHOTO_FIND_COST}
+            <Globe size={16} /> Finding a photo · {PHOTO_FIND_COST}
           </span>
         )}
         {!shownPhoto(wine.photo) && !findingPhoto && (
