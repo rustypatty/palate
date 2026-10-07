@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useWines } from '../hooks';
 import { updateWine } from '../db';
-import { fetchNotes, noteFor, noteKey, notesConfigured, takeFromNote } from '../lib/catalogNotes';
+import { fetchNotes, fetchNotesByIds, noteFor, noteForId, noteKey, notesConfigured, takeFromNote } from '../lib/catalogNotes';
 import { hasApiKey } from '../lib/labelReader';
 import { needsTake, writeTake } from '../lib/wineTake';
 import type { Wine } from '../types';
@@ -29,7 +29,12 @@ export function WineTake({ wine }: { wine: Wine }) {
     void (async () => {
       if (notesConfigured) {
         setState({ status: 'checking' });
-        const note = noteFor(wine, await fetchNotes([noteKey(wine.producer, wine.name)]).catch(() => []));
+        let note = noteFor(wine, await fetchNotes([noteKey(wine.producer, wine.name)]).catch(() => []));
+        if (!note) {
+          // Written differently from the catalog's name: identify it, then look up by id.
+          const id = await import('../lib/catalog').then((m) => m.catalogWineId(wine.producer, wine.name)).catch(() => null);
+          if (id) note = noteForId(id, await fetchNotesByIds([id]).catch(() => []));
+        }
         if (note) await updateWine(wine.id, { take: takeFromNote(note, wine) });
         if (live) setState({ status: 'idle' });
         if (note) return;
