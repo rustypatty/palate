@@ -140,6 +140,11 @@ export interface WineLookup {
   candidates: { url: string; pageUrl: string; siteName: string; title: string }[];
   /** Published tasting notes, summarised in Claude's own words. */
   about: { text: string; sourceName: string; sourceUrl: string } | null;
+  /** Found in Palate's wine catalog rather than by searching the web. */
+  fromCatalog?: boolean;
+  /** Region and country, when the catalog knows them. */
+  region?: string;
+  country?: string;
 }
 
 const REPORT_TOOL = {

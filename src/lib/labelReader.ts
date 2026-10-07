@@ -75,6 +75,18 @@ export async function lookUpWine(reading: LabelReading, photo: Blob | null, sign
   return (await import('./labelClient')).lookUpWineWithClaude(apiKey, reading, photo, signal);
 }
 
+/**
+ * After a label snap: Palate's wine catalog first (free, a second or two), and only when it isn't
+ * sure, the web lookup (about a minute). needPhoto: a catalog match counts only with a bottle photo.
+ */
+export async function lookUpLabel(reading: LabelReading, photo: Blob | null, needPhoto = true, signal?: AbortSignal) {
+  const fromCatalog = await import('./catalog')
+    .then((c) => c.catalogLookup(reading, needPhoto, signal))
+    .catch(() => null);
+  if (fromCatalog) return { ok: true as const, lookup: fromCatalog };
+  return lookUpWine(reading, photo, signal);
+}
+
 /** The reading with style and grapes replaced by what was confirmed online. */
 export function withLookup(r: LabelReading, l: { style: LabelReading['style']; grapes: string[] } | null): LabelReading {
   if (!l) return r;

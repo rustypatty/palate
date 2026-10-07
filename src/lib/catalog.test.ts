@@ -1,0 +1,79 @@
+import { describe, expect, it } from 'vitest';
+import { catalogLookup, cleanGrapes, type CatalogDeps } from './catalog';
+import type { CatalogWine } from './catalogMatch';
+import type { LabelReading } from './labelReader';
+
+const reading = (producer: string, wine_name: string): LabelReading => ({
+  is_wine_label: true,
+  producer,
+  wine_name,
+  vintage: '2019',
+  country: '',
+  region: '',
+  grapes: [],
+  style: 'unknown',
+  confidence: 'high',
+  uncertain: '',
+});
+
+const muga: CatalogWine = {
+  wine_id: 'wn_1',
+  producer: 'Bodegas Muga',
+  cuvee: 'Reserva',
+  display_name: 'Muga Reserva',
+  aliases: ['bodegas muga reserva 2021'],
+  country: 'Spain',
+  region: 'Rioja',
+  appellation: 'Rioja',
+  wine_type: 'red',
+  grapes: ['Tempranillo', 'Indulge'],
+  identity_tier: 'enriched',
+  source_count: 2,
+  min_usd_750: 24.12,
+  min_usd_750_seen_at: null,
+  image_url: 'https://cdn.example.com/MugaReserva.png',
+  image_width: 720,
+  image_height: 1024,
+  image_source_page_url: 'https://willowpark.net/products/muga-reserva',
+  image_source_domain: 'willowpark.net',
+  similarity: 1,
+};
+
+const deps = (results: CatalogWine[], bottle = true): CatalogDeps & { searched: string[] } => {
+  const searched: string[] = [];
+  return { searched, search: async (text) => (searched.push(text), results), isBottle: async () => bottle };
+};
+
+describe('catalog lookup after a label snap', () => {
+  it('fills colour, grapes, region and a bottle photo from a sure match', async () => {
+    const d = deps([muga]);
+    const l = await catalogLookup(reading('Bodegas Muga', 'Reserva'), true, undefined, d);
+    expect(d.searched).toEqual(['bodegas muga reserva']);
+    expect(l).toMatchObject({ style: 'red', grapes: ['Tempranillo'], region: 'Rioja', country: 'Spain', fromCatalog: true });
+    expect(l?.photo?.siteName).toBe('willowpark.net');
+    expect(l?.photo?.url).toContain('images.weserv.nl'); // relayed, so the app can read and keep it
+  });
+
+  it('leaves it to the web lookup when the photo is not a clean bottle, unless no photo is needed', async () => {
+    expect(await catalogLookup(reading('Bodegas Muga', 'Reserva'), true, undefined, deps([muga], false))).toBeNull();
+    const l = await catalogLookup(reading('Bodegas Muga', 'Reserva'), false, undefined, deps([muga], false));
+    expect(l).toMatchObject({ style: 'red', photo: null });
+  });
+
+  it('leaves it to the web lookup when the catalog has no sure match', async () => {
+    const rouge = { ...muga, wine_id: 'r', producer: 'Domaine Faiveley', cuvee: 'Mercurey Rouge', display_name: 'Faiveley Mercurey Rouge', aliases: [] };
+    const blanc = { ...rouge, wine_id: 'b', cuvee: 'Mercurey Blanc', wine_type: 'white' };
+    expect(await catalogLookup(reading('Domaine Faiveley', 'Mercurey'), true, undefined, deps([rouge, blanc]))).toBeNull();
+    expect(await catalogLookup(reading('Kim Crawford', 'Malbec'), true, undefined, deps([muga]))).toBeNull();
+  });
+
+  it('keeps only real grape names', () => {
+    expect(cleanGrapes(['Tempranillo', 'Indulge', "Nero d'Avola", 'Pinot noir', 'Touriga Nacional', 'Bordeaux Blend', ''])).toEqual([
+      'Tempranillo',
+      "Nero d'Avola",
+      'Pinot noir',
+      'Touriga Nacional',
+    ]);
+    expect(cleanGrapes(['Carignan', 'Mourvedre', 'Carignane', 'Mourvèdre', 'Syrah'])).toEqual(['Carignan', 'Mourvedre', 'Syrah']);
+  });
+});

@@ -1,0 +1,101 @@
+producer,cuvee,wine_type_at_creation,expected_match_key
+Valpolicella Classico,Amarone della Costasera Masi,red,classico valpolicella|amarone costasera masi|red
+Nicolas-Jay,"'l'Ensemble' Pinot Noir, Willamette Valley, USA",red,jay nicolas|lensemble noir pinot valley willamette|red
+Grawü,Pinot Noir Vigneti delle Dolomiti,red,grawu|delle dolomiti noir pinot vigneti|red
+Giamello,Barbaresco Vicenziana,red,giamello|barbaresco vicenziana|red
+Beni di Batasiolo,Barbera d'Alba Sovrana,red,batasiolo beni|barbera dalba sovrana|red
+R.H. Coutier,Cuvee Tradition Grand Cru Brut,sparkling,coutier h|brut grand tradition|sparkling
+Annandale,Chardonnay,white,annandale|chardonnay|white
+Domaine de Montille,Puligny Montrachet 1er Cru La Garenne,white,montille|1er garenne montrachet puligny|white
+Tarlant,Champagne La Vigne d'Or Brut Nature,sparkling,tarlant|brut champagne dor nature vigne|sparkling
+Quinta do Piloto,Reserva Tinto,red,do piloto|reserva|red
+Mousse Fils,Vignes De Mon Village Blanc de Meunier Champagne,sparkling,mousse|champagne meunier mon village|sparkling
+Deutz,Brut Vintage Millésimé,sparkling,deutz|brut millesime vintage|sparkling
+Canonica a Cerreto,Chianti Classico ( Only),red,a canonica cerreto|chianti classico only|red
+Maison Petit Roy,Bourgogne Hautes Côtes de Nuits Rouge,red,petit roy|bourgogne cotes hautes nuits|red
+Kossler,Gewurztraminer DOC,white,kossler|gewurztraminer|white
+Laboure Roi,Maranges Rouge,red,laboure roi|maranges|red
+Sine Qua Non,'Mr. K The Straw Man' Semillon Central Coast,dessert,non qua sine|central coast k man mr semillon straw|dessert
+Albizu,Caminante Tempranillo,red,albizu|caminante tempranillo|red
+Domaine Guy Robin,Chablis Grand Cru 'Vaudesir',white,guy robin|chablis grand vaudesir|white
+Craggy Range,The Quarry,?,craggy range|quarry|?
+Spy Valley,Pinot Noir,red,spy valley|noir pinot|red
+Francesco Marra,Malvasia Nera di Lecce Rosso Salento IGP,red,francesco marra|lecce malvasia nera salento|red
+Ruinart,NM - Champagne Blanc de Blancs,sparkling,ruinart|blancs champagne nm|sparkling
+Tyler,Sta. Rita Hills Pinot Noir,red,tyler|hills noir pinot rita sta|red
+Blakes Tourmaline,,?,blakes tourmaline||?
+Julia James,Pinot Noir,red,james julia|noir pinot|red
+Daterra Viticultores (Laura Lorenzo),'Erea de Vila' Vino Blanco,white,daterra laura lorenzo viticultores|erea vila|white
+Clos Quebrada de Macul,ALBA DE DOMUS MEZCLA TINTA,red,macul quebrada|alba domus mezcla tinta|red
+Chiara Condello,"Romagna Sangiovese Predappio Riserva DOC ""Le Lucciole""",red,chiara condello|lucciole predappio reserva romagna sangiovese|red
+Eric Texier,Brézème Côtes-du-Rhône Rouge,red,eric texier|brezeme cotes rhone|red
+Alamos,Mendoza Cabernet Sauvignon,red,alamos|cabernet mendoza sauvignon|red
+Le Coste di Gradoli,Bianco,orange,coste gradoli||orange
+Luberri,Biga,red,luberri|biga|red
+Yves Martin,Sancerre Chavignol Rouge,red,martin yves|chavignol sancerre|red
+Bossanova,Cerasuolo D’Abruzzo Superiore,rose,bossanova|cerasuolo dabruzzo superiore|rose
+Chateau d'Issan,3e cru classé Margaux,red,dissan|3e classe margaux|red
+Quinta dos Carvalhais,Vinho Branco Dão Quinta Carvalhais Encruzado,white,carvalhais dos|branco carvalhais dao encruzado quinta vinho|white
+Colombo,"Vinho Tinto Reserva , Madeira",fortified,colombo|madeira reserva vinho|fortified
+Sailor Seeks Horse,Small Wonder Chardonnay,white,horse sailor seeks|chardonnay small wonder|white
+Clement Lavallee,Bourgogne Aligote Pariot,white,clement lavallee|aligote bourgogne pariot|white
+Ettore Sammarco,Piedirosso,red,ettore sammarco|piedirosso|red
+Clos Canarelli,Amphora Rouge - Figari,red,canarelli|amphora figari|red
+Zaccagnini Ciccio,Montepulciano d'Abruzzo Chronicon,red,ciccio zaccagnini|chronicon dabruzzo montepulciano|red
+Mejean,Graves,red,mejean|graves|red
+W. & J. Graham's,Porto Cofanetto Cellar Master - Trilogy - - - W. & J. Graham's,fortified,grahams j w|cellar cofanetto grahams j master porto trilogy w|fortified
+Vinyes Singulars,Xarel·lo Vermell Ancestral by,sparkling,singulars vinyes|ancestral by lo vermell xarel|sparkling
+Aubert & Mathieu,Kisumé - Effervescent sans alcool,rose,aubert mathieu|alcool effervescent kisume sans|rose
+Nekeas,Kid Sister Cabernet Sauvignon,red,nekeas|cabernet kid sauvignon sister|red
+Akrathos,Assyrtiko,white,akrathos|assyrtiko|white
+Castelgiocondo,Cassa di Legno - 2 Bottiglie Brunello di Montalcino,red,castelgiocondo|2 bottiglie brunello cassa legno montalcino|red
+Mystery,Martinborough Riesling,white,mystery|martinborough riesling|white
+Verticale du Château de Beaucastel,Hommage à Jacques Perrin,?,beaucastel verticale|a hommage jacques perrin|?
+Pago Del Vicario,Blanco De Tempranillo Damaged,white,pago vicario|damaged tempranillo|white
+Domaine Hubert Lignier,Morey Saint Denis Rouge 1er Cru Les Blanchards,red,hubert lignier|1er blanchards denis morey st|red
+Bleasdale,The Red Brute Uncle Dick Sparkling Shiraz,sparkling,bleasdale|brute dick shiraz sparkling uncle|sparkling
+Incrocio Manzoni,Ejamu Parresia,white,incrocio manzoni|ejamu parresia|white
+Mayu Pedro Ximenez,,fortified,mayu pedro ximenez||fortified
+Lua Cheia,"Vinho Rosé , Douro",rose,cheia lua|douro rose vinho|rose
+Menin Douro Estates,"Vinho Branco Grande Reserva , Douro",white,douro menin|branco douro grand reserva vinho|white
+Vera Wang,Party Prosecco,sparkling,vera wang|party prosecco|sparkling
+Leonard Kreusch,Piesporter Michelsberg Reisling Spatlese Mosel,?,kreusch leonard|michelsberg mosel piesporter reisling spatlese|?
+The Prisoner Wine Company,Pinot Noir Sonoma Coast,red,company prisoner|coast noir pinot sonoma|red
+Quady,"Elysium California Black Muscat, Dessert Wine, Quady - Half",?,quady|black dessert elysium half muscat quady|?
+Bodegas Fernando Remirez de Ganuza,Gran Reserva,red,fernando ganuza remirez|grand reserva|red
+Dom Perignon,Brut Reserve Edition,sparkling,perignon|brut edition reserva|sparkling
+Costaripa,Palmargentina Dessert Rosé,rose,costaripa|dessert palmargentina rose|rose
+Chateau Doisy Daene LExtravagant,,?,daene doisy lextravagant||?
+Domaine Drouhin,Roserock Chardonnay,white,drouhin|chardonnay roserock|white
+1.5L,Bouchard Chevalier Montrachet,white,1 5l|bouchard chevalier montrachet|white
+Weingut Dr. Loosen,Riesling Spatlese Urziger Wurtzgarten,white,dr loosen|riesling spatlese urziger wurtzgarten|white
+Clonakilla,O’Riada Shiraz,red,clonakilla|oriada shiraz|red
+Caccia al Piano 1868 (Berlucchi),Bolgheri Ruit Hora,red,1868 al berlucchi caccia piano|bolgheri hora ruit|red
+Paul Janin et Fils,Moulin-à-Vent Les Vignes du Tremblay,sparkling,janin paul|a moulin tremblay vent|sparkling
+Guado al Melo,"Bolgheri Rosso DOC ""Rute""",red,al guado melo|bolgheri rute|red
+Adega Ponte da Barca,Alvarinho Reserva Branco — Vinho Verde,white,adega barca da ponte|alvarinho branco reserva verde vinho|white
+Gaja,Brunello Di Montalcino Restituta (Wood ),red,gaja|brunello montalcino restituta wood|red
+Macon Lugny,Latour Les Genievres,?,lugny macon|genievres latour|?
+Burly,Napa Cabernet Sauvignon Sciandri Vineyard,red,burly|cabernet napa sauvignon sciandri vyd|red
+Larson Family Winery,Pinot Grigio,white,larson|grigio pinot|white
+Monte da Raposinha,Tinto,red,da monte raposinha||red
+Dolde,Silvaner Wurttemberg Alte Reben,white,dolde|alte reben silvaner wurttemberg|white
+Chad,Proprietary Red Napa Valley,red,chad|napa proprietary valley|red
+Salomon Undhof,Gruner Veltliner Hochterassen,white,salomon undhof|gruner hochterassen veltliner|white
+Rutini Trumpeter,"Reserve Cabernet Sauvignon, Tupungato, Argentina",red,rutini trumpeter|cabernet reserva sauvignon tupungato|red
+Miro Bastoni,Zinfandel Fountaingrove District,red,bastoni miro|district fountaingrove zinfandel|red
+Didon,Bourgogne Rouge Les Vignes Blanches Cuvee Longue,red,didon|blanches bourgogne longue|red
+Península,Lisboa,rose,peninsula|lisboa|rose
+Laurent Perrier Rose,Champagne & Birdcage,sparkling,laurent perrier rose|birdcage champagne|sparkling
+Corsini-Le Corti,Chianti Classico Don Tommaso,red,corsini corti|chianti classico don tommaso|red
+Susana Esteban,Sidecar & Ricardo Diogo Edição tinto,red,esteban susana|diogo edicao ricardo sidecar|red
+Seedlip Notas De Agave,,white,agave notas seedlip||white
+Prunotto,Barbera Alba Doc,red,prunotto|alba barbera|red
+José Maria da Fonseca LMV,"JMF Lancers Sangria, Fruity Red Wine",red,da fonseca jose lmv maria|fruity jmf lancers sangria|red
+Buena Vista,The Count's Selection Charbono,red,buena vista|charbono counts sel|red
+Cusumano,Benuara,red,cusumano|benuara|red
+Vajra,Ns Della Neve Rose Brut,rose,vajra|brut neve ns rose|rose
+Chateau Lafite Rothschild,"Vinho Tinto , Pauillac, Bordéus, França",red,lafite rothschild|bordeus franca pauillac vinho|red
+Giuliano Rosati,Montepulciano d'Abruzzo,red,giuliano rosati|dabruzzo montepulciano|red
+Casa Roma,Raboso del Piave DOC - - ETICHETTA DANNEGGIATA,red,casa roma|danneggiata etichetta piave raboso|red
+Vignes du Maynes,Macon-Cruzille Cuvée 910 (Arrives October),red,maynes vignes|910 arrives cruzille macon october|red
