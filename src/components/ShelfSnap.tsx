@@ -13,6 +13,7 @@ import {
   readShelf,
   saveShelf,
   shelfContext,
+  shelfDetails,
   shelfTitle,
   type PriceCall,
   type SavedShelf,
@@ -24,27 +25,33 @@ import { ago } from './StorePicks';
 import { cleanReason } from './Shelf';
 import { useToast } from './Toast';
 import { isStaleApp, reloadForUpdate } from '../lib/appUpdate';
+import { STYLES } from '../lib/constants';
+import { BottleImage } from './BottleImage';
 
 const CALL_LABEL: Record<PriceCall, string> = { bargain: 'Bargain', fair: 'Fair price', pricey: 'A little pricey', unknown: '' };
 
 /** A shelf bottle as a store listing, so it can go on Want to try or into the collection like any store pick. */
 function asItem(b: ShelfBottle, storeId: string): SuggestedItem {
   const title = shelfTitle(b);
+  const d = shelfDetails(b);
+  const photo = b.catalog?.photo;
   return {
     key: `shelf:${storeId}:${title.toLowerCase()}`,
     title,
-    style: b.style === 'unknown' ? null : b.style,
+    style: d.style,
     price: b.price_usd > 0 ? b.price_usd : null,
-    context: [b.region, b.country, ...b.grapes].join(' '),
+    context: [d.region, d.country, ...d.grapes].join(' '),
     url: '',
-    image: null,
+    // The catalog's bottle photo of this wine (never the shelf photo).
+    image: photo?.url ?? null,
+    imageSource: photo ? { name: photo.siteName, pageUrl: photo.pageUrl } : undefined,
     vintage: /^\d{4}$/.test(b.vintage) ? Number(b.vintage) : b.vintage === 'NV' ? 'NV' : null,
-    country: b.country,
+    country: d.country,
     sizeMl: null,
     producer: b.producer,
     wine: b.wine,
-    region: b.region,
-    grapes: b.grapes,
+    region: d.region,
+    grapes: d.grapes,
     claudeReason: b.why,
   };
 }
@@ -84,6 +91,38 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
     setShelf(s);
     saveShelf(s);
   };
+
+  // After a read, each bottle is looked up in Palate's wine catalog (free) for a photo and its details,
+  // a few at a time; the results are saved with the shelf.
+  const looking = useRef(new Set<string>());
+  useEffect(() => {
+    if (!shelf) return;
+    const at = shelf.at;
+    const todo = shelf.report.bottles
+      .map((b, i) => ({ b, i }))
+      .filter(({ b, i }) => b.catalog === undefined && b.verdict !== 'pass' && !looking.current.has(`${at}:${i}`));
+    if (!todo.length) return;
+    todo.forEach(({ i }) => looking.current.add(`${at}:${i}`));
+    let alive = true;
+    (async () => {
+      const { catalogForShelfBottle } = await import('../lib/catalog');
+      const one = async ({ b, i }: (typeof todo)[number]) => {
+        const found = await catalogForShelfBottle(b).catch(() => undefined); // unreachable: try again next visit
+        if (!alive || found === undefined) return;
+        setShelf((cur) => {
+          if (!cur || cur.at !== at) return cur;
+          const next = { ...cur, report: { ...cur.report, bottles: cur.report.bottles.map((x, j) => (j === i ? { ...x, catalog: found } : x)) } };
+          saveShelf(next);
+          return next;
+        });
+      };
+      for (let k = 0; k < todo.length; k += 3) await Promise.all(todo.slice(k, k + 3).map(one));
+    })();
+    return () => {
+      alive = false;
+      todo.forEach(({ i }) => looking.current.delete(`${at}:${i}`));
+    };
+  }, [shelf?.at]);
 
   const needKey = () => {
     if (getApiKey()) return false;
@@ -391,12 +430,22 @@ function ShelfCard({
     );
   }
 
+  const d = shelfDetails(b);
+  const facts = [d.style ? STYLES.find((s) => s.value === d.style)?.label : null, d.region, d.grapes.join(', ')].filter(Boolean).join(' · ');
+  const photo = b.catalog?.photo;
+
   return (
-    <article className={`shelf-card${compact ? ' compact' : ''}`}>
+    <article className={`shelf-card${compact ? ' compact' : ''}${photo ? ' has-photo' : ''}`}>
+      {photo && (
+        <div className="tile sc-photo">
+          <BottleImage photo={{ kind: 'remote', url: photo.url, source: { name: photo.siteName, pageUrl: photo.pageUrl, title: '' } }} alt="" />
+        </div>
+      )}
       <div className="sc-head">
         {n !== undefined && <div className="pr-no">No. {String(n).padStart(2, '0')}</div>}
         {b.producer && <div className="pr-producer">{b.producer}</div>}
         <h3 className="pr-name">{[b.wine || b.producer, b.vintage].filter(Boolean).join(' ')}</h3>
+        {facts && <div className="sc-facts">{facts}</div>}
         <div className="sc-price">
           {b.price_usd > 0 ? <strong>{formatPrice(b.price_usd)}</strong> : <span className="muted">Price not read</span>}
           {call && <span className={`price-call ${b.price_call}`}>{call}</span>}

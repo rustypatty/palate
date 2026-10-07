@@ -3,6 +3,7 @@ import { GRAPES, lookupCatalog, searchCatalogAt, type CatalogWine } from './cata
 import { norm } from './catalogNorm';
 import { relayedImageUrl, type WineLookup } from './labelClient';
 import type { LabelReading } from './labelReader';
+import type { ShelfBottle, ShelfCatalog } from './shelf';
 import { SUPABASE_KEY, SUPABASE_URL } from './supabaseConfig';
 import type { WineStyle } from '../types';
 
@@ -69,6 +70,8 @@ export interface CatalogDeps {
   isBottle: (url: string) => Promise<boolean>;
 }
 
+const DEFAULT_DEPS: CatalogDeps = { search, isBottle: (url) => isBottleShot(url).catch(() => false) };
+
 /**
  * The snapped wine from the catalog, as the same details the web lookup gives. Null when the
  * catalog isn't sure (or can't be reached), or when a photo is needed and it has no clean bottle shot.
@@ -77,9 +80,9 @@ export async function catalogLookup(
   reading: LabelReading,
   needPhoto: boolean,
   signal?: AbortSignal,
-  deps: CatalogDeps = { search, isBottle: (url) => isBottleShot(url).catch(() => false) },
+  deps: CatalogDeps = DEFAULT_DEPS,
 ): Promise<WineLookup | null> {
-  if (!catalogConfigured && deps.search === search) return null;
+  if (!catalogConfigured && deps === DEFAULT_DEPS) return null;
   if (!reading.is_wine_label || !(reading.producer.trim() || reading.wine_name.trim())) return null;
   const query = { producer: reading.producer, name: reading.wine_name, style: reading.style === 'unknown' ? undefined : reading.style };
   const { match } = await lookupCatalog(query, (text) => deps.search(text, signal));
@@ -109,5 +112,30 @@ export async function catalogLookup(
     fromCatalog: true,
     region: (w.region ?? '').replace(/\s+/g, ' ').trim(),
     country: (w.country ?? '').trim(),
+  };
+}
+
+/** A bottle read off a shelf, looked up in the catalog: details and a bottle photo when it's a sure match. */
+export async function catalogForShelfBottle(b: ShelfBottle, signal?: AbortSignal, deps?: CatalogDeps): Promise<ShelfCatalog | null> {
+  const reading: LabelReading = {
+    is_wine_label: true,
+    producer: b.producer,
+    wine_name: b.wine,
+    vintage: b.vintage,
+    country: b.country,
+    region: b.region,
+    grapes: [],
+    style: b.style,
+    confidence: 'high',
+    uncertain: '',
+  };
+  const l = await catalogLookup(reading, false, signal, deps);
+  if (!l) return null;
+  return {
+    photo: l.photo ? { url: l.photo.url, pageUrl: l.photo.pageUrl, siteName: l.photo.siteName } : null,
+    style: l.style,
+    grapes: l.grapes,
+    region: l.region ?? '',
+    country: l.country ?? '',
   };
 }

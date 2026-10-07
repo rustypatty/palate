@@ -27,6 +27,23 @@ export interface ShelfBottle {
   price_call: PriceCall;
   price_note: string;
   tip: string;
+  /** What Palate's wine catalog adds (free, after the read): null when it doesn't know this bottle for sure. */
+  catalog?: ShelfCatalog | null;
+}
+
+export interface ShelfCatalog {
+  photo: { url: string; pageUrl: string; siteName: string } | null;
+  style: WineStyle | 'unknown';
+  grapes: string[];
+  region: string;
+  country: string;
+}
+
+/** The bottle's details, the shelf reading first and the catalog filling the gaps. */
+export function shelfDetails(b: ShelfBottle): { style: WineStyle | null; region: string; country: string; grapes: string[] } {
+  const c = b.catalog;
+  const style = b.style !== 'unknown' ? b.style : c && c.style !== 'unknown' ? c.style : null;
+  return { style, region: b.region || c?.region || '', country: b.country || c?.country || '', grapes: b.grapes.length ? b.grapes : (c?.grapes ?? []) };
 }
 
 export interface ShelfReport {

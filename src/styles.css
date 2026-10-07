@@ -4471,6 +4471,31 @@ details.more[open] > .more-body {
   box-shadow: var(--sh-card);
 }
 
+/* With the catalog's bottle photo: the photo beside the name, everything else full width. */
+.shelf-card.has-photo {
+  grid-template-columns: minmax(0, 1fr) 84px;
+  column-gap: 14px;
+}
+.shelf-card.has-photo > * {
+  grid-column: 1 / -1;
+}
+.shelf-card.has-photo > .sc-head {
+  grid-column: 1;
+  grid-row: 1;
+}
+.shelf-card.has-photo > .sc-photo {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  height: 120px;
+  border-radius: 20px;
+}
+.sc-facts {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-top: 2px;
+}
+
 /* Reuses the store pick's pieces, stacked in one column. */
 .shelf-card > * {
   grid-area: auto;
