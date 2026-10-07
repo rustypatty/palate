@@ -74,7 +74,8 @@ const DEFAULT_DEPS: CatalogDeps = { search, isBottle: (url) => isBottleShot(url)
 
 /**
  * The snapped wine from the catalog, as the same details the web lookup gives. Null when the
- * catalog isn't sure (or can't be reached), or when a photo is needed and it has no clean bottle shot.
+ * catalog isn't sure (or can't be reached). Without a clean bottle shot the details still come
+ * back, with no photo: the bottle photo is found later, not by a paid web lookup now.
  */
 export async function catalogLookup(
   reading: LabelReading,
@@ -87,20 +88,25 @@ export async function catalogLookup(
   const query = { producer: reading.producer, name: reading.wine_name, style: reading.style === 'unknown' ? undefined : reading.style };
   const { match } = await lookupCatalog(query, (text) => deps.search(text, signal));
   if (match.status !== 'match') return null;
-  return lookupFrom(match.wine, needPhoto, deps);
+  return lookupFrom(match.wine, needPhoto, deps, match.others);
 }
 
-/** A matched catalog wine as the details a lookup gives: null if a photo is needed and it has no clean bottle shot. */
-async function lookupFrom(w: CatalogWine, needPhoto: boolean, deps: CatalogDeps): Promise<WineLookup | null> {
+/** Photos tried per wine: its own, then other shops' entries for the same wine. */
+const PHOTO_TRIES = 4;
+
+/** A matched catalog wine as the details a lookup gives, with a clean bottle photo when one of its entries has it. */
+async function lookupFrom(w: CatalogWine, needPhoto: boolean, deps: CatalogDeps, others: CatalogWine[] = []): Promise<WineLookup> {
   let photo: WineLookup['photo'] = null;
-  if (w.image_url) {
-    const url = relayedImageUrl(w.image_url);
-    // Shops also show labels, gift boxes and lifestyle shots: only a whole bottle will do.
+  // Shops also show labels, gift boxes, lifestyle and phone shots: only a whole bottle will do.
+  const seen = new Set<string>();
+  const tries = [w, ...(needPhoto ? others : [])].filter((e) => e.image_url && !seen.has(e.image_url) && seen.add(e.image_url)).slice(0, PHOTO_TRIES);
+  for (const e of tries) {
+    const url = relayedImageUrl(e.image_url!);
     if (await deps.isBottle(url)) {
-      photo = { url, pageUrl: w.image_source_page_url ?? '', siteName: siteName(w.image_source_domain, w.image_source_page_url), title: w.display_name ?? '' };
+      photo = { url, pageUrl: e.image_source_page_url ?? '', siteName: siteName(e.image_source_domain, e.image_source_page_url), title: e.display_name ?? w.display_name ?? '' };
+      break;
     }
   }
-  if (needPhoto && !photo) return null; // the web lookup also finds a photo
 
   const pageUrl = w.image_source_page_url ?? '';
   return {
@@ -167,12 +173,12 @@ export function splitProducer(full: string, catalogProducer: string): { producer
 }
 const PRODUCER_FILLER = new Set(['chateau', 'domaine', 'domaines', 'bodegas', 'bodega', 'tenuta', 'maison', 'weingut', 'de', 'di', 'del', 'du', 'des', 'la', 'le', 'les', 'et', 'fils', 'winery', 'estate', 'vineyards', 'cellars']);
 
-/** The catalog's id for a wine named in full ("Bodegas Muga Reserva"), when it is a sure match. */
-export async function catalogWineId(producer: string, name: string, deps?: CatalogDeps): Promise<string | null> {
+/** The catalog's ids for a wine (its entry, then other shops' entries for the same wine), when it is a sure match. */
+export async function catalogWineIds(producer: string, name: string, deps?: CatalogDeps): Promise<string[]> {
   const d = deps ?? DEFAULT_DEPS;
-  if (!catalogConfigured && d === DEFAULT_DEPS) return null;
+  if (!catalogConfigured && d === DEFAULT_DEPS) return [];
   const { match } = await lookupCatalog({ producer, name }, (text) => d.search(text));
-  return match.status === 'match' ? match.wine.wine_id : null;
+  return match.status === 'match' ? [match.wine.wine_id, ...(match.others ?? []).map((o) => o.wine_id)] : [];
 }
 
 export async function catalogIdentify(full: string, deps?: CatalogDeps): Promise<CatalogIdentity | null> {

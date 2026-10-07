@@ -29,7 +29,7 @@ describe('descriptions from the catalog', () => {
     const c = await createWine({ ...emptyDraft(), producer: 'Unknown', name: 'Wine' }, database);
     const asked: string[][] = [];
     const fetcher = async (keys: string[]) => (asked.push(keys), [note(noteKey('Cantina Inventata', 'Barolo'), 2019, 'Roses and tar.')]);
-    expect(await fillFromCatalog(await database.wines.toArray(), database, fetcher, async () => null)).toBe(1);
+    expect(await fillFromCatalog(await database.wines.toArray(), database, fetcher, async () => [])).toBe(1);
     expect(asked).toHaveLength(1);
     expect(asked[0]).toHaveLength(2); // the described wine isn't asked about
     expect((await database.wines.get(a))!.take).toMatchObject({ taste: 'Roses and tar.', fit: '', source: 'catalog', rating: 'loved' });
@@ -43,8 +43,9 @@ it('finds a note by catalog id when the name is written differently', async () =
   const a = await createWine({ ...emptyDraft(), producer: 'Cantina Inventata', name: 'Barolo DOCG' }, database);
   const b = await createWine({ ...emptyDraft(), producer: 'Nobody', name: 'Nothing' }, database);
   const identified: string[] = [];
-  const identify = async (p: string) => (identified.push(p), p === 'Cantina Inventata' ? 'wn_1' : null);
-  const byId = async (ids: string[]) => (ids.includes('wn_1') ? [note('cantina inventata barolo', null, 'By id.', 'wn_1')] : []);
+  // The note was written for another shop's entry for the same wine (wn_2), not the one matched (wn_1).
+  const identify = async (p: string) => (identified.push(p), p === 'Cantina Inventata' ? ['wn_1', 'wn_2'] : []);
+  const byId = async (ids: string[]) => (ids.includes('wn_2') ? [note('cantina inventata barolo', null, 'By id.', 'wn_2')] : []);
   expect(await fillFromCatalog(await database.wines.toArray(), database, async () => [], identify, byId)).toBe(1);
   expect((await database.wines.get(a))!.take?.taste).toBe('By id.');
   expect((await database.wines.get(b))!.take).toBeUndefined();

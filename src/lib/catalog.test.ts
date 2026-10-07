@@ -54,10 +54,24 @@ describe('catalog lookup after a label snap', () => {
     expect(l?.photo?.url).toContain('images.weserv.nl'); // relayed, so the app can read and keep it
   });
 
-  it('leaves it to the web lookup when the photo is not a clean bottle, unless no photo is needed', async () => {
-    expect(await catalogLookup(reading('Bodegas Muga', 'Reserva'), true, undefined, deps([muga], false))).toBeNull();
-    const l = await catalogLookup(reading('Bodegas Muga', 'Reserva'), false, undefined, deps([muga], false));
-    expect(l).toMatchObject({ style: 'red', photo: null });
+  it("keeps the catalog's details when its photo is not a clean bottle, with no photo", async () => {
+    const l = await catalogLookup(reading('Bodegas Muga', 'Reserva'), true, undefined, deps([muga], false));
+    expect(l).toMatchObject({ style: 'red', grapes: ['Tempranillo'], fromCatalog: true, photo: null });
+  });
+
+  it("borrows a clean photo from another shop's entry for the same wine", async () => {
+    // The best-scoring entry has a phone snapshot; another shop lists the same wine with a bottle shot.
+    const snapshot = { ...muga, image_url: 'https://cdn.example.com/IMG_6273.jpg', image_width: 3921, image_height: 3238 };
+    const other = { ...muga, wine_id: 'wn_2', display_name: 'Bodegas Muga Reserva Rioja', source_count: 1, similarity: 0.9, image_url: 'https://shop2.example.com/muga.png', image_source_page_url: 'https://shop2.example.com/p/muga', image_source_domain: 'shop2.example.com' };
+    const tried: string[] = [];
+    const d = { ...deps([snapshot, other]), isBottle: async (url: string) => (tried.push(url), url.includes('muga.png')) };
+    const l = await catalogLookup(reading('Bodegas Muga', 'Reserva'), true, undefined, d);
+    expect(l?.photo).toMatchObject({ siteName: 'shop2.example.com', pageUrl: 'https://shop2.example.com/p/muga' });
+    expect(tried).toHaveLength(2);
+    // When no photo is needed, only the wine's own photo is checked.
+    tried.length = 0;
+    await catalogLookup(reading('Bodegas Muga', 'Reserva'), false, undefined, d);
+    expect(tried).toHaveLength(1);
   });
 
   it('leaves it to the web lookup when the catalog has no sure match', async () => {
