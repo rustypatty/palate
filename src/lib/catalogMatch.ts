@@ -43,7 +43,7 @@ export interface CatalogQuery {
 }
 
 export type CatalogMatch =
-  | { status: 'match'; wine: CatalogWine; score: number }
+  | { status: 'match'; wine: CatalogWine; score: number; /** The same wine's other entries (other shops' listings). */ others?: CatalogWine[] }
   | { status: 'uncertain'; options: CatalogWine[]; scores: number[] }
   | { status: 'none' };
 
@@ -487,7 +487,7 @@ export function rankCatalog(query: CatalogQuery, candidates: CatalogWine[]): Cat
       });
     }
   }
-  return { status: 'match', wine, score: best(top) };
+  return { status: 'match', wine, score: best(top), others: top.slice(1).map((s) => s.wine) };
 }
 
 /** Candidate wines from the catalog's search function (Supabase RPC, public read-only). */

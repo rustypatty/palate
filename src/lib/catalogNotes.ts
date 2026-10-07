@@ -80,9 +80,13 @@ export function noteFor(w: Pick<Wine, 'producer' | 'name' | 'vintage'>, notes: C
   return mine.find((n) => n.vintage !== null && n.vintage === v) ?? mine.find((n) => n.vintage === null) ?? null;
 }
 
-/** A note written for the catalog wine with this id (any vintage). */
-export function noteForId(wineId: string, notes: CatalogNote[]): CatalogNote | null {
-  return notes.find((n) => n.wine_id === wineId) ?? null;
+/** A note written for this catalog wine: for its own entry first, else for another shop's entry for the same wine. */
+export function noteForIds(wineIds: string[], notes: CatalogNote[]): CatalogNote | null {
+  for (const id of wineIds) {
+    const n = notes.find((x) => x.wine_id === id);
+    if (n) return n;
+  }
+  return null;
 }
 
 export function takeFromNote(n: CatalogNote, w: Pick<Wine, 'rating'>): WineTake {
@@ -100,7 +104,7 @@ export async function fillFromCatalog(
   wines: Wine[],
   database: PalateDB = db,
   fetcher: typeof fetchNotes = fetchNotes,
-  identify: (producer: string, name: string) => Promise<string | null> = async (p, n) => (await import('./catalog')).catalogWineId(p, n),
+  identify: (producer: string, name: string) => Promise<string[]> = async (p, n) => (await import('./catalog')).catalogWineIds(p, n),
   fetcherById: typeof fetchNotesByIds = fetchNotesByIds,
 ): Promise<number> {
   const todo = wines.filter(wantsNote);
@@ -121,16 +125,16 @@ export async function fillFromCatalog(
     else missed.push(w);
   }
   // Not found by name: identify the rest in the catalog (free, one at a time) and look up by id.
-  const ids = new Map<string, Wine>();
+  const found: { w: Wine; ids: string[] }[] = [];
   for (const w of missed.filter((w) => !recentlyMissed(w.id)).slice(0, ID_LOOKUPS_PER_RUN)) {
-    const id = await identify(w.producer, w.name).catch(() => null);
-    if (id) ids.set(id, w);
+    const ids = await identify(w.producer, w.name).catch(() => [] as string[]);
+    if (ids.length) found.push({ w, ids });
     else markMissed(w.id);
   }
-  if (ids.size) {
-    const byId = await fetcherById([...ids.keys()]);
-    for (const [id, w] of ids) {
-      const n = noteForId(id, byId);
+  if (found.length) {
+    const byId = await fetcherById([...new Set(found.flatMap((f) => f.ids))]);
+    for (const { w, ids } of found) {
+      const n = noteForIds(ids, byId);
       if (n) await save(w, n);
       else markMissed(w.id);
     }
