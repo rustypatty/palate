@@ -54,7 +54,7 @@ export function writeTake(
   };
   const job = describe(req)
     .then(async (out) => {
-      if (out.ok) await updateWine(wine.id, { take: { ...out.take, writtenAt: Date.now(), rating: wine.rating } }, database);
+      if (out.ok) await updateWine(wine.id, { take: { ...out.take, writtenAt: Date.now(), rating: wine.rating, source: 'claude' } }, database);
       return out;
     })
     .catch((e: unknown): DescribeOutcome => ({ ok: false, reason: e instanceof Error ? e.message : 'unexpected error' }))

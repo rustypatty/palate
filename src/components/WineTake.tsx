@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useWines } from '../hooks';
+import { updateWine } from '../db';
+import { fetchNotes, noteFor, noteKey, notesConfigured, takeFromNote } from '../lib/catalogNotes';
 import { hasApiKey } from '../lib/labelReader';
 import { needsTake, writeTake } from '../lib/wineTake';
 import type { Wine } from '../types';
@@ -11,7 +13,7 @@ import { cleanReason } from './Shelf';
  */
 export function WineTake({ wine }: { wine: Wine }) {
   const wines = useWines();
-  const [state, setState] = useState<{ status: 'idle' | 'busy' } | { status: 'error'; reason: string }>({ status: 'idle' });
+  const [state, setState] = useState<{ status: 'idle' | 'busy' | 'checking' } | { status: 'error'; reason: string }>({ status: 'idle' });
   const canWrite = hasApiKey();
 
   const write = () => {
@@ -20,9 +22,23 @@ export function WineTake({ wine }: { wine: Wine }) {
     void writeTake(wine, wines).then((out) => setState(out.ok ? { status: 'idle' } : { status: 'error', reason: out.reason }));
   };
 
-  // First visit: write it now, so the page explains the wine without a tap.
+  // First visit: the catalog's description if it has one (free), else Claude writes one now.
   useEffect(() => {
-    if (wines && canWrite && navigator.onLine && needsTake(wine)) write();
+    if (!wines || !navigator.onLine || !needsTake(wine)) return;
+    let live = true;
+    void (async () => {
+      if (notesConfigured) {
+        setState({ status: 'checking' });
+        const note = noteFor(wine, await fetchNotes([noteKey(wine.producer, wine.name)]).catch(() => []));
+        if (note) await updateWine(wine.id, { take: takeFromNote(note, wine) });
+        if (live) setState({ status: 'idle' });
+        if (note) return;
+      }
+      if (live && canWrite) write();
+    })();
+    return () => {
+      live = false;
+    };
   }, [wine.id, Boolean(wines)]);
 
   const t = wine.take;
@@ -31,8 +47,8 @@ export function WineTake({ wine }: { wine: Wine }) {
     return (
       <section className="coach-card take-card" aria-live="polite">
         <span className="eyebrow">Palate’s take</span>
-        {!canWrite ? (
-          <p className="muted small">Add your Anthropic API key in My palate and Palate will describe this wine for you.</p>
+        {!canWrite && state.status === 'idle' ? (
+          <p className="muted small">No description in Palate’s catalog yet. Add your Anthropic API key in My palate and Palate will write one for you.</p>
         ) : state.status === 'error' ? (
           <>
             <p className="small" style={{ color: 'var(--warn)' }}>Couldn’t write a description ({state.reason}).</p>
@@ -40,6 +56,8 @@ export function WineTake({ wine }: { wine: Wine }) {
               Try again
             </button>
           </>
+        ) : state.status === 'checking' ? (
+          <p className="muted small">Looking for a description…</p>
         ) : (
           <p className="muted small">Writing a description of this wine for you…</p>
         )}
@@ -53,7 +71,8 @@ export function WineTake({ wine }: { wine: Wine }) {
     ['For you', t.fit],
     ['Serve it', t.serve],
   ];
-  const stale = t.rating !== wine.rating;
+  const fromCatalog = t.source === 'catalog';
+  const stale = !fromCatalog && t.rating !== wine.rating;
   return (
     <section className="coach-card take-card" aria-live="polite">
       <span className="eyebrow">Palate’s take</span>
@@ -66,14 +85,25 @@ export function WineTake({ wine }: { wine: Wine }) {
           </div>
         ))}
       {t.caveat.trim() && <p className="coach-caveat">{cleanReason(t.caveat)}</p>}
-      <div className="take-foot">
-        <span className="muted small">{stale ? 'Your rating changed since this was written.' : 'Written for you by Claude from what it knows about this wine.'}</span>
-        {canWrite && (
-          <button type="button" className="btn btn-ghost btn-sm" onClick={write} disabled={state.status === 'busy'}>
-            {state.status === 'busy' ? 'Rewriting…' : stale ? 'Update it' : 'Rewrite'}
-          </button>
-        )}
-      </div>
+      {fromCatalog ? (
+        <div className="take-foot">
+          <span className="muted small">From Palate’s wine catalog.</span>
+          {canWrite && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={write} disabled={state.status === 'busy'}>
+              {state.status === 'busy' ? 'Writing…' : 'Add how it fits you · about 3¢'}
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="take-foot">
+          <span className="muted small">{stale ? 'Your rating changed since this was written.' : 'Written for you by Claude from what it knows about this wine.'}</span>
+          {canWrite && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={write} disabled={state.status === 'busy'}>
+              {state.status === 'busy' ? 'Rewriting…' : stale ? 'Update it' : 'Rewrite'}
+            </button>
+          )}
+        </div>
+      )}
       {state.status === 'error' && <p className="small" style={{ color: 'var(--warn)' }}>Couldn’t rewrite it ({state.reason}).</p>}
     </section>
   );
