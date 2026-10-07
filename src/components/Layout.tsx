@@ -1,6 +1,7 @@
 import { Bookmark, LayoutGrid, Plus, Store, Wine } from 'lucide-react';
 import { Link, matchPath, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLists } from '../hooks';
+import { useCatalogNotes } from './useCatalogNotes';
 import { usePhotoFinder } from './usePhotoFinder';
 
 export function Wordmark() {
@@ -20,6 +21,7 @@ export function Layout() {
   const location = useLocation();
   const wantCount = useWantCount();
   usePhotoFinder();
+  useCatalogNotes();
   // Add/Edit wine has its own sticky Save bar instead of the navigation.
   const editing = Boolean(matchPath('/add', location.pathname) || matchPath('/wine/:id/edit', location.pathname));
 

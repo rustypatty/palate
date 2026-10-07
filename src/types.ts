@@ -126,6 +126,8 @@ export interface WineTake {
   writtenAt: number;
   /** Your rating when it was written: a different rating since means "For you" may be out of date. */
   rating: Rating | null;
+  /** 'catalog': the shared description from Palate's wine catalog (no "For you" part); otherwise written by Claude for you. */
+  source?: 'catalog' | 'claude';
 }
 
 export type WineDraft = Omit<Wine, 'id' | 'createdAt' | 'updatedAt'>;

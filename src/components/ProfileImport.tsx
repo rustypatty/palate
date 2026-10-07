@@ -1,6 +1,6 @@
 import { FileUp } from 'lucide-react';
 import { useRef, useState, useSyncExternalStore } from 'react';
-import { useWines } from '../hooks';
+import { useAllWines } from '../hooks';
 import { loadProfile, planImport, profileFavourites, saveProfile, shownPreferences, subscribeProfile, type ImportPlan, type PalateProfile } from '../lib/profile';
 import { existingFor, runImport } from '../lib/profileImport';
 import { useToast } from './Toast';
@@ -80,7 +80,7 @@ export function ProfileSummary({ profile }: { profile: PalateProfile }) {
  */
 export function ProfileImport() {
   const profile = useProfile();
-  const wines = useWines();
+  const wines = useAllWines();
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [plan, setPlan] = useState<ImportPlan | null>(null);
