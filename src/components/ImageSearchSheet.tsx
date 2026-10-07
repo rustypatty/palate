@@ -2,7 +2,7 @@ import { AlertTriangle, ArrowLeft, Check, ExternalLink, Link2, Search } from 'lu
 import { useEffect, useState, type FormEvent } from 'react';
 import { isProbablyImageUrl } from '../lib/image';
 import { searchWikimediaCommons, webImageSearchUrl, type ImageCandidate } from '../lib/imageSearch';
-import { findBottlePhotos, PHOTO_FIND_COST } from '../lib/photoFinder';
+import { findBottlePhotos } from '../lib/photoFinder';
 import { Sheet } from './Sheet';
 
 type SourceId = 'web' | 'page' | 'commons';
@@ -21,7 +21,7 @@ async function searchPage(url: string, signal: AbortSignal): Promise<ImageCandid
 }
 
 const SOURCES: { id: SourceId; label: string; run: (q: string, s: AbortSignal) => Promise<ImageCandidate[]> }[] = [
-  { id: 'web', label: `Shops & wineries · ${PHOTO_FIND_COST}`, run: searchShops },
+  { id: 'web', label: 'Shops & wineries', run: searchShops },
   { id: 'commons', label: 'Wikimedia Commons', run: searchWikimediaCommons },
 ];
 const PAGE_SOURCE = { id: 'page' as const, label: 'that page', run: searchPage };

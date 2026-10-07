@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { draftFromListWine, listAsText, listCost, type ListWine } from './wineList';
+import { draftFromListWine, listAsText, type ListWine } from './wineList';
 
 const w = (over: Partial<ListWine>): ListWine => ({
   section: 'Burgundy', producer: 'Faiveley', wine: 'Nuits-Saint-Georges Les Montroziers', vintage: '2022', region: 'Nuits-Saint-Georges',
@@ -18,9 +18,5 @@ describe('wine list', () => {
     const d = draftFromListWine(w({}), 'Firm, dark Pinot', 1, 123);
     expect(d).toMatchObject({ producer: 'Faiveley', vintage: 2022, style: 'red', price: null, store: 'Restaurant' });
     expect(d.suggestion?.key).toBe('list:123:1');
-  });
-
-  it('shows a cost on the read button', () => {
-    expect(listCost(3)).toBe('~17¢');
   });
 });

@@ -11,7 +11,6 @@ import { photoFromUrl, shownPhoto } from './image';
 
 const KEY = 'palate.photoTries2'; // v2: earlier tries used a search that couldn't get past shop sites
 const RETRY_AFTER = 14 * 24 * 60 * 60 * 1000;
-export const PHOTO_FIND_COST = '~12¢';
 
 type Tries = Record<string, { at: number; sig: string; why?: string }>;
 

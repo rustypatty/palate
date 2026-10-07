@@ -10,7 +10,6 @@ import { fold, tokens } from './text';
  */
 
 export const LIKE_REFRESH_MS = 30 * 24 * 3600 * 1000;
-export const LIKE_COST = '~30¢';
 
 /** Stores searched by Claude, Total Wine first. */
 export const SEARCH_STORES = STORES.filter((s) => s.kind === 'search');

@@ -733,7 +733,7 @@ img {
   transform: none;
 }
 
-/* Chips and pills always wrap: nothing but bottle rows scrolls sideways. */
+/* Chips and pills wrap, except In store's store and budget rows on a phone (one line each, scrolled sideways). */
 .chips,
 .chip-group {
   display: flex;
@@ -2199,6 +2199,36 @@ details.more[open] > .more-body {
   min-height: 46px;
 }
 
+/* On a phone: one sideways-scrolling line each, so the snap card sits near the top. */
+.store-chooser.pills .chips {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  margin: 0 calc(-1 * (var(--gutter) + var(--text-in)));
+  padding: 2px calc(var(--gutter) + var(--text-in));
+}
+.store-chooser.pills .chips::-webkit-scrollbar {
+  display: none;
+}
+.store-chooser.pills .chip {
+  min-height: 42px;
+}
+.store-chooser.pills .eyebrow:not(:first-child) {
+  margin-top: 4px;
+}
+
+/* A snapped bottle's answer, right under the snap card. */
+.bottle-answer {
+  scroll-margin-top: 16px;
+}
+.answer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--text-in);
+}
+
 .store-list {
   display: grid;
   gap: 4px;
@@ -2597,15 +2627,6 @@ details.more[open] > .more-body {
   place-items: center;
 }
 
-.snap-cost {
-  position: absolute;
-  top: 26px;
-  right: 24px;
-  font-size: 12px;
-  font-weight: 600;
-  opacity: 0.85;
-}
-
 .snap-title {
   font-family: var(--font-display);
   font-style: italic;
@@ -2727,11 +2748,6 @@ details.more[open] > .more-body {
   }
   .check .snap-sub {
     display: none;
-  }
-  .check .snap-cost {
-    position: static;
-    margin-left: auto;
-    order: 3;
   }
   .check-tiles {
     display: none !important;
@@ -4831,11 +4847,6 @@ details.more[open] > .more-body {
   min-height: 48px;
   gap: 6px;
 }
-.wl-cost {
-  font-size: 13px;
-  opacity: 0.8;
-}
-
 /* ---------- In store: where are you? ---------- */
 .mode-switch {
   display: grid;
@@ -4962,4 +4973,13 @@ details.more[open] > .more-body {
     height: 200px;
     max-height: 220px;
   }
+}
+
+/* My palate: what's free and what costs a little. */
+.cost-list {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  color: var(--ink-2);
 }

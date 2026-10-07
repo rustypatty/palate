@@ -55,13 +55,25 @@ function LabelReadingSettings({ onFocusRequest, onChange }: { onFocusRequest: ()
   return (
     <section className="fold-content" ref={boxRef}>
       <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
-        Snap the label sends the photo to Anthropic’s Claude, which reads the producer, wine, vintage, region and grapes. It uses your own API key,
-        billed to your Anthropic account — typically 2–3¢ a label. Create one at{' '}
+        Anything Claude does uses your own API key, billed to your Anthropic account. Create one at{' '}
         <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">
           console.anthropic.com
         </a>
         .
       </p>
+      <ul className="small cost-list">
+        <li>
+          <strong>Free:</strong> your collection, history and advice, barcode scans, and looking a snapped bottle up in Palate’s wine catalog (photo,
+          colour, grapes, region).
+        </li>
+        <li>
+          <strong>About 2¢:</strong> reading a bottle’s label.
+        </li>
+        <li>
+          <strong>About 10–30¢:</strong> searching the web — only when the catalog doesn’t know a bottle, or when you ask for a photo, tasting notes,
+          a shelf or wine-list reading, a store list or bottles like this.
+        </li>
+      </ul>
       {saved ? (
         <div className="key-row">
           <code>{`${saved.slice(0, 10)}…${saved.slice(-4)}`}</code>

@@ -58,12 +58,6 @@ export interface SavedShelf {
 export type ShelfOutcome = { ok: true; report: ShelfReport } | { ok: false; reason: string };
 export type PriceCheckOutcome = { ok: true; checks: ShelfPriceCheck[] } | { ok: false; reason: string };
 
-/** Rough cost shown on the button: about 1¢ a photo plus the answer itself. */
-export function shelfCost(photos: number): string {
-  const cents = Math.round(12 + 1.2 * Math.max(1, photos));
-  return `~${cents}¢`;
-}
-export const PRICE_CHECK_COST = '~30¢';
 export const MAX_SHELF_PHOTOS = 10;
 
 const KEY = 'palate.shelf';

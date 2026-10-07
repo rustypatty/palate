@@ -14,11 +14,10 @@ import { useWine } from '../hooks';
 import { RATING_LABEL, STYLE_LABEL } from '../lib/constants';
 import { formatDate, formatPrice, fullName, placeLabel } from '../lib/format';
 import { shownPhoto } from '../lib/image';
-import { findPhotoFor, lastMiss, PHOTO_FIND_COST, photoQueue } from '../lib/photoFinder';
+import { findPhotoFor, lastMiss, photoQueue } from '../lib/photoFinder';
 import { hasApiKey, LabelReadError, lookUpWine } from '../lib/labelReader';
 
 /** Rough cost of looking up published notes (a few web searches and page reads). */
-const NOTES_COST = '~10¢';
 
 export function WineDetailPage() {
   const { id } = useParams();
@@ -134,7 +133,7 @@ export function WineDetailPage() {
         </div>
         {!shownPhoto(wine.photo) && findingPhoto && (
           <span className="btn btn-white btn-sm hero-cta" role="status">
-            <Globe size={16} /> Finding a photo · {PHOTO_FIND_COST}
+            <Globe size={16} /> Finding a photo…
           </span>
         )}
         {!shownPhoto(wine.photo) && !findingPhoto && (
@@ -147,7 +146,7 @@ export function WineDetailPage() {
                 toast(found ? 'Found a photo of this bottle' : `No photo yet: ${lastMiss(wine) ?? 'nothing found'}`);
               }}
             >
-              <Globe size={16} /> {lastMiss(wine) ? 'Try again' : 'Find a photo'} · {PHOTO_FIND_COST}
+              <Globe size={16} /> {lastMiss(wine) ? 'Try again' : 'Find a photo'}
             </button>
           ) : (
             <Link to="/profile" className="btn btn-white btn-sm hero-cta">
@@ -258,7 +257,7 @@ export function WineDetailPage() {
               <p className="notes">{canLookUp ? 'No published tasting notes yet.' : 'Add your Anthropic API key in My palate to fetch published tasting notes.'}</p>
               {canLookUp && (
                 <button type="button" className="btn btn-white" onClick={fetchNotes} disabled={fetching}>
-                  {fetching ? 'Looking up…' : `Get tasting notes · ${NOTES_COST}`}
+                  {fetching ? 'Looking up…' : 'Get tasting notes'}
                 </button>
               )}
             </>

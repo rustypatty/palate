@@ -4,7 +4,6 @@ export interface SnapCardContent {
   /** Which content this is; a change cross-fades from the old to the new. */
   id: string;
   icon: ReactNode;
-  cost: string;
   title: string;
   line: string;
   link: string;
@@ -41,7 +40,6 @@ export function SnapCard({ content, onCamera, onLibrary }: { content: SnapCardCo
       <span className="snap-icon" aria-hidden="true">
         {c.icon}
       </span>
-      <span className="snap-cost">{c.cost}</span>
       <span className="snap-title">{c.title}</span>
       <span className="snap-sub">{c.line}</span>
       {state === 'in' && (

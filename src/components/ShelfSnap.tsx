@@ -10,11 +10,9 @@ import {
   checkShelfPrices,
   loadShelf,
   MAX_SHELF_PHOTOS,
-  PRICE_CHECK_COST,
   readShelf,
   saveShelf,
   shelfContext,
-  shelfCost,
   shelfTitle,
   type PriceCall,
   type SavedShelf,
@@ -238,7 +236,7 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
           ) : (
             <div className="shelf-tray-actions">
               <button type="button" className="btn btn-wine btn-lg" onClick={read}>
-                Read the shelf · {shelfCost(photos.length)}
+                Read the shelf
               </button>
               <button type="button" className="btn btn-tone btn-lg" onClick={() => library.current?.click()}>
                 <ImagePlus size={17} /> Add
@@ -345,7 +343,7 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
             <div className="picks-status">
               <span>Price calls come from what Claude knows. Want proof before you spend?</span>
               <button type="button" className="btn btn-white btn-sm" onClick={checkPrices}>
-                <RefreshCw size={15} strokeWidth={1.8} /> Check prices online · {PRICE_CHECK_COST}
+                <RefreshCw size={15} strokeWidth={1.8} /> Check prices online
               </button>
             </div>
           )}
