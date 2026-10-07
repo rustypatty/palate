@@ -11,6 +11,7 @@ import { SUPABASE_KEY, SUPABASE_URL } from './supabaseConfig';
 
 export interface CatalogNote {
   name_key: string;
+  wine_id: string | null;
   vintage: number | null;
   what_it_is: string;
   taste: string;
@@ -35,6 +36,30 @@ export function noteKey(producer: string, name: string): string {
 
 export const notesConfigured = Boolean(SUPABASE_URL && SUPABASE_KEY);
 
+const FIELDS = 'name_key,wine_id,vintage,what_it_is,taste,serve,caveat';
+
+async function getNotes(query: string, signal?: AbortSignal): Promise<CatalogNote[]> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/catalog_wine_notes?select=${FIELDS}&${query}`, {
+    headers: { apikey: SUPABASE_KEY!, Authorization: `Bearer ${SUPABASE_KEY}` },
+    signal,
+  });
+  // Before the notes table exists, there's simply nothing to show.
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error(`catalog notes ${res.status}`);
+  return (await res.json()) as CatalogNote[];
+}
+
+/** Notes for wines identified in the catalog (by its wine ids). */
+export async function fetchNotesByIds(ids: string[], signal?: AbortSignal): Promise<CatalogNote[]> {
+  if (!notesConfigured || !ids.length) return [];
+  const out: CatalogNote[] = [];
+  for (let k = 0; k < ids.length; k += 60) {
+    const list = ids.slice(k, k + 60).map((id) => `"${id.replace(/"/g, '')}"`).join(',');
+    out.push(...(await getNotes(`wine_id=in.(${encodeURIComponent(list)})`, signal)));
+  }
+  return out;
+}
+
 export async function fetchNotes(keys: string[], signal?: AbortSignal): Promise<CatalogNote[]> {
   if (!notesConfigured || !keys.length) return [];
   // Keep each request's address a sensible length.
@@ -44,12 +69,7 @@ export async function fetchNotes(keys: string[], signal?: AbortSignal): Promise<
     return out;
   }
   const list = keys.map((k) => `"${k.replace(/"/g, '')}"`).join(',');
-  const url = `${SUPABASE_URL}/rest/v1/catalog_wine_notes?select=name_key,vintage,what_it_is,taste,serve,caveat&name_key=in.(${encodeURIComponent(list)})`;
-  const res = await fetch(url, { headers: { apikey: SUPABASE_KEY!, Authorization: `Bearer ${SUPABASE_KEY}` }, signal });
-  // Before the notes table exists, there's simply nothing to show.
-  if (res.status === 404) return [];
-  if (!res.ok) throw new Error(`catalog notes ${res.status}`);
-  return (await res.json()) as CatalogNote[];
+  return getNotes(`name_key=in.(${encodeURIComponent(list)})`, signal);
 }
 
 /** The note for this wine: its own vintage first, else one written for any vintage. */
@@ -58,6 +78,11 @@ export function noteFor(w: Pick<Wine, 'producer' | 'name' | 'vintage'>, notes: C
   const mine = notes.filter((n) => n.name_key === key);
   const v = typeof w.vintage === 'number' ? w.vintage : null;
   return mine.find((n) => n.vintage !== null && n.vintage === v) ?? mine.find((n) => n.vintage === null) ?? null;
+}
+
+/** A note written for the catalog wine with this id (any vintage). */
+export function noteForId(wineId: string, notes: CatalogNote[]): CatalogNote | null {
+  return notes.find((n) => n.wine_id === wineId) ?? null;
 }
 
 export function takeFromNote(n: CatalogNote, w: Pick<Wine, 'rating'>): WineTake {
@@ -71,19 +96,69 @@ export const wantsNote = (w: Wine) => !w.take && w.list !== 'passed' && Boolean(
  * Fills in descriptions from the catalog for every wine that has none, in one request.
  * Returns how many were filled.
  */
-export async function fillFromCatalog(wines: Wine[], database: PalateDB = db, fetcher: typeof fetchNotes = fetchNotes): Promise<number> {
+export async function fillFromCatalog(
+  wines: Wine[],
+  database: PalateDB = db,
+  fetcher: typeof fetchNotes = fetchNotes,
+  identify: (producer: string, name: string) => Promise<string | null> = async (p, n) => (await import('./catalog')).catalogWineId(p, n),
+  fetcherById: typeof fetchNotesByIds = fetchNotesByIds,
+): Promise<number> {
   const todo = wines.filter(wantsNote);
   if (!todo.length) return 0;
   const notes = await fetcher([...new Set(todo.map((w) => noteKey(w.producer, w.name)))]);
   let filled = 0;
-  for (const w of todo) {
-    const n = noteFor(w, notes);
-    if (!n) continue;
+  const save = async (w: Wine, n: CatalogNote) => {
     // Re-read: the wine may have been described on its page meanwhile.
     const now = await database.wines.get(w.id);
-    if (!now || now.take) continue;
+    if (!now || now.take) return;
     await updateWine(w.id, { take: takeFromNote(n, now) }, database);
     filled++;
+  };
+  const missed: Wine[] = [];
+  for (const w of todo) {
+    const n = noteFor(w, notes);
+    if (n) await save(w, n);
+    else missed.push(w);
+  }
+  // Not found by name: identify the rest in the catalog (free, one at a time) and look up by id.
+  const ids = new Map<string, Wine>();
+  for (const w of missed.filter((w) => !recentlyMissed(w.id)).slice(0, ID_LOOKUPS_PER_RUN)) {
+    const id = await identify(w.producer, w.name).catch(() => null);
+    if (id) ids.set(id, w);
+    else markMissed(w.id);
+  }
+  if (ids.size) {
+    const byId = await fetcherById([...ids.keys()]);
+    for (const [id, w] of ids) {
+      const n = noteForId(id, byId);
+      if (n) await save(w, n);
+      else markMissed(w.id);
+    }
   }
   return filled;
+}
+
+/** At most this many catalog identifications per background run, so opening the app stays light. */
+const ID_LOOKUPS_PER_RUN = 25;
+const MISS_KEY = 'palate.notesMissed';
+const MISS_DAYS = 3;
+
+function misses(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(MISS_KEY) ?? '{}') as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+/** Checked recently and found nothing: don't ask the catalog again for a few days. */
+function recentlyMissed(id: string): boolean {
+  const at = misses()[id];
+  return Boolean(at && Date.now() - at < MISS_DAYS * 86_400_000);
+}
+function markMissed(id: string) {
+  try {
+    localStorage.setItem(MISS_KEY, JSON.stringify({ ...misses(), [id]: Date.now() }));
+  } catch {
+    // Storage unavailable: it just gets checked again next time.
+  }
 }

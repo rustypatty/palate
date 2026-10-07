@@ -167,6 +167,14 @@ export function splitProducer(full: string, catalogProducer: string): { producer
 }
 const PRODUCER_FILLER = new Set(['chateau', 'domaine', 'domaines', 'bodegas', 'bodega', 'tenuta', 'maison', 'weingut', 'de', 'di', 'del', 'du', 'des', 'la', 'le', 'les', 'et', 'fils', 'winery', 'estate', 'vineyards', 'cellars']);
 
+/** The catalog's id for a wine named in full ("Bodegas Muga Reserva"), when it is a sure match. */
+export async function catalogWineId(producer: string, name: string, deps?: CatalogDeps): Promise<string | null> {
+  const d = deps ?? DEFAULT_DEPS;
+  if (!catalogConfigured && d === DEFAULT_DEPS) return null;
+  const { match } = await lookupCatalog({ producer, name }, (text) => d.search(text));
+  return match.status === 'match' ? match.wine.wine_id : null;
+}
+
 export async function catalogIdentify(full: string, deps?: CatalogDeps): Promise<CatalogIdentity | null> {
   const d = deps ?? DEFAULT_DEPS;
   if (!catalogConfigured && d === DEFAULT_DEPS) return null;
