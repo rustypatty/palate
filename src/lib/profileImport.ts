@@ -88,8 +88,9 @@ export async function runImport(
       producer: split?.producer ?? '',
       name: split ? split.name : it.name,
       vintage: it.vintage,
-      country: d?.country || f.country,
-      region: titleIfShouting(d?.region || f.appellation?.name || ''),
+      country: d?.country || f.country || findAppellation(d?.region ?? '')?.country || '',
+      // The appellation in the name (Barolo, Pauillac) is more specific than a catalog region (Piedmont, Bordeaux).
+      region: f.appellation?.name || titleIfShouting(d?.region ?? ''),
       grapes: checkedGrapes(it.name, d?.grapes ?? []),
       style: f.style && style !== f.style ? f.style : style,
       rating: it.rating,

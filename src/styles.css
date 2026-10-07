@@ -5091,3 +5091,56 @@ details.more[open] > .more-body {
   font-size: 12px;
   font-weight: 600;
 }
+
+/* What Palate knows about you (imported profile) */
+.profile-summary {
+  display: grid;
+  gap: 14px;
+  padding: 0 var(--text-in);
+}
+.profile-summary .reason {
+  margin: 0;
+}
+.profile-summary .eyebrow {
+  margin-top: 6px;
+}
+.pref-list {
+  display: grid;
+  gap: 12px;
+  margin: 4px 0 0;
+}
+.pref-list > div {
+  display: grid;
+  grid-template-columns: minmax(0, 9.5em) minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+}
+.pref-list dt {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.pref-list dd {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+@media (max-width: 480px) {
+  .pref-list > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}
+.pref-more summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+  padding: 6px 0;
+}
+.profile-summary .muted {
+  color: var(--ink-3);
+}

@@ -14,7 +14,8 @@ export interface PalateProfile {
   asOf: string;
   owner: string;
   summary: string;
-  preferences: { dimension: string; value: string; confidence: string }[];
+  /** `key` is the file's own name for it ("red_benchmark"); `dimension` is readable. */
+  preferences: { key?: string; dimension: string; value: string; confidence: string }[];
   inferences: { hypothesis: string; confidence: string; limits: string }[];
   notSupported: string[];
   pairing: { wine: string; food: string; reaction: string; notes: string }[];
@@ -108,6 +109,7 @@ export function planImport(text: string, now = Date.now()): ImportPlan {
     owner: str(p.owner || data.owner),
     summary: str(p.summary),
     preferences: prefs.map((x) => ({
+      key: str(x.dimension),
       dimension: str(x.dimension).replace(/_/g, ' '),
       value: x.dimension === 'budget' ? `$${str(x.value)} a bottle. ${str(x.rule)}`.trim() : str(x.value) + (x.notes ? ` (${str(x.notes)})` : ''),
       confidence: str(x.confidence),
@@ -152,6 +154,49 @@ export function planImport(text: string, now = Date.now()): ImportPlan {
 }
 
 /** The profile as Claude reads it, ahead of your rated wines. */
+const PREF_LABEL: Record<string, string> = {
+  red_benchmark: 'Favourite red',
+  red_favorites: 'Favourite reds',
+  white_style_favorites: 'Favourite whites',
+  white_style: 'Whites',
+  tannin: 'Tannin',
+  fruit: 'Fruit',
+  education: 'How you like advice',
+  budget: 'Budget',
+};
+/** Bookkeeping about the file itself, not about your taste. */
+const NOT_SHOWN = new Set(['wine_identity']);
+
+/** Your preferences in plain words, for My palate. */
+export function shownPreferences(p: PalateProfile): { label: string; value: string }[] {
+  return p.preferences
+    .map((x) => ({ key: x.key ?? x.dimension.replace(/ /g, '_'), x }))
+    .filter(({ key }) => !NOT_SHOWN.has(key))
+    .map(({ key, x }) => ({ label: PREF_LABEL[key] ?? x.dimension[0].toUpperCase() + x.dimension.slice(1), value: x.value.replace(/\s*\([^()]*\)$/, '') }));
+}
+
+/** Wines and styles you named as favourites ("Barolo", "Sancerre"…), favourite reds first. */
+export function profileFavourites(p: PalateProfile | null): string[] {
+  if (!p) return [];
+  const order = ['red_benchmark', 'red_favorites', 'white_style_favorites'];
+  return [
+    ...new Set(
+      order.flatMap((k) =>
+        p.preferences
+          .filter((x) => (x.key ?? x.dimension.replace(/ /g, '_')) === k)
+          .flatMap((x) => x.value.replace(/\s*\(.*\)$/, '').split(/,\s*/))
+          .filter(Boolean),
+      ),
+    ),
+  ];
+}
+
+/** The red you named as your favourite / benchmark, if the profile has one. */
+export function favouriteRed(p: PalateProfile | null): string {
+  const x = p?.preferences.find((x) => (x.key ?? x.dimension.replace(/ /g, '_')) === 'red_benchmark');
+  return x ? x.value.replace(/\s*\([^()]*\)$/, '') : '';
+}
+
 export function profileContext(p: PalateProfile | null): string {
   if (!p) return '';
   const lines: string[] = [];

@@ -11,8 +11,8 @@ function emphasise(line: string, words: string[]): ReactNode {
 }
 
 /** "Your taste", in plain language, in the golden header of My palate. */
-export function TasteHeader({ taste }: { taste: TasteProfile }) {
-  if (!taste.enough) {
+export function TasteHeader({ taste, favouriteRed = '' }: { taste: TasteProfile; favouriteRed?: string }) {
+  if (!taste.enough && !favouriteRed) {
     const left = MIN_RATED - taste.rated;
     return (
       <header className="palate-hero">
@@ -24,12 +24,14 @@ export function TasteHeader({ taste }: { taste: TasteProfile }) {
       </header>
     );
   }
-  const lines = taste.summary.filter((l) => !l.startsWith('In your words'));
+  // What you said is your favourite leads; the patterns counted from your ratings follow.
+  const counted = taste.enough ? taste.summary.filter((l) => !l.startsWith('In your words')) : [];
+  const lines = favouriteRed ? [`${favouriteRed} is your favourite red.`, ...counted] : counted;
   const places = taste.likes.filter((a) => a.kind === 'region' || a.kind === 'area').map((a) => a.value);
   return (
     <header className="palate-hero">
       <div className="eyebrow">My palate · from {taste.rated} rated wines</div>
-      {lines[0] && <h1 className="palate-summary">{emphasise(lines[0], places)}</h1>}
+      {lines[0] && <h1 className="palate-summary">{emphasise(lines[0], favouriteRed ? [favouriteRed, ...places] : places)}</h1>}
       {lines.length > 1 && <p className="palate-more">{lines.slice(1).join(' ')}</p>}
     </header>
   );

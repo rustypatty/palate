@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createWine, emptyDraft, PalateDB } from '../db';
 import { splitProducer } from './catalog';
-import { loadProfile, planImport, profileContext } from './profile';
+import { loadProfile, planImport, profileContext, profileFavourites, shownPreferences } from './profile';
 import { checkedGrapes, existingFor, guideSplit, runImport } from './profileImport';
 
 // A made-up history in the same shape as an exported profile file.
@@ -115,4 +115,18 @@ describe('the appellation guide fills in what the catalog does not know', () => 
 
 it('uses one spelling per grape from the catalog', () => {
   expect(checkedGrapes('Domaine Exemple Rasteau', ['Garnacha Tinta', 'Syrah', 'Mourvedre'])).toEqual(['Grenache', 'Syrah', 'Mourvèdre']);
+});
+
+it('shows preferences in plain words and pulls out favourites', () => {
+  const file = JSON.parse(SAMPLE);
+  file.profile.explicit_preferences.push(
+    { dimension: 'red_benchmark', value: 'Barolo', notes: 'Favourite red.', confidence: 'high' },
+    { dimension: 'white_style_favorites', value: ['Sancerre', 'Riesling'], confidence: 'high' },
+    { dimension: 'wine_identity', value: 'Exact producer and vintage', confidence: 'high' },
+  );
+  const p = planImport(JSON.stringify(file)).profile;
+  expect(profileFavourites(p)).toEqual(['Barolo', 'Sancerre', 'Riesling']);
+  const shown = shownPreferences(p);
+  expect(shown.find((x) => x.label === 'Favourite red')?.value).toBe('Barolo');
+  expect(shown.map((x) => x.label)).not.toContain('Wine identity');
 });

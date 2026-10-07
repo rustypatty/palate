@@ -3,7 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'rea
 import { useLocation } from 'react-router-dom';
 import { CloudSync, cloudSummary, useCloudStatus } from '../components/CloudSync';
 import { TasteHeader, TasteQuote } from '../components/TasteCard';
-import { ProfileImport } from '../components/ProfileImport';
+import { ProfileImport, ProfileSummary, useProfile } from '../components/ProfileImport';
 import { useToast } from '../components/Toast';
 import { useWines } from '../hooks';
 import { downloadBlob, exportBackup, importBackup } from '../lib/backup';
@@ -11,6 +11,7 @@ import { STYLE_LABEL } from '../lib/constants';
 import { tally } from '../lib/filters';
 import { formatPrice } from '../lib/format';
 import { apiKeyProblem, getApiKey, normalizeApiKey, setApiKey, testApiKey } from '../lib/labelReader';
+import { favouriteRed, profileFavourites } from '../lib/profile';
 import { buildTaste } from '../lib/taste';
 import type { Wine } from '../types';
 
@@ -140,6 +141,7 @@ function median(xs: number[]): number | null {
 
 export function ProfilePage() {
   const wines = useWines();
+  const profile = useProfile();
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [persisted, setPersisted] = useState<boolean | null>(null);
@@ -178,14 +180,14 @@ export function ProfilePage() {
 
   if (wines === undefined) return null;
 
-  const pills = [...new Set(taste?.enough ? taste.likes.filter((a) => a.kind !== 'country').map((a) => a.value) : [...stats.grapes, ...stats.regions].map((t) => t.value))].slice(0, 12);
+  const pills = [...new Set([...profileFavourites(profile), ...(taste?.enough ? taste.likes.filter((a) => a.kind !== 'country').map((a) => a.value) : [...stats.grapes, ...stats.regions].map((t) => t.value))])].slice(0, 12);
   const skips = [...new Set(taste?.dislikes.length ? taste.dislikes.map((a) => a.value) : stats.passes.map((t) => t.value))].slice(0, 8);
   const maxCountry = Math.max(1, ...stats.countries.map((c) => c.count));
   const toggle = (k: string) => setOpen((o) => (o === k ? null : k));
 
   return (
     <div className="palate-page">
-      {taste && <TasteHeader taste={taste} />}
+      {taste && <TasteHeader taste={taste} favouriteRed={favouriteRed(profile)} />}
       {taste && <TasteQuote taste={taste} />}
 
       <div className="stats">
@@ -206,6 +208,13 @@ export function ProfilePage() {
           <div className="l">Typical price of a loved wine</div>
         </div>
       </div>
+
+      {profile && (
+        <section className="palate-section">
+          <h2 className="title-lg">What Palate knows about you</h2>
+          <ProfileSummary profile={profile} />
+        </section>
+      )}
 
       <section className="palate-section">
         <h2 className="title-lg">Where you love</h2>
