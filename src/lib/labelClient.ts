@@ -145,6 +145,8 @@ export interface WineLookup {
   /** Region and country, when the catalog knows them. */
   region?: string;
   country?: string;
+  /** Lowest recent US retail for a 750 ml bottle, when the catalog knows it. */
+  typicalPrice?: number | null;
 }
 
 const REPORT_TOOL = {

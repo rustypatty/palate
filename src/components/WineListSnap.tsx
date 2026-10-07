@@ -10,10 +10,8 @@ import { adoptWant } from '../lib/lists';
 import { shelfContext } from '../lib/shelf';
 import { useTaste } from '../lib/usePicks';
 import {
-  ASK_COST,
   askWineList,
   draftFromListWine,
-  listCost,
   listWineTitle,
   loadList,
   MAX_LIST_PAGES,
@@ -214,7 +212,7 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
           ) : (
             <div className="shelf-tray-actions">
               <button type="button" className="btn btn-wine btn-lg" onClick={read}>
-                Read the list · {listCost(photos.length)}
+                Read the list
               </button>
               <button type="button" className="btn btn-tone btn-lg" onClick={() => library.current?.click()}>
                 <ImagePlus size={17} /> Add
@@ -335,8 +333,8 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
                   placeholder={list.turns.length ? 'Ask a follow-up…' : 'Any Pinot you’d recommend?'}
                   enterKeyHint="send"
                 />
-                <button type="submit" className="btn btn-dark" disabled={!question.trim()} aria-label={`Ask (${ASK_COST})`}>
-                  <Send size={17} /> <span className="wl-cost">{ASK_COST}</span>
+                <button type="submit" className="btn btn-dark" disabled={!question.trim()} aria-label="Ask">
+                  <Send size={17} />
                 </button>
               </form>
             </>

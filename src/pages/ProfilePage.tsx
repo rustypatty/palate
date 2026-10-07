@@ -3,6 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'rea
 import { useLocation } from 'react-router-dom';
 import { CloudSync, cloudSummary, useCloudStatus } from '../components/CloudSync';
 import { TasteHeader, TasteQuote } from '../components/TasteCard';
+import { ProfileImport, ProfileSummary, useProfile } from '../components/ProfileImport';
 import { useToast } from '../components/Toast';
 import { useWines } from '../hooks';
 import { downloadBlob, exportBackup, importBackup } from '../lib/backup';
@@ -10,6 +11,7 @@ import { STYLE_LABEL } from '../lib/constants';
 import { tally } from '../lib/filters';
 import { formatPrice } from '../lib/format';
 import { apiKeyProblem, getApiKey, normalizeApiKey, setApiKey, testApiKey } from '../lib/labelReader';
+import { favouriteRed, profileFavourites } from '../lib/profile';
 import { buildTaste } from '../lib/taste';
 import type { Wine } from '../types';
 
@@ -55,13 +57,25 @@ function LabelReadingSettings({ onFocusRequest, onChange }: { onFocusRequest: ()
   return (
     <section className="fold-content" ref={boxRef}>
       <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
-        Snap the label sends the photo to Anthropic’s Claude, which reads the producer, wine, vintage, region and grapes. It uses your own API key,
-        billed to your Anthropic account — typically 2–3¢ a label. Create one at{' '}
+        Anything Claude does uses your own API key, billed to your Anthropic account. Create one at{' '}
         <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">
           console.anthropic.com
         </a>
         .
       </p>
+      <ul className="small cost-list">
+        <li>
+          <strong>Free:</strong> your collection, history and advice, barcode scans, and looking a snapped bottle up in Palate’s wine catalog (photo,
+          colour, grapes, region).
+        </li>
+        <li>
+          <strong>About 2¢:</strong> reading a bottle’s label. In a shop, the coach’s full answer about that bottle adds about 3¢.
+        </li>
+        <li>
+          <strong>About 10–30¢:</strong> searching the web — only when the catalog doesn’t know a bottle, or when you ask for a photo, tasting notes,
+          a shelf or wine-list reading, a store list or bottles like this.
+        </li>
+      </ul>
       {saved ? (
         <div className="key-row">
           <code>{`${saved.slice(0, 10)}…${saved.slice(-4)}`}</code>
@@ -127,6 +141,7 @@ function median(xs: number[]): number | null {
 
 export function ProfilePage() {
   const wines = useWines();
+  const profile = useProfile();
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [persisted, setPersisted] = useState<boolean | null>(null);
@@ -165,14 +180,14 @@ export function ProfilePage() {
 
   if (wines === undefined) return null;
 
-  const pills = [...new Set(taste?.enough ? taste.likes.filter((a) => a.kind !== 'country').map((a) => a.value) : [...stats.grapes, ...stats.regions].map((t) => t.value))].slice(0, 12);
+  const pills = [...new Set([...profileFavourites(profile), ...(taste?.enough ? taste.likes.filter((a) => a.kind !== 'country').map((a) => a.value) : [...stats.grapes, ...stats.regions].map((t) => t.value))])].slice(0, 12);
   const skips = [...new Set(taste?.dislikes.length ? taste.dislikes.map((a) => a.value) : stats.passes.map((t) => t.value))].slice(0, 8);
   const maxCountry = Math.max(1, ...stats.countries.map((c) => c.count));
   const toggle = (k: string) => setOpen((o) => (o === k ? null : k));
 
   return (
     <div className="palate-page">
-      {taste && <TasteHeader taste={taste} />}
+      {taste && <TasteHeader taste={taste} favouriteRed={favouriteRed(profile)} />}
       {taste && <TasteQuote taste={taste} />}
 
       <div className="stats">
@@ -193,6 +208,13 @@ export function ProfilePage() {
           <div className="l">Typical price of a loved wine</div>
         </div>
       </div>
+
+      {profile && (
+        <section className="palate-section">
+          <h2 className="title-lg">What Palate knows about you</h2>
+          <ProfileSummary profile={profile} />
+        </section>
+      )}
 
       <section className="palate-section">
         <h2 className="title-lg">Where you love</h2>
@@ -243,6 +265,11 @@ export function ProfilePage() {
         <p className="footnote" style={{ marginTop: 18 }}>
           It updates as you rate more{taste?.price ? '.' : '. Add prices to see your usual range.'}
         </p>
+      </section>
+
+      <section className="palate-section">
+        <h2 className="title-lg">Your wine profile</h2>
+        <ProfileImport />
       </section>
 
       <section className="palate-section">

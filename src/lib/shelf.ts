@@ -1,5 +1,6 @@
 import type { Wine, WineStyle } from '../types';
 import type { TasteProfile } from './taste';
+import { loadProfile, profileContext } from './profile';
 
 /**
  * "Snap a shelf": photos of a store shelf, read and ranked by Claude against your own
@@ -27,6 +28,23 @@ export interface ShelfBottle {
   price_call: PriceCall;
   price_note: string;
   tip: string;
+  /** What Palate's wine catalog adds (free, after the read): null when it doesn't know this bottle for sure. */
+  catalog?: ShelfCatalog | null;
+}
+
+export interface ShelfCatalog {
+  photo: { url: string; pageUrl: string; siteName: string } | null;
+  style: WineStyle | 'unknown';
+  grapes: string[];
+  region: string;
+  country: string;
+}
+
+/** The bottle's details, the shelf reading first and the catalog filling the gaps. */
+export function shelfDetails(b: ShelfBottle): { style: WineStyle | null; region: string; country: string; grapes: string[] } {
+  const c = b.catalog;
+  const style = b.style !== 'unknown' ? b.style : c && c.style !== 'unknown' ? c.style : null;
+  return { style, region: b.region || c?.region || '', country: b.country || c?.country || '', grapes: b.grapes.length ? b.grapes : (c?.grapes ?? []) };
 }
 
 export interface ShelfReport {
@@ -58,12 +76,6 @@ export interface SavedShelf {
 export type ShelfOutcome = { ok: true; report: ShelfReport } | { ok: false; reason: string };
 export type PriceCheckOutcome = { ok: true; checks: ShelfPriceCheck[] } | { ok: false; reason: string };
 
-/** Rough cost shown on the button: about 1¢ a photo plus the answer itself. */
-export function shelfCost(photos: number): string {
-  const cents = Math.round(12 + 1.2 * Math.max(1, photos));
-  return `~${cents}¢`;
-}
-export const PRICE_CHECK_COST = '~30¢';
 export const MAX_SHELF_PHOTOS = 10;
 
 const KEY = 'palate.shelf';
@@ -106,6 +118,7 @@ export function shelfContext(wines: Wine[], taste: TasteProfile | undefined): st
     return `- ${RATING_WORD[w.rating!]}: ${name}${facts ? ` (${facts})` : ''}${notes ? ` — my notes: "${notes}"` : ''}`;
   });
   return [
+    profileContext(loadProfile()),
     taste?.summary.length ? `My taste, worked out from my ratings: ${taste.summary.join(' ')}` : '',
     lines.length ? `Wines I've rated, newest first:\n${lines.join('\n')}` : 'I have not rated many wines yet.',
   ]

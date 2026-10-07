@@ -57,10 +57,6 @@ export type ReadListOutcome = { ok: true; wines: ListWine[]; unreadable: string 
 export type AskOutcome = { ok: true; answer: ListAnswer } | { ok: false; reason: string };
 
 export const MAX_LIST_PAGES = 10;
-/** Reading the pages: mostly the cost of writing out every wine. */
-export const listCost = (pages: number) => `~${Math.round(8 + 3 * Math.max(1, pages))}¢`;
-/** A question about a list already read. */
-export const ASK_COST = '~4¢';
 
 export const QUICK_QUESTIONS = ['Best for me', 'Best value under $100', 'Something new to try', 'By the glass'];
 

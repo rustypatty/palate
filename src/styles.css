@@ -733,7 +733,7 @@ img {
   transform: none;
 }
 
-/* Chips and pills always wrap: nothing but bottle rows scrolls sideways. */
+/* Chips and pills wrap, except In store's store and budget rows on a phone (one line each, scrolled sideways). */
 .chips,
 .chip-group {
   display: flex;
@@ -2199,6 +2199,36 @@ details.more[open] > .more-body {
   min-height: 46px;
 }
 
+/* On a phone: one sideways-scrolling line each, so the snap card sits near the top. */
+.store-chooser.pills .chips {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  margin: 0 calc(-1 * (var(--gutter) + var(--text-in)));
+  padding: 2px calc(var(--gutter) + var(--text-in));
+}
+.store-chooser.pills .chips::-webkit-scrollbar {
+  display: none;
+}
+.store-chooser.pills .chip {
+  min-height: 42px;
+}
+.store-chooser.pills .eyebrow:not(:first-child) {
+  margin-top: 4px;
+}
+
+/* A snapped bottle's answer, right under the snap card. */
+.bottle-answer {
+  scroll-margin-top: 16px;
+}
+.answer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--text-in);
+}
+
 .store-list {
   display: grid;
   gap: 4px;
@@ -2597,15 +2627,6 @@ details.more[open] > .more-body {
   place-items: center;
 }
 
-.snap-cost {
-  position: absolute;
-  top: 26px;
-  right: 24px;
-  font-size: 12px;
-  font-weight: 600;
-  opacity: 0.85;
-}
-
 .snap-title {
   font-family: var(--font-display);
   font-style: italic;
@@ -2727,11 +2748,6 @@ details.more[open] > .more-body {
   }
   .check .snap-sub {
     display: none;
-  }
-  .check .snap-cost {
-    position: static;
-    margin-left: auto;
-    order: 3;
   }
   .check-tiles {
     display: none !important;
@@ -4455,6 +4471,31 @@ details.more[open] > .more-body {
   box-shadow: var(--sh-card);
 }
 
+/* With the catalog's bottle photo: the photo beside the name, everything else full width. */
+.shelf-card.has-photo {
+  grid-template-columns: minmax(0, 1fr) 84px;
+  column-gap: 14px;
+}
+.shelf-card.has-photo > * {
+  grid-column: 1 / -1;
+}
+.shelf-card.has-photo > .sc-head {
+  grid-column: 1;
+  grid-row: 1;
+}
+.shelf-card.has-photo > .sc-photo {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  height: 120px;
+  border-radius: 20px;
+}
+.sc-facts {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-top: 2px;
+}
+
 /* Reuses the store pick's pieces, stacked in one column. */
 .shelf-card > * {
   grid-area: auto;
@@ -4831,11 +4872,6 @@ details.more[open] > .more-body {
   min-height: 48px;
   gap: 6px;
 }
-.wl-cost {
-  font-size: 13px;
-  opacity: 0.8;
-}
-
 /* ---------- In store: where are you? ---------- */
 .mode-switch {
   display: grid;
@@ -4962,4 +4998,149 @@ details.more[open] > .more-body {
     height: 200px;
     max-height: 220px;
   }
+}
+
+/* My palate: what's free and what costs a little. */
+.cost-list {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  color: var(--ink-2);
+}
+
+/* The coach's answer about a snapped bottle. */
+.coach-card {
+  display: grid;
+  gap: 14px;
+  padding: 22px 20px;
+  border-radius: var(--r-pick);
+  background: var(--card);
+  box-shadow: var(--sh-card);
+}
+.coach-card.pending {
+  gap: 6px;
+}
+.coach-card p {
+  margin: 0;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.coach-verdict {
+  justify-self: start;
+  padding: 6px 12px;
+  border-radius: var(--pill);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--tone);
+  color: var(--ink);
+}
+.coach-verdict.buy {
+  background: var(--wine);
+  color: #fff;
+}
+.coach-verdict.skip {
+  background: var(--tone);
+  color: var(--ink-soft);
+}
+.coach-headline {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 24px;
+  line-height: 1.2;
+}
+.coach-part {
+  display: grid;
+  gap: 4px;
+}
+.coach-caveat {
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* My palate: importing a wine profile. */
+.profile-import {
+  display: grid;
+  gap: 14px;
+  padding: 0 var(--text-in);
+}
+.import-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.import-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--card);
+  font-size: 14px;
+}
+.import-tag {
+  flex: none;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* What Palate knows about you (imported profile) */
+.profile-summary {
+  display: grid;
+  gap: 14px;
+  padding: 0 var(--text-in);
+}
+.profile-summary .reason {
+  margin: 0;
+}
+.profile-summary .eyebrow {
+  margin-top: 6px;
+}
+.pref-list {
+  display: grid;
+  gap: 12px;
+  margin: 4px 0 0;
+}
+.pref-list > div {
+  display: grid;
+  grid-template-columns: minmax(0, 9.5em) minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+}
+.pref-list dt {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.pref-list dd {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+@media (max-width: 480px) {
+  .pref-list > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}
+.pref-more summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+  padding: 6px 0;
+}
+.profile-summary .muted {
+  color: var(--ink-3);
 }

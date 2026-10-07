@@ -31,7 +31,7 @@ const AnswerSchema = z.object({
     .array(
       z.object({
         n: z.number().describe('The wine’s number on the list.'),
-        why: z.string().describe('Why it suits me (or what it will taste like), under 30 words.'),
+        why: z.string().describe('Why it suits me, comparing it by name with wines I rated, and what it will taste like. 2–3 sentences, under 70 words.'),
         tag: z.enum(['match', 'value', 'new', '']).describe('"match" = best palate match, "value" = best value, "new" = good way to learn something new; at most one of each.'),
       }),
     )

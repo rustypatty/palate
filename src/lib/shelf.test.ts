@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cleanReason } from '../components/Shelf';
 import { wine } from '../test/fixtures';
-import { shelfContext, shelfCost, shelfTitle } from './shelf';
+import { shelfContext, shelfTitle } from './shelf';
 
 describe('Snap a shelf', () => {
   it('tells Claude your ratings and your own notes', () => {
@@ -17,11 +17,6 @@ describe('Snap a shelf', () => {
     expect(text).toContain('my notes: "Gripping tannin, lovely."');
     expect(text).toContain('Would not buy again: Château Puy d’Amour');
     expect(text).not.toContain('Unrated');
-  });
-
-  it('shows a cost that grows with the number of photos', () => {
-    expect(shelfCost(1)).toBe('~13¢');
-    expect(shelfCost(8)).toBe('~22¢');
   });
 
   it('names bottles plainly', () => {

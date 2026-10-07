@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { catalogLookup, cleanGrapes, type CatalogDeps } from './catalog';
+import { catalogForShelfBottle, catalogLookup, cleanGrapes, type CatalogDeps } from './catalog';
 import type { CatalogWine } from './catalogMatch';
 import type { LabelReading } from './labelReader';
 
@@ -65,6 +65,12 @@ describe('catalog lookup after a label snap', () => {
     const blanc = { ...rouge, wine_id: 'b', cuvee: 'Mercurey Blanc', wine_type: 'white' };
     expect(await catalogLookup(reading('Domaine Faiveley', 'Mercurey'), true, undefined, deps([rouge, blanc]))).toBeNull();
     expect(await catalogLookup(reading('Kim Crawford', 'Malbec'), true, undefined, deps([muga]))).toBeNull();
+  });
+
+  it('adds details and a photo to a bottle read off a shelf, and nothing when unsure', async () => {
+    const b = { producer: 'Bodegas Muga', wine: 'Reserva', vintage: '2021', region: '', country: '', grapes: [], style: 'red' as const, price_usd: 24, verdict: 'top' as const, rank: 1, taste: '', why: '', price_call: 'unknown' as const, price_note: '', tip: '' };
+    expect(await catalogForShelfBottle(b, undefined, deps([muga]))).toMatchObject({ style: 'red', grapes: ['Tempranillo'], region: 'Rioja', photo: { siteName: 'willowpark.net' } });
+    expect(await catalogForShelfBottle({ ...b, producer: 'Bodega Inventada', wine: 'Tinto' }, undefined, deps([muga]))).toBeNull();
   });
 
   it('keeps only real grape names', () => {

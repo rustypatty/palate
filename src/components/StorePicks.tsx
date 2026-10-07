@@ -9,7 +9,6 @@ import { MIN_RATED } from '../lib/taste';
 import { useAllStoreItems, useBudget, useRestaurantBudget, useStoreChoice, useStoreMode, useStorePicks, useTaste } from '../lib/usePicks';
 
 /** Rough cost of one Claude store list, shown on the button. */
-const LIST_COST = '~25¢';
 import { HiddenRow, PickCard, PickRow, pickNames, ShelfRow, type PickLike } from './Shelf';
 import { useUndo } from './useUndo';
 import { useToast } from './Toast';
@@ -200,7 +199,7 @@ export function StorePicksPanel() {
     </button>
   ) : hasKey ? (
     <button type="button" className="btn btn-white btn-sm" onClick={load}>
-      {fetchedAt ? 'New list' : 'Make a list'} · {LIST_COST}
+      {fetchedAt ? 'New list' : 'Make a list'}
     </button>
   ) : (
     <Link to="/profile" state={{ focusKey: Date.now() }} className="btn btn-white btn-sm">

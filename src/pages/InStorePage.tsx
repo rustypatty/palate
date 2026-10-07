@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { BottleImage, BottlePlaceholder } from '../components/BottleImage';
-import { LabelSnap, snapTile } from '../components/LabelSnap';
+import { LabelSnap } from '../components/LabelSnap';
 import { cleanReason, MiniWineCard, ShelfRow } from '../components/Shelf';
 import { PhotoChoices } from '../components/PhotoChoices';
 import { useToast } from '../components/Toast';
@@ -21,9 +21,9 @@ import { advise, describeCounts, detectStyle, type Signal } from '../lib/insight
 import { LabelReadError, lookUpLabel, readingToDraft, readingToQuery, withLookup, type LabelReading, type WineLookup } from '../lib/labelReader';
 import { matchesWant } from '../lib/lists';
 import { storeById } from '../lib/stores';
-import { useRestaurantBudget, useStoreChoice, useStoreMode } from '../lib/usePicks';
-import { listCost } from '../lib/wineList';
-import { shelfCost } from '../lib/shelf';
+import { useRestaurantBudget, useStoreChoice, useStoreMode, useTaste } from '../lib/usePicks';
+import { coachBottle, VERDICT_LABEL, type BottleCoach } from '../lib/coach';
+import { shelfContext } from '../lib/shelf';
 import { tokens } from '../lib/text';
 import type { WineDraft, WineStyle } from '../types';
 import type { AddPrefill } from './WineFormPage';
@@ -58,16 +58,14 @@ const CARD: Record<Mode, SnapCardContent> = {
   shop: {
     id: 'shop',
     icon: <Camera size={22} strokeWidth={1.6} />,
-    cost: shelfCost(4),
-    title: 'Snap a shelf',
-    line: 'Photograph a section, labels and prices in view. I’ll rank it for you.',
-    link: 'or choose from photos (up to 10)',
-    label: 'Snap a shelf: take a photo',
+    title: 'Snap a bottle',
+    line: 'Point at the label. I’ll tell you right away if it’s for you.',
+    link: 'or snap a whole shelf (several photos)',
+    label: 'Snap a bottle: take a photo',
   },
   restaurant: {
     id: 'restaurant',
     icon: <WineGlass size={22} strokeWidth={1.6} />,
-    cost: listCost(3),
     title: 'Snap the wine list',
     line: 'One photo per page, straight on. Ask what to order for your taste.',
     link: 'or choose from photos (up to 10 pages)',
@@ -85,6 +83,44 @@ function ModeSwitch() {
           {m === 'shop' ? 'In a shop' : 'At a restaurant'}
         </button>
       ))}
+    </div>
+  );
+}
+
+/** The coach's answer about a snapped bottle. */
+function CoachCard({ coach }: { coach: { status: 'pending' } | { status: 'done'; answer: BottleCoach } | { status: 'error'; reason: string } }) {
+  if (coach.status === 'pending') {
+    return (
+      <div className="coach-card pending" aria-live="polite">
+        <span className="eyebrow">Your coach</span>
+        <p className="muted small">Thinking about this bottle for you…</p>
+      </div>
+    );
+  }
+  if (coach.status === 'error') {
+    return <p className="small" style={{ color: 'var(--warn)', margin: 0 }}>The coach couldn’t answer ({coach.reason}).</p>;
+  }
+  const c = coach.answer;
+  const parts: [string, string][] = [
+    ['What it is', c.what_it_is],
+    ['How it will taste', c.taste],
+    ['For you', c.fit],
+    ['Value', c.value],
+    ['Serve it', c.serve],
+  ];
+  return (
+    <div className="coach-card" aria-live="polite">
+      <span className={`coach-verdict ${c.verdict}`}>{VERDICT_LABEL[c.verdict]}</span>
+      <h2 className="coach-headline">{cleanReason(c.headline)}</h2>
+      {parts
+        .filter(([, text]) => text.trim())
+        .map(([title, text]) => (
+          <div key={title} className="coach-part">
+            <div className="eyebrow">{title}</div>
+            <p>{cleanReason(text)}</p>
+          </div>
+        ))}
+      {c.caveat.trim() && <p className="coach-caveat">{cleanReason(c.caveat)}</p>}
     </div>
   );
 }
@@ -122,6 +158,9 @@ export function InStorePage() {
   const [mode] = useStoreMode();
   const [tableBudget] = useRestaurantBudget();
   const snap = useRef<SnapHandle>(null);
+  // In a shop, the card snaps one bottle; the whole-shelf snap is its secondary link.
+  const bottle = useRef<SnapHandle>(null);
+  const resultRef = useRef<HTMLElement>(null);
   // The card hides while photos are in the tray or being read.
   const [snapIdle, setSnapIdle] = useState(true);
   const [label, setLabel] = useState<{
@@ -130,9 +169,15 @@ export function InStorePage() {
     lookup?: 'pending' | 'done' | 'none';
     found?: WineLookup | null;
     failReason?: string;
+    coach?: { status: 'pending' } | { status: 'done'; answer: BottleCoach } | { status: 'error'; reason: string };
   } | null>(null);
+  const taste = useTaste();
   const labelUrl = useMemo(() => (label ? URL.createObjectURL(label.photo) : null), [label?.photo]);
   useEffect(() => () => void (labelUrl && URL.revokeObjectURL(labelUrl)), [labelUrl]);
+  // A new bottle snap: bring its answer up, right under the card.
+  useEffect(() => {
+    if (label?.photo) resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [label?.photo]);
   const inputRef = useRef<HTMLInputElement>(null);
   const q = useDebounced(query, 150);
   const price = priceText ? Number(priceText) : null;
@@ -187,7 +232,9 @@ export function InStorePage() {
       // Only a photo found on the web is kept; your snap was just for reading the label.
       const clean = label.found?.photo;
       const photo = clean ? await photoFromUrl(clean.url, { name: clean.siteName, pageUrl: clean.pageUrl, title: clean.title }) : null;
-      const draft: Partial<WineDraft> = { ...readingToDraft(label.reading), price, barcode, owned: 0, photo, about: label.found?.about ?? null };
+      const coached = label.coach?.status === 'done' ? label.coach.answer : null;
+      const about = label.found?.about ?? (coached ? { text: coached.taste, sourceName: 'Palate’s coach (expected style)', sourceUrl: '' } : null);
+      const draft: Partial<WineDraft> = { ...readingToDraft(label.reading), price, barcode, owned: 0, photo, about };
       if (style) draft.style = style;
       if (!draft.region && label.found?.region) draft.region = label.found.region;
       if (!draft.country && label.found?.country) draft.country = label.found.country;
@@ -224,18 +271,44 @@ export function InStorePage() {
   if (wines === undefined) return null;
   const hasInput = Boolean(query.trim() || style);
   const showInput = typing || hasInput || Boolean(label);
+  const clear = () => {
+    setQuery('');
+    setBarcode('');
+    setStyle(null);
+    setLabel(null);
+  };
 
   const labelSnap = (
     <LabelSnap
-      className="snap-tile"
+      ref={bottle}
+      bare
       onStart={(photo) => setLabel({ reading: null, photo })}
       onRead={(reading, photo) => {
-        setLabel({ reading, photo, lookup: 'pending' });
+        setLabel({ reading, photo, lookup: 'pending', coach: reading.is_wine_label ? { status: 'pending' } : undefined });
         if (!reading.is_wine_label) return;
         // Confirm style/grapes (Palate's catalog, else online) and find a clean photo, without holding up the verdict.
-        lookUpLabel(reading, photo)
-          .catch((e: unknown) => ({ ok: false as const, reason: e instanceof LabelReadError ? e.message : 'unexpected error' }))
-          .then((outcome) => {
+        const lookup = lookUpLabel(reading, photo).catch((e: unknown) => ({ ok: false as const, reason: e instanceof LabelReadError ? e.message : 'unexpected error' }));
+        // The coach's answer: with the catalog's facts when they come quickly (they usually do), else from the label alone.
+        void Promise.race([lookup, new Promise<null>((r) => window.setTimeout(() => r(null), 5000))]).then(async (first) => {
+          const f = first && first.ok ? first.lookup : null;
+          const out = await coachBottle({
+            producer: reading.producer,
+            name: reading.wine_name,
+            vintage: reading.vintage,
+            region: reading.region || f?.region || '',
+            country: reading.country || f?.country || '',
+            style: f && f.style !== 'unknown' ? f.style : '',
+            grapes: f?.grapes.length ? f.grapes : reading.grapes,
+            shelfPrice: price,
+            typicalPrice: f?.typicalPrice ?? null,
+            store: mode === 'shop' ? store.name : '',
+            context: shelfContext(wines ?? [], taste),
+          }).catch((e: unknown) => ({ ok: false as const, reason: e instanceof Error ? e.message : 'unexpected error' }));
+          setLabel((cur) =>
+            cur?.photo === photo ? { ...cur, coach: out.ok ? { status: 'done', answer: out.coach } : { status: 'error', reason: out.reason } } : cur,
+          );
+        });
+        lookup.then((outcome) => {
             const found = outcome.ok ? outcome.lookup : null;
             setLabel((cur) =>
               cur?.photo === photo && cur.reading
@@ -248,9 +321,188 @@ export function InStorePage() {
         setQuery(readingToQuery(reading));
         setBarcode('');
       }}
-    >
-      {snapTile('Claude reads it, Palate checks your history')}
-    </LabelSnap>
+    />
+  );
+
+  // The bottle's answer: what the label says, then how it fits your history.
+  const result = (
+    <>
+      {label && labelUrl && (
+        <div className="label-card" aria-live="polite">
+          <div className="tile">
+            {label.found?.photo ? (
+              <img className="bottle" src={label.found.photo.url} alt="Bottle photo" />
+            ) : label.lookup === 'pending' || !label.reading ? (
+              // Your snap, only while it's being read; it's never kept.
+              <img className="bottle" src={labelUrl} alt="" style={{ mixBlendMode: 'normal', opacity: 0.6 }} />
+            ) : (
+              <BottlePlaceholder />
+            )}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            {!label.reading ? (
+              <p className="muted small" style={{ margin: 0 }}>
+                Reading the label…
+              </p>
+            ) : !label.reading.is_wine_label ? (
+              <p className="small" style={{ margin: 0 }}>
+                That didn’t look like a wine label. Try again, filling the frame with the front label.
+              </p>
+            ) : (
+              <>
+                <div className="eyebrow" style={{ marginBottom: 4 }}>
+                  From the label
+                </div>
+                <div className="label-name">
+                  {[label.reading.producer, label.reading.wine_name].filter(Boolean).join(' · ') || 'Name not readable'}
+                </div>
+                <div className="muted small">
+                  {[
+                    label.reading.style !== 'unknown' ? STYLES.find((st) => st.value === label.reading!.style)?.label : null,
+                    label.reading.vintage,
+                    label.reading.region,
+                    label.reading.country,
+                    label.reading.grapes.join(', '),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
+                {label.lookup === 'pending' && <div className="small muted" style={{ marginTop: 4 }}>Looking this wine up…</div>}
+                {label.lookup === 'done' && label.found && (
+                  <div className="small" style={{ marginTop: 4, color: 'var(--good)' }}>
+                    {label.found.fromCatalog ? (
+                      'Found in Palate’s catalog'
+                    ) : (
+                      <>
+                        Confirmed online:{' '}
+                        <a href={label.found.sourceUrl} target="_blank" rel="noreferrer">
+                          {label.found.sourceName}
+                        </a>
+                      </>
+                    )}
+                    {label.found.photo ? ' · photo found' : ''}
+                    {!label.found.photo && label.found.photoNote && <div className="muted">{label.found.photoNote} Pick one below, or add it from the web later.</div>}
+                    {!label.found.photo && (
+                      <PhotoChoices
+                        candidates={label.found.candidates}
+                        onPick={(c) => setLabel((cur) => (cur?.found ? { ...cur, found: { ...cur.found, photo: c, candidates: [] } } : cur))}
+                      />
+                    )}
+                    {label.found.about && <div style={{ color: 'var(--ink-2)', marginTop: 4 }}>{label.found.about.text}</div>}
+                  </div>
+                )}
+                {label.lookup === 'none' && (
+                  <div className="small" style={{ marginTop: 4, color: 'var(--warn)' }}>
+                    Couldn’t confirm colour and grapes online ({label.failReason}). Left blank — check the label.
+                  </div>
+                )}
+                {(label.reading.confidence !== 'high' || label.reading.uncertain) && (
+                  <div className="small" style={{ color: 'var(--warn)', marginTop: 4 }}>
+                    {label.reading.uncertain || 'Some details may be guesses — check the label.'}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {label?.coach && <CoachCard coach={label.coach} />}
+
+      {lookingUp && <div className="status-line">Looking up barcode…</div>}
+
+      {wanted && (
+        <Link to={`/wine/${wanted.id}`} className="want-banner" aria-live="polite">
+          <Bookmark size={18} />
+          <span>
+            <strong>On your Want to try list</strong>
+            {wanted.suggestion?.reason && <span className="small"> · {cleanReason(wanted.suggestion.reason)}</span>}
+          </span>
+        </Link>
+      )}
+
+      {advice && (
+        <div className="advice">
+          {!(label?.coach?.status === 'done' && !advice.exact.length && !advice.related.length) && (
+          <div className={`verdict ${advice.verdict.level}`} aria-live="polite">
+            <span className="eyebrow">Based on your history</span>
+            <h2>{advice.verdict.title}</h2>
+            <p>{advice.verdict.detail}</p>
+          </div>
+          )}
+          {advice.price?.note && (
+            <div className="callout info">
+              <Tag size={18} />
+              <span>{advice.price.note}</span>
+            </div>
+          )}
+
+          {advice.exact.length > 0 && (
+            <section>
+              <h3 className="eyebrow list-title">You’ve had this wine</h3>
+              <div className="list">
+                {advice.exact.slice(0, 6).map((w) => (
+                  <WineRow key={w.id} wine={w} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {advice.related.length > 0 && (
+            <section>
+              <h3 className="eyebrow list-title">Related wines you’ve had</h3>
+              <div className="list">
+                {advice.related.slice(0, 6).map((w) => (
+                  <WineRow key={w.id} wine={w} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {advice.signals.length > 0 && (
+            <section>
+              <h3 className="eyebrow list-title">Why</h3>
+              <ul className="signals">
+                {advice.signals.map((s) => (
+                  <li key={`${s.kind}-${s.value}`} className="signal">
+                    <div style={{ minWidth: 0 }}>
+                      <div className="kind">{s.inferred ? 'Usual grape' : KIND_LABEL[s.kind]}</div>
+                      <div className="value">{s.value}</div>
+                      <div className="counts">{describeCounts(s.counts)}</div>
+                    </div>
+                    <Meter s={s} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <div>
+            <button type="button" className="btn btn-wine" onClick={saveBottle}>
+              <Plus size={18} /> Save this bottle
+            </button>
+          </div>
+        </div>
+      )}
+      {showInput && (
+        <>
+          <div className="chips" role="group" aria-label="Style">
+            {STYLES.map((s) => (
+              <button key={s.value} type="button" className="chip" aria-pressed={style === s.value} onClick={() => setStyle(style === s.value ? null : s.value)}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <div className="field" style={{ maxWidth: 220 }}>
+            <label htmlFor="shelf-price">Shelf price (optional)</label>
+            <div className="input-prefix">
+              <span>$</span>
+              <input id="shelf-price" className="input white" inputMode="decimal" placeholder="0" value={priceText} onChange={(e) => setPriceText(e.target.value.replace(/[^0-9.]/g, ''))} />
+            </div>
+          </div>
+        </>
+      )}
+    </>
   );
 
   return (
@@ -269,7 +521,25 @@ export function InStorePage() {
         <div className="mobile-only">
           <StoreChooser />
         </div>
-        {snapIdle && <SnapCard content={CARD[mode]} onCamera={() => snap.current?.camera()} onLibrary={() => snap.current?.library()} />}
+        {labelSnap}
+        {snapIdle && (
+          <SnapCard
+            content={CARD[mode]}
+            onCamera={() => (mode === 'shop' ? bottle : snap).current?.camera()}
+            onLibrary={() => (mode === 'shop' ? snap.current?.camera() : snap.current?.library())}
+          />
+        )}
+        {label && (
+          <section className="check bottle-answer" aria-label="This bottle" ref={resultRef}>
+            <div className="answer-head">
+              <span className="eyebrow">This bottle</span>
+              <button type="button" className="text-link" onClick={clear}>
+                Clear
+              </button>
+            </div>
+            {result}
+          </section>
+        )}
         {mode === 'shop' ? <ShelfSnap key="shop" ref={snap} onIdle={setSnapIdle} /> : <WineListSnap key="restaurant" ref={snap} onIdle={setSnapIdle} budget={tableBudget} />}
         {mode === 'shop' && <StorePicksPanel />}
       </div>
@@ -287,7 +557,6 @@ export function InStorePage() {
             <h2 className="title-lg">Check one bottle</h2>
             <p className="footnote mobile-only">Would I like this? Ask before you buy.</p>
           </div>
-          {labelSnap}
           <div className="check-tiles mobile-only">
             <button
               type="button"
@@ -305,7 +574,7 @@ export function InStorePage() {
               <span>Scan barcode</span>
             </button>
           </div>
-          <div className={`check-input search-row${showInput ? ' open' : ''}`}>
+          <div className={`check-input search-row${showInput && !label ? ' open' : ''}`}>
             <label className="search">
               <Search size={18} strokeWidth={1.7} />
               <span className="sr-only">Wine on the shelf</span>
@@ -319,16 +588,7 @@ export function InStorePage() {
                 autoComplete="off"
               />
               {query && (
-                <button
-                  type="button"
-                  className="clear"
-                  onClick={() => {
-                    setQuery('');
-                    setBarcode('');
-                    setLabel(null);
-                  }}
-                  aria-label="Clear"
-                >
+                <button type="button" className="clear" onClick={clear} aria-label="Clear">
                   <X size={18} />
                 </button>
               )}
@@ -338,178 +598,7 @@ export function InStorePage() {
             </button>
           </div>
 
-          {label && labelUrl && (
-            <div className="label-card" aria-live="polite">
-              <div className="tile">
-                {label.found?.photo ? (
-                  <img className="bottle" src={label.found.photo.url} alt="Bottle photo" />
-                ) : label.lookup === 'pending' || !label.reading ? (
-                  // Your snap, only while it's being read; it's never kept.
-                  <img className="bottle" src={labelUrl} alt="" style={{ mixBlendMode: 'normal', opacity: 0.6 }} />
-                ) : (
-                  <BottlePlaceholder />
-                )}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                {!label.reading ? (
-                  <p className="muted small" style={{ margin: 0 }}>
-                    Reading the label…
-                  </p>
-                ) : !label.reading.is_wine_label ? (
-                  <p className="small" style={{ margin: 0 }}>
-                    That didn’t look like a wine label. Try again, filling the frame with the front label.
-                  </p>
-                ) : (
-                  <>
-                    <div className="eyebrow" style={{ marginBottom: 4 }}>
-                      From the label
-                    </div>
-                    <div className="label-name">
-                      {[label.reading.producer, label.reading.wine_name].filter(Boolean).join(' · ') || 'Name not readable'}
-                    </div>
-                    <div className="muted small">
-                      {[
-                        label.reading.style !== 'unknown' ? STYLES.find((st) => st.value === label.reading!.style)?.label : null,
-                        label.reading.vintage,
-                        label.reading.region,
-                        label.reading.country,
-                        label.reading.grapes.join(', '),
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </div>
-                    {label.lookup === 'pending' && <div className="small muted" style={{ marginTop: 4 }}>Looking this wine up…</div>}
-                    {label.lookup === 'done' && label.found && (
-                      <div className="small" style={{ marginTop: 4, color: 'var(--good)' }}>
-                        {label.found.fromCatalog ? (
-                          'Found in Palate’s catalog'
-                        ) : (
-                          <>
-                            Confirmed online:{' '}
-                            <a href={label.found.sourceUrl} target="_blank" rel="noreferrer">
-                              {label.found.sourceName}
-                            </a>
-                          </>
-                        )}
-                        {label.found.photo ? ' · photo found' : ''}
-                        {!label.found.photo && label.found.photoNote && <div className="muted">{label.found.photoNote} Pick one below, or add it from the web later.</div>}
-                        {!label.found.photo && (
-                          <PhotoChoices
-                            candidates={label.found.candidates}
-                            onPick={(c) => setLabel((cur) => (cur?.found ? { ...cur, found: { ...cur.found, photo: c, candidates: [] } } : cur))}
-                          />
-                        )}
-                        {label.found.about && <div style={{ color: 'var(--ink-2)', marginTop: 4 }}>{label.found.about.text}</div>}
-                      </div>
-                    )}
-                    {label.lookup === 'none' && (
-                      <div className="small" style={{ marginTop: 4, color: 'var(--warn)' }}>
-                        Couldn’t confirm colour and grapes online ({label.failReason}). Left blank — check the label.
-                      </div>
-                    )}
-                    {(label.reading.confidence !== 'high' || label.reading.uncertain) && (
-                      <div className="small" style={{ color: 'var(--warn)', marginTop: 4 }}>
-                        {label.reading.uncertain || 'Some details may be guesses — check the label.'}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {showInput && (
-            <>
-              <div className="chips" role="group" aria-label="Style">
-                {STYLES.map((s) => (
-                  <button key={s.value} type="button" className="chip" aria-pressed={style === s.value} onClick={() => setStyle(style === s.value ? null : s.value)}>
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-              <div className="field" style={{ maxWidth: 220 }}>
-                <label htmlFor="shelf-price">Shelf price (optional)</label>
-                <div className="input-prefix">
-                  <span>$</span>
-                  <input id="shelf-price" className="input white" inputMode="decimal" placeholder="0" value={priceText} onChange={(e) => setPriceText(e.target.value.replace(/[^0-9.]/g, ''))} />
-                </div>
-              </div>
-            </>
-          )}
-
-          {lookingUp && <div className="status-line">Looking up barcode…</div>}
-
-          {wanted && (
-            <Link to={`/wine/${wanted.id}`} className="want-banner" aria-live="polite">
-              <Bookmark size={18} />
-              <span>
-                <strong>On your Want to try list</strong>
-                {wanted.suggestion?.reason && <span className="small"> · {cleanReason(wanted.suggestion.reason)}</span>}
-              </span>
-            </Link>
-          )}
-
-          {advice && (
-            <div className="advice">
-              <div className={`verdict ${advice.verdict.level}`} aria-live="polite">
-                <span className="eyebrow">Based on your history</span>
-                <h2>{advice.verdict.title}</h2>
-                <p>{advice.verdict.detail}</p>
-              </div>
-              {advice.price?.note && (
-                <div className="callout info">
-                  <Tag size={18} />
-                  <span>{advice.price.note}</span>
-                </div>
-              )}
-
-              {advice.exact.length > 0 && (
-                <section>
-                  <h3 className="eyebrow list-title">You’ve had this wine</h3>
-                  <div className="list">
-                    {advice.exact.slice(0, 6).map((w) => (
-                      <WineRow key={w.id} wine={w} />
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {advice.related.length > 0 && (
-                <section>
-                  <h3 className="eyebrow list-title">Related wines you’ve had</h3>
-                  <div className="list">
-                    {advice.related.slice(0, 6).map((w) => (
-                      <WineRow key={w.id} wine={w} />
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {advice.signals.length > 0 && (
-                <section>
-                  <h3 className="eyebrow list-title">Why</h3>
-                  <ul className="signals">
-                    {advice.signals.map((s) => (
-                      <li key={`${s.kind}-${s.value}`} className="signal">
-                        <div style={{ minWidth: 0 }}>
-                          <div className="kind">{s.inferred ? 'Usual grape' : KIND_LABEL[s.kind]}</div>
-                          <div className="value">{s.value}</div>
-                          <div className="counts">{describeCounts(s.counts)}</div>
-                        </div>
-                        <Meter s={s} />
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-
-              <div>
-                <button type="button" className="btn btn-wine" onClick={saveBottle}>
-                  <Plus size={18} /> Save this bottle
-                </button>
-              </div>
-            </div>
-          )}
+          {!label && result}
         </section>
 
         <section className="safe-bets" aria-label="Your safe bets">

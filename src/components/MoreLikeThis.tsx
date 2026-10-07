@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { useLists, useWines } from '../hooks';
 import { formatDate } from '../lib/format';
 import { getApiKey } from '../lib/labelReader';
-import { bottleAsItem, checkedSummary, isStale, LIKE_COST, likeSearch, searchLikeThis, storesSearched, withPogoOffers } from '../lib/likeThis';
+import { bottleAsItem, checkedSummary, isStale, likeSearch, searchLikeThis, storesSearched, withPogoOffers } from '../lib/likeThis';
 import { needsPhotoCheck, settleLikePhotos } from '../lib/likePhotos';
 import { markNotForMe, saveToWant } from '../lib/lists';
 import { possessive, storeById, type StoreId, type StoreItem } from '../lib/stores';
@@ -95,7 +95,7 @@ export function MoreLikeThis({ wine }: { wine: Wine }) {
 
   const action = running ? null : hasKey ? (
     <button type="button" className="btn btn-tone btn-sm" onClick={start}>
-      <RefreshCw size={14} strokeWidth={1.8} /> {found ? 'New search' : 'Find bottles'} · {LIKE_COST}
+      <RefreshCw size={14} strokeWidth={1.8} /> {found ? 'New search' : 'Find bottles'}
     </button>
   ) : (
     <Link to="/profile" state={{ focusKey: Date.now() }} className="btn btn-tone btn-sm">
