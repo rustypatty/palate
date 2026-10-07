@@ -155,7 +155,11 @@ export function InStorePage() {
   }, [loaded]);
   const [storeId] = useStoreChoice();
   const store = storeById(storeId);
-  const [mode] = useStoreMode();
+  const [mode, setMode] = useStoreMode();
+  // Arriving with a bottle to check (a scan elsewhere): that's a shop task.
+  useEffect(() => {
+    if (prefill && mode !== 'shop') setMode('shop');
+  }, []);
   const [tableBudget] = useRestaurantBudget();
   const snap = useRef<SnapHandle>(null);
   // In a shop, the card snaps one bottle; the whole-shelf snap is its secondary link.
@@ -529,7 +533,7 @@ export function InStorePage() {
             onLibrary={() => (mode === 'shop' ? snap.current?.camera() : snap.current?.library())}
           />
         )}
-        {label && (
+        {label && mode === 'shop' && (
           <section className="check bottle-answer" aria-label="This bottle" ref={resultRef}>
             <div className="answer-head">
               <span className="eyebrow">This bottle</span>
@@ -552,54 +556,57 @@ export function InStorePage() {
           <StoreChooser variant="list" />
         </div>
 
-        <section className="check" aria-label="Check one bottle" ref={checkRef}>
-          <div className="check-head">
-            <h2 className="title-lg">Check one bottle</h2>
-            <p className="footnote mobile-only">Would I like this? Ask before you buy.</p>
-          </div>
-          <div className="check-tiles mobile-only">
-            <button
-              type="button"
-              className="tone-tile"
-              onClick={() => {
-                setTyping(true);
-                window.setTimeout(() => inputRef.current?.focus(), 0);
-              }}
-            >
-              <Type size={20} strokeWidth={1.6} />
-              <span>Type it in</span>
-            </button>
-            <button type="button" className="tone-tile" onClick={() => setScanning(true)}>
-              <Barcode size={20} strokeWidth={1.6} />
-              <span>Scan barcode</span>
-            </button>
-          </div>
-          <div className={`check-input search-row${showInput && !label ? ' open' : ''}`}>
-            <label className="search">
-              <Search size={18} strokeWidth={1.7} />
-              <span className="sr-only">Wine on the shelf</span>
-              <input
-                ref={inputRef}
-                type="search"
-                enterKeyHint="search"
-                placeholder="Type producer or grape"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                autoComplete="off"
-              />
-              {query && (
-                <button type="button" className="clear" onClick={clear} aria-label="Clear">
-                  <X size={18} />
-                </button>
-              )}
-            </label>
-            <button type="button" className="icon-btn lg white" onClick={() => setScanning(true)} aria-label="Scan barcode">
-              <Barcode size={20} strokeWidth={1.6} />
-            </button>
-          </div>
+        {/* At a restaurant it's the wine list you snap, not one bottle at a time. */}
+        {mode === 'shop' && (
+          <section className="check" aria-label="Check one bottle" ref={checkRef}>
+            <div className="check-head">
+              <h2 className="title-lg">Check one bottle</h2>
+              <p className="footnote mobile-only">Would I like this? Ask before you buy.</p>
+            </div>
+            <div className="check-tiles mobile-only">
+              <button
+                type="button"
+                className="tone-tile"
+                onClick={() => {
+                  setTyping(true);
+                  window.setTimeout(() => inputRef.current?.focus(), 0);
+                }}
+              >
+                <Type size={20} strokeWidth={1.6} />
+                <span>Type it in</span>
+              </button>
+              <button type="button" className="tone-tile" onClick={() => setScanning(true)}>
+                <Barcode size={20} strokeWidth={1.6} />
+                <span>Scan barcode</span>
+              </button>
+            </div>
+            <div className={`check-input search-row${showInput && !label ? ' open' : ''}`}>
+              <label className="search">
+                <Search size={18} strokeWidth={1.7} />
+                <span className="sr-only">Wine on the shelf</span>
+                <input
+                  ref={inputRef}
+                  type="search"
+                  enterKeyHint="search"
+                  placeholder="Type producer or grape"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  autoComplete="off"
+                />
+                {query && (
+                  <button type="button" className="clear" onClick={clear} aria-label="Clear">
+                    <X size={18} />
+                  </button>
+                )}
+              </label>
+              <button type="button" className="icon-btn lg white" onClick={() => setScanning(true)} aria-label="Scan barcode">
+                <Barcode size={20} strokeWidth={1.6} />
+              </button>
+            </div>
 
-          {!label && result}
-        </section>
+            {!label && result}
+          </section>
+        )}
 
         <section className="safe-bets" aria-label="Your safe bets">
           {safeBets.length ? (
