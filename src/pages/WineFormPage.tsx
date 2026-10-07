@@ -15,7 +15,7 @@ import { useWines } from '../hooks';
 import { COMMON_COUNTRIES, COMMON_GRAPES, STYLES } from '../lib/constants';
 import { photoFromUrl, shownPhoto } from '../lib/image';
 import { lookupBarcode } from '../lib/imageSearch';
-import { LabelReadError, lookUpWine, readingToDraft, type LabelReading, type WineLookup } from '../lib/labelReader';
+import { LabelReadError, lookUpLabel, readingToDraft, type LabelReading, type WineLookup } from '../lib/labelReader';
 import { tally } from '../lib/filters';
 import type { WineDraft } from '../types';
 
@@ -156,13 +156,13 @@ export function WineFormPage() {
     if (!vintageText && found.vintage != null) setVintageText(String(found.vintage));
     toast(reading.confidence === 'high' ? 'Filled in from the label' : 'Filled in from the label — please double-check');
 
-    // Then confirm style/grapes online and find a photo of the same bottle on the web.
+    // Then confirm style/grapes (Palate's catalog, else online) and find a photo of the same bottle.
     snapFill.current = { style: found.style ?? null, grapes: found.grapes ?? [] };
     setLookingUp(true);
     setLookupNote(null);
     setPhotoChoices([]);
     try {
-      const outcome = await lookUpWine(reading, file);
+      const outcome = await lookUpLabel(reading, file, needPhoto);
       if (!outcome.ok) {
         setLookupNote(`Couldn’t confirm colour and grapes online (${outcome.reason}). Left blank — check the label.`);
         if (needPhoto) setPhotoSearch(Date.now());
@@ -179,9 +179,12 @@ export function WineFormPage() {
         if (l.grapes.length && (d.grapes.length === 0 || d.grapes.join() === filled?.grapes.join())) next.grapes = l.grapes;
         if (clean && !shownPhoto(d.photo)) next.photo = clean;
         if (l.about && !d.about) next.about = l.about;
+        if (l.region && !d.region.trim()) next.region = l.region;
+        if (l.country && !d.country.trim()) next.country = l.country;
         return next;
       });
-      toast(clean ? `Checked online, with a photo from ${l.photo!.siteName}` : `Details checked online (${l.sourceName})`);
+      if (l.fromCatalog) toast(clean ? `Found in Palate’s catalog, with a photo from ${l.photo!.siteName}` : 'Found in Palate’s catalog');
+      else toast(clean ? `Checked online, with a photo from ${l.photo!.siteName}` : `Details checked online (${l.sourceName})`);
       if (!clean && needPhoto) {
         // No sure match: offer the near-misses, or open the photo search.
         if (l.candidates.length) {
@@ -291,7 +294,7 @@ export function WineFormPage() {
 
       <h2 className="title-lg form-section-title">The details</h2>
 
-      {lookingUp && <div className="callout info">Checking the details online and looking for a clean photo of this bottle…</div>}
+      {lookingUp && <div className="callout info">Looking this wine up and finding a clean photo of the bottle…</div>}
       {lookupNote && <div className="callout">{lookupNote}</div>}
       <PhotoChoices
         candidates={photoChoices}

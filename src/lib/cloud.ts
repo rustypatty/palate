@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { db } from '../db';
 import type { Wine } from '../types';
 import { syncOnce, type Remote, type RemoteRow } from './sync';
+import { SUPABASE_KEY, SUPABASE_URL } from './supabaseConfig';
 
 /**
  * Online storage (Supabase): sign in once per device with an emailed link,
@@ -9,9 +10,8 @@ import { syncOnce, type Remote, type RemoteRow } from './sync';
  * the app is opened or comes back to the foreground.
  */
 
-// Tolerate the API address being pasted with its /rest/v1/ ending or spaces.
-const URL_ = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim().replace(/\/(rest\/v1)?\/?$/, '') || undefined;
-const KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim() || undefined;
+const URL_ = SUPABASE_URL;
+const KEY = SUPABASE_KEY;
 export const cloudConfigured = Boolean(URL_ && KEY);
 
 export type CloudStatus =

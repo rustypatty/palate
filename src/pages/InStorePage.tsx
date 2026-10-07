@@ -18,7 +18,7 @@ import { formatPrice } from '../lib/format';
 import { lookupBarcode } from '../lib/imageSearch';
 import { photoFromUrl } from '../lib/image';
 import { advise, describeCounts, detectStyle, type Signal } from '../lib/insights';
-import { LabelReadError, lookUpWine, readingToDraft, readingToQuery, withLookup, type LabelReading, type WineLookup } from '../lib/labelReader';
+import { LabelReadError, lookUpLabel, readingToDraft, readingToQuery, withLookup, type LabelReading, type WineLookup } from '../lib/labelReader';
 import { matchesWant } from '../lib/lists';
 import { storeById } from '../lib/stores';
 import { useRestaurantBudget, useStoreChoice, useStoreMode } from '../lib/usePicks';
@@ -189,6 +189,8 @@ export function InStorePage() {
       const photo = clean ? await photoFromUrl(clean.url, { name: clean.siteName, pageUrl: clean.pageUrl, title: clean.title }) : null;
       const draft: Partial<WineDraft> = { ...readingToDraft(label.reading), price, barcode, owned: 0, photo, about: label.found?.about ?? null };
       if (style) draft.style = style;
+      if (!draft.region && label.found?.region) draft.region = label.found.region;
+      if (!draft.country && label.found?.country) draft.country = label.found.country;
       navigate('/add', { state: { draft } satisfies AddPrefill });
       return;
     }
@@ -230,8 +232,8 @@ export function InStorePage() {
       onRead={(reading, photo) => {
         setLabel({ reading, photo, lookup: 'pending' });
         if (!reading.is_wine_label) return;
-        // Confirm style/grapes online and find a clean photo, without holding up the verdict.
-        lookUpWine(reading, photo)
+        // Confirm style/grapes (Palate's catalog, else online) and find a clean photo, without holding up the verdict.
+        lookUpLabel(reading, photo)
           .catch((e: unknown) => ({ ok: false as const, reason: e instanceof LabelReadError ? e.message : 'unexpected error' }))
           .then((outcome) => {
             const found = outcome.ok ? outcome.lookup : null;
@@ -376,13 +378,19 @@ export function InStorePage() {
                         .filter(Boolean)
                         .join(' · ')}
                     </div>
-                    {label.lookup === 'pending' && <div className="small muted" style={{ marginTop: 4 }}>Checking details online…</div>}
+                    {label.lookup === 'pending' && <div className="small muted" style={{ marginTop: 4 }}>Looking this wine up…</div>}
                     {label.lookup === 'done' && label.found && (
                       <div className="small" style={{ marginTop: 4, color: 'var(--good)' }}>
-                        Confirmed online:{' '}
-                        <a href={label.found.sourceUrl} target="_blank" rel="noreferrer">
-                          {label.found.sourceName}
-                        </a>
+                        {label.found.fromCatalog ? (
+                          'Found in Palate’s catalog'
+                        ) : (
+                          <>
+                            Confirmed online:{' '}
+                            <a href={label.found.sourceUrl} target="_blank" rel="noreferrer">
+                              {label.found.sourceName}
+                            </a>
+                          </>
+                        )}
                         {label.found.photo ? ' · photo found' : ''}
                         {!label.found.photo && label.found.photoNote && <div className="muted">{label.found.photoNote} Pick one below, or add it from the web later.</div>}
                         {!label.found.photo && (
