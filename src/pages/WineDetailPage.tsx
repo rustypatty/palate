@@ -1,7 +1,6 @@
 import { BookmarkX, ChevronLeft, Globe, Pencil, ShoppingBag } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { AboutWine } from '../components/AboutWine';
 import { MoreLikeThis, SuggestionNote } from '../components/MoreLikeThis';
 import { BottleImage } from '../components/BottleImage';
 import { Stepper } from '../components/Inputs';
@@ -16,9 +15,8 @@ import { RATING_LABEL, STYLE_LABEL } from '../lib/constants';
 import { formatDate, formatPrice, fullName, placeLabel } from '../lib/format';
 import { shownPhoto } from '../lib/image';
 import { findPhotoFor, lastMiss, photoQueue } from '../lib/photoFinder';
-import { hasApiKey, LabelReadError, lookUpWine } from '../lib/labelReader';
+import { hasApiKey } from '../lib/labelReader';
 
-/** Rough cost of looking up published notes (a few web searches and page reads). */
 
 export function WineDetailPage() {
   const { id } = useParams();
@@ -26,7 +24,6 @@ export function WineDetailPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [fetching, setFetching] = useState(false);
   const findingPhoto = useFindingPhoto(wine?.id);
   // Looking at a bottle with no photo: look it up now rather than wait its turn.
   const wineToFind = wine && photoQueue([wine]).length ? wine : null;
@@ -46,49 +43,6 @@ export function WineDetailPage() {
       </div>
     );
   }
-
-  const canLookUp = hasApiKey() && Boolean(wine.producer || wine.name);
-
-  const fetchNotes = async () => {
-    setFetching(true);
-    try {
-      const outcome = await lookUpWine(
-        {
-          is_wine_label: true,
-          producer: wine.producer,
-          wine_name: wine.name,
-          vintage: wine.vintage === null ? '' : String(wine.vintage),
-          country: wine.country,
-          region: wine.region,
-          grapes: wine.grapes,
-          style: wine.style ?? 'unknown',
-          confidence: 'high',
-          uncertain: '',
-        },
-        null,
-      );
-      if (!outcome.ok) {
-        toast(`Couldn’t look this wine up (${outcome.reason}).`);
-        return;
-      }
-      const l = outcome.lookup;
-      if (!l.about) {
-        toast('Couldn’t find published tasting notes for this wine.');
-        return;
-      }
-      await updateWine(wine.id, {
-        about: l.about,
-        // Fill in only what's missing; never overwrite what's already there.
-        ...(wine.grapes.length === 0 && l.grapes.length ? { grapes: l.grapes } : {}),
-        ...(wine.style === null && l.style !== 'unknown' ? { style: l.style } : {}),
-      });
-      toast(`Tasting notes added from ${l.about.sourceName}`);
-    } catch (e) {
-      toast(e instanceof LabelReadError ? e.message : 'Couldn’t look up this wine. Try again.');
-    } finally {
-      setFetching(false);
-    }
-  };
 
   const back = () => (window.history.length > 1 ? navigate(-1) : navigate('/'));
   const title = wine.name || wine.producer || 'Untitled wine';
@@ -248,22 +202,6 @@ export function WineDetailPage() {
             </>
           ) : (
             <p className="notes muted">No notes yet. What did you think?</p>
-          )}
-        </section>
-
-        <section className="tone-card about-card">
-          <h2 className="eyebrow">About this wine</h2>
-          {wine.about ? (
-            <AboutWine about={wine.about} />
-          ) : (
-            <>
-              <p className="notes">{canLookUp ? 'No published tasting notes yet.' : 'Add your Anthropic API key in My palate to fetch published tasting notes.'}</p>
-              {canLookUp && (
-                <button type="button" className="btn btn-white" onClick={fetchNotes} disabled={fetching}>
-                  {fetching ? 'Looking up…' : 'Get tasting notes'}
-                </button>
-              )}
-            </>
           )}
         </section>
 
