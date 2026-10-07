@@ -5008,3 +5008,86 @@ details.more[open] > .more-body {
   gap: 4px;
   color: var(--ink-2);
 }
+
+/* The coach's answer about a snapped bottle. */
+.coach-card {
+  display: grid;
+  gap: 14px;
+  padding: 22px 20px;
+  border-radius: var(--r-pick);
+  background: var(--card);
+  box-shadow: var(--sh-card);
+}
+.coach-card.pending {
+  gap: 6px;
+}
+.coach-card p {
+  margin: 0;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.coach-verdict {
+  justify-self: start;
+  padding: 6px 12px;
+  border-radius: var(--pill);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--tone);
+  color: var(--ink);
+}
+.coach-verdict.buy {
+  background: var(--wine);
+  color: #fff;
+}
+.coach-verdict.skip {
+  background: var(--tone);
+  color: var(--ink-soft);
+}
+.coach-headline {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 24px;
+  line-height: 1.2;
+}
+.coach-part {
+  display: grid;
+  gap: 4px;
+}
+.coach-caveat {
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* My palate: importing a wine profile. */
+.profile-import {
+  display: grid;
+  gap: 14px;
+  padding: 0 var(--text-in);
+}
+.import-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.import-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--card);
+  font-size: 14px;
+}
+.import-tag {
+  flex: none;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}

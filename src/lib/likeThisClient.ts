@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import type { LikeThisCache, Wine } from '../types';
 import { pagePreviewImage } from './labelClient';
+import { withProfile } from './profile';
 import { normalizeUrl, photoMatches, relayImage, SEARCH_STORES, storeForDomain, verifyBottles, type ReportedBottle } from './likeThis';
 
 const MODEL = 'claude-opus-5-5';
@@ -99,7 +100,7 @@ function prompt(r: LikeRequest): string {
   const list = (label: string, xs: string[], max = 15) => (xs.length ? `${label}: ${xs.slice(0, max).join('; ')}\n` : '');
   return (
     `Find bottles like this wine that I can buy at my stores.\n\nThe wine: ${describe(r.wine)}\n\n` +
-    `My taste, from my own ratings: ${r.taste.join(' ') || '(not much rated yet)'}\n` +
+    withProfile(`My taste, from my own ratings: ${r.taste.join(' ') || '(not much rated yet)'}\n`) +
     list('Wines I loved', r.loved) +
     list('Wines I would not buy again', r.disliked) +
     list('Already had, saved or not interested — do not suggest', r.skip, 40) +

@@ -21,7 +21,9 @@ import { advise, describeCounts, detectStyle, type Signal } from '../lib/insight
 import { LabelReadError, lookUpLabel, readingToDraft, readingToQuery, withLookup, type LabelReading, type WineLookup } from '../lib/labelReader';
 import { matchesWant } from '../lib/lists';
 import { storeById } from '../lib/stores';
-import { useRestaurantBudget, useStoreChoice, useStoreMode } from '../lib/usePicks';
+import { useRestaurantBudget, useStoreChoice, useStoreMode, useTaste } from '../lib/usePicks';
+import { coachBottle, VERDICT_LABEL, type BottleCoach } from '../lib/coach';
+import { shelfContext } from '../lib/shelf';
 import { tokens } from '../lib/text';
 import type { WineDraft, WineStyle } from '../types';
 import type { AddPrefill } from './WineFormPage';
@@ -85,6 +87,44 @@ function ModeSwitch() {
   );
 }
 
+/** The coach's answer about a snapped bottle. */
+function CoachCard({ coach }: { coach: { status: 'pending' } | { status: 'done'; answer: BottleCoach } | { status: 'error'; reason: string } }) {
+  if (coach.status === 'pending') {
+    return (
+      <div className="coach-card pending" aria-live="polite">
+        <span className="eyebrow">Your coach</span>
+        <p className="muted small">Thinking about this bottle for you…</p>
+      </div>
+    );
+  }
+  if (coach.status === 'error') {
+    return <p className="small" style={{ color: 'var(--warn)', margin: 0 }}>The coach couldn’t answer ({coach.reason}).</p>;
+  }
+  const c = coach.answer;
+  const parts: [string, string][] = [
+    ['What it is', c.what_it_is],
+    ['How it will taste', c.taste],
+    ['For you', c.fit],
+    ['Value', c.value],
+    ['Serve it', c.serve],
+  ];
+  return (
+    <div className="coach-card" aria-live="polite">
+      <span className={`coach-verdict ${c.verdict}`}>{VERDICT_LABEL[c.verdict]}</span>
+      <h2 className="coach-headline">{cleanReason(c.headline)}</h2>
+      {parts
+        .filter(([, text]) => text.trim())
+        .map(([title, text]) => (
+          <div key={title} className="coach-part">
+            <div className="eyebrow">{title}</div>
+            <p>{cleanReason(text)}</p>
+          </div>
+        ))}
+      {c.caveat.trim() && <p className="coach-caveat">{cleanReason(c.caveat)}</p>}
+    </div>
+  );
+}
+
 /** Arriving from a scan elsewhere: what to check. */
 export interface CheckPrefill {
   check: string;
@@ -129,7 +169,9 @@ export function InStorePage() {
     lookup?: 'pending' | 'done' | 'none';
     found?: WineLookup | null;
     failReason?: string;
+    coach?: { status: 'pending' } | { status: 'done'; answer: BottleCoach } | { status: 'error'; reason: string };
   } | null>(null);
+  const taste = useTaste();
   const labelUrl = useMemo(() => (label ? URL.createObjectURL(label.photo) : null), [label?.photo]);
   useEffect(() => () => void (labelUrl && URL.revokeObjectURL(labelUrl)), [labelUrl]);
   // A new bottle snap: bring its answer up, right under the card.
@@ -190,7 +232,9 @@ export function InStorePage() {
       // Only a photo found on the web is kept; your snap was just for reading the label.
       const clean = label.found?.photo;
       const photo = clean ? await photoFromUrl(clean.url, { name: clean.siteName, pageUrl: clean.pageUrl, title: clean.title }) : null;
-      const draft: Partial<WineDraft> = { ...readingToDraft(label.reading), price, barcode, owned: 0, photo, about: label.found?.about ?? null };
+      const coached = label.coach?.status === 'done' ? label.coach.answer : null;
+      const about = label.found?.about ?? (coached ? { text: coached.taste, sourceName: 'Palate’s coach (expected style)', sourceUrl: '' } : null);
+      const draft: Partial<WineDraft> = { ...readingToDraft(label.reading), price, barcode, owned: 0, photo, about };
       if (style) draft.style = style;
       if (!draft.region && label.found?.region) draft.region = label.found.region;
       if (!draft.country && label.found?.country) draft.country = label.found.country;
@@ -240,12 +284,31 @@ export function InStorePage() {
       bare
       onStart={(photo) => setLabel({ reading: null, photo })}
       onRead={(reading, photo) => {
-        setLabel({ reading, photo, lookup: 'pending' });
+        setLabel({ reading, photo, lookup: 'pending', coach: reading.is_wine_label ? { status: 'pending' } : undefined });
         if (!reading.is_wine_label) return;
         // Confirm style/grapes (Palate's catalog, else online) and find a clean photo, without holding up the verdict.
-        lookUpLabel(reading, photo)
-          .catch((e: unknown) => ({ ok: false as const, reason: e instanceof LabelReadError ? e.message : 'unexpected error' }))
-          .then((outcome) => {
+        const lookup = lookUpLabel(reading, photo).catch((e: unknown) => ({ ok: false as const, reason: e instanceof LabelReadError ? e.message : 'unexpected error' }));
+        // The coach's answer: with the catalog's facts when they come quickly (they usually do), else from the label alone.
+        void Promise.race([lookup, new Promise<null>((r) => window.setTimeout(() => r(null), 5000))]).then(async (first) => {
+          const f = first && first.ok ? first.lookup : null;
+          const out = await coachBottle({
+            producer: reading.producer,
+            name: reading.wine_name,
+            vintage: reading.vintage,
+            region: reading.region || f?.region || '',
+            country: reading.country || f?.country || '',
+            style: f && f.style !== 'unknown' ? f.style : '',
+            grapes: f?.grapes.length ? f.grapes : reading.grapes,
+            shelfPrice: price,
+            typicalPrice: f?.typicalPrice ?? null,
+            store: mode === 'shop' ? store.name : '',
+            context: shelfContext(wines ?? [], taste),
+          }).catch((e: unknown) => ({ ok: false as const, reason: e instanceof Error ? e.message : 'unexpected error' }));
+          setLabel((cur) =>
+            cur?.photo === photo ? { ...cur, coach: out.ok ? { status: 'done', answer: out.coach } : { status: 'error', reason: out.reason } } : cur,
+          );
+        });
+        lookup.then((outcome) => {
             const found = outcome.ok ? outcome.lookup : null;
             setLabel((cur) =>
               cur?.photo === photo && cur.reading
@@ -344,6 +407,8 @@ export function InStorePage() {
         </div>
       )}
 
+      {label?.coach && <CoachCard coach={label.coach} />}
+
       {lookingUp && <div className="status-line">Looking up barcode…</div>}
 
       {wanted && (
@@ -358,11 +423,13 @@ export function InStorePage() {
 
       {advice && (
         <div className="advice">
+          {!(label?.coach?.status === 'done' && !advice.exact.length && !advice.related.length) && (
           <div className={`verdict ${advice.verdict.level}`} aria-live="polite">
             <span className="eyebrow">Based on your history</span>
             <h2>{advice.verdict.title}</h2>
             <p>{advice.verdict.detail}</p>
           </div>
+          )}
           {advice.price?.note && (
             <div className="callout info">
               <Tag size={18} />

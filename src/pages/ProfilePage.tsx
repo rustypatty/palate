@@ -3,6 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'rea
 import { useLocation } from 'react-router-dom';
 import { CloudSync, cloudSummary, useCloudStatus } from '../components/CloudSync';
 import { TasteHeader, TasteQuote } from '../components/TasteCard';
+import { ProfileImport } from '../components/ProfileImport';
 import { useToast } from '../components/Toast';
 import { useWines } from '../hooks';
 import { downloadBlob, exportBackup, importBackup } from '../lib/backup';
@@ -255,6 +256,11 @@ export function ProfilePage() {
         <p className="footnote" style={{ marginTop: 18 }}>
           It updates as you rate more{taste?.price ? '.' : '. Add prices to see your usual range.'}
         </p>
+      </section>
+
+      <section className="palate-section">
+        <h2 className="title-lg">Your wine profile</h2>
+        <ProfileImport />
       </section>
 
       <section className="palate-section">

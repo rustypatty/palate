@@ -87,8 +87,11 @@ export async function catalogLookup(
   const query = { producer: reading.producer, name: reading.wine_name, style: reading.style === 'unknown' ? undefined : reading.style };
   const { match } = await lookupCatalog(query, (text) => deps.search(text, signal));
   if (match.status !== 'match') return null;
-  const w = match.wine;
+  return lookupFrom(match.wine, needPhoto, deps);
+}
 
+/** A matched catalog wine as the details a lookup gives: null if a photo is needed and it has no clean bottle shot. */
+async function lookupFrom(w: CatalogWine, needPhoto: boolean, deps: CatalogDeps): Promise<WineLookup | null> {
   let photo: WineLookup['photo'] = null;
   if (w.image_url) {
     const url = relayedImageUrl(w.image_url);
@@ -112,6 +115,7 @@ export async function catalogLookup(
     fromCatalog: true,
     region: (w.region ?? '').replace(/\s+/g, ' ').trim(),
     country: (w.country ?? '').trim(),
+    typicalPrice: w.min_usd_750,
   };
 }
 
@@ -137,5 +141,48 @@ export async function catalogForShelfBottle(b: ShelfBottle, signal?: AbortSignal
     grapes: l.grapes,
     region: l.region ?? '',
     country: l.country ?? '',
+  };
+}
+
+/** A wine's full name as one string ("Renato Ratti Barolo Marcenasco"), identified in the catalog. */
+export interface CatalogIdentity {
+  /** The name split where the catalog's producer ends, keeping your spelling. */
+  producer: string;
+  name: string;
+  details: ShelfCatalog;
+}
+
+/** Where the producer ends in a full name: the shortest start of it holding all the producer's words. */
+export function splitProducer(full: string, catalogProducer: string): { producer: string; name: string } | null {
+  const want = norm(catalogProducer)
+    .split(' ')
+    .filter((t) => t.length > 1 && !PRODUCER_FILLER.has(t));
+  if (!want.length) return null;
+  const words = full.split(/\s+/).filter(Boolean);
+  for (let k = 1; k < words.length; k++) {
+    const have = new Set(norm(words.slice(0, k).join(' ')).split(' '));
+    if (want.every((t) => have.has(t))) return { producer: words.slice(0, k).join(' '), name: words.slice(k).join(' ') };
+  }
+  return null;
+}
+const PRODUCER_FILLER = new Set(['chateau', 'domaine', 'domaines', 'bodegas', 'bodega', 'tenuta', 'maison', 'weingut', 'de', 'di', 'del', 'du', 'des', 'la', 'le', 'les', 'et', 'fils', 'winery', 'estate', 'vineyards', 'cellars']);
+
+export async function catalogIdentify(full: string, deps?: CatalogDeps): Promise<CatalogIdentity | null> {
+  const d = deps ?? DEFAULT_DEPS;
+  if (!catalogConfigured && d === DEFAULT_DEPS) return null;
+  const { match } = await lookupCatalog({ text: full }, (text) => d.search(text));
+  if (match.status !== 'match') return null;
+  const w = match.wine;
+  const l = await lookupFrom(w, false, d);
+  const split = splitProducer(full, w.producer ?? '') ?? { producer: '', name: full };
+  return {
+    ...split,
+    details: {
+      photo: l?.photo ? { url: l.photo.url, pageUrl: l.photo.pageUrl, siteName: l.photo.siteName } : null,
+      style: l?.style ?? 'unknown',
+      grapes: l?.grapes ?? cleanGrapes(w.grapes),
+      region: l?.region ?? (w.region ?? ''),
+      country: l?.country ?? (w.country ?? ''),
+    },
   };
 }

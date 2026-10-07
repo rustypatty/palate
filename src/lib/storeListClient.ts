@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
+import { withProfile } from './profile';
 import type { Store, StoreList, SuggestedItem } from './stores';
 
 const MODEL = 'claude-opus-5-5';
@@ -126,7 +127,7 @@ function prompt(r: StoreListRequest): string {
   const list = (label: string, xs: string[], max = 15) => (xs.length ? `${label}: ${xs.slice(0, max).join('; ')}\n` : '');
   return (
     `Help me choose wine at ${r.store.name} (${r.store.domain}).\n\n` +
-    `My taste, worked out from my own ratings:\n${r.taste.join(' ') || '(not much rated yet)'}\n` +
+    withProfile(`My taste, worked out from my own ratings:\n${r.taste.join(' ') || '(not much rated yet)'}\n`) +
     list('Wines I loved', r.loved) +
     list('Wines I liked', r.liked) +
     list('Wines I would not buy again', r.disliked) +

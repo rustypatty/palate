@@ -1,5 +1,6 @@
 import type { Wine, WineStyle } from '../types';
 import type { TasteProfile } from './taste';
+import { loadProfile, profileContext } from './profile';
 
 /**
  * "Snap a shelf": photos of a store shelf, read and ranked by Claude against your own
@@ -117,6 +118,7 @@ export function shelfContext(wines: Wine[], taste: TasteProfile | undefined): st
     return `- ${RATING_WORD[w.rating!]}: ${name}${facts ? ` (${facts})` : ''}${notes ? ` — my notes: "${notes}"` : ''}`;
   });
   return [
+    profileContext(loadProfile()),
     taste?.summary.length ? `My taste, worked out from my ratings: ${taste.summary.join(' ')}` : '',
     lines.length ? `Wines I've rated, newest first:\n${lines.join('\n')}` : 'I have not rated many wines yet.',
   ]

@@ -169,7 +169,7 @@ const GRAPE_ALIASES: Record<string, string[]> = {
   'Grenache Blanc': ['Garnacha Blanca', 'Garnatxa Blanca'],
   'Pinot Blanc': ['Pinot Bianco'],
   Viura: ['Macabeo'],
-  Grenache: ['Garnacha', 'Grenache Noir', 'Cannonau', 'Garnatxa'],
+  Grenache: ['Garnacha', 'Garnacha Tinta', 'Grenache Noir', 'Cannonau', 'Garnatxa'],
   Syrah: ['Shiraz'],
   Mourvèdre: ['Monastrell', 'Mataro'],
   Carignan: ['Cariñena', 'Mazuelo', 'Carignano', 'Samsó'],
