@@ -69,7 +69,7 @@ function LabelReadingSettings({ onFocusRequest, onChange }: { onFocusRequest: ()
           colour, grapes, region).
         </li>
         <li>
-          <strong>About 2¢:</strong> reading a bottle’s label. In a shop, the coach’s full answer about that bottle adds about 3¢.
+          <strong>About 2¢:</strong> reading a bottle’s label. In a shop, the coach’s full answer about that bottle adds about 3¢. A written description on a wine’s page is about 3¢, once per wine.
         </li>
         <li>
           <strong>About 10–30¢:</strong> searching the web — only when the catalog doesn’t know a bottle, or when you ask for a photo, tasting notes,

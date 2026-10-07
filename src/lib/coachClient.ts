@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
-import type { BottleCoach, CoachOutcome, CoachRequest } from './coach';
+import type { BottleCoach, CoachOutcome, CoachRequest, DescribeOutcome, DescribeRequest } from './coach';
 
 const MODEL = 'claude-opus-5-5';
 
@@ -70,6 +70,59 @@ export async function coachBottleWithClaude(apiKey: string, r: CoachRequest, sig
     if (signal?.aborted) return { ok: false, reason: 'cancelled' };
     const r = reason(e);
     if (r) return { ok: false, reason: r };
+    throw e;
+  }
+}
+
+const DescribeSchema = z.object({
+  what_it_is: z.string().describe('What this wine is — producer, appellation, grape(s), and what any classification on the label (Reserva, 1er Cru, Gran Selezione…) means. 2–3 sentences.'),
+  taste: z.string().describe('How it tastes: aromas, fruit, tannin, acidity, body, oak, finish; how this vintage is drinking and whether it needs time or air. 3–4 sentences, in your own words.'),
+  fit: z.string().describe('How it fits my taste: compare it by name with specific wines I have rated, and use words from my notes or profile. If I rated or noted this wine, start from what I said about it. 2–4 sentences.'),
+  serve: z.string().describe('How to enjoy it: serving temperature, decanting, food, and drink-now vs cellar (with a rough window). 1–2 sentences.'),
+  caveat: z.string().describe('Anything uncertain (vintage variation, a wine you know little about). One sentence or empty.'),
+});
+
+export async function describeWineWithClaude(apiKey: string, r: DescribeRequest, signal?: AbortSignal): Promise<DescribeOutcome> {
+  const client = new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com', dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 120_000 });
+  const system =
+    'You are my wine coach, writing a short description of one wine in my collection or on my list. Be specific and honest, like a knowledgeable friend: ' +
+    'name the wines of mine you compare it with, explain wine terms briefly, and do not oversell. Use only what you know about this wine; ' +
+    'if you are unsure of something, say so in the caveat rather than guessing.\n\n' +
+    r.context;
+  const facts = [
+    `Producer: ${r.producer || 'unknown'}`,
+    `Wine: ${r.name || 'unknown'}`,
+    `Vintage: ${r.vintage || 'unknown'}`,
+    r.region && `Region/appellation: ${r.region}`,
+    r.country && `Country: ${r.country}`,
+    r.style && `Colour/style: ${r.style}`,
+    r.grapes.length && `Grapes: ${r.grapes.join(', ')}`,
+    r.price && `Price I paid: $${r.price}`,
+    r.mine && `Me and this wine: ${r.mine}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  try {
+    const res = await client.beta.messages.parse(
+      {
+        model: MODEL,
+        max_tokens: 4000,
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        system,
+        output_config: { effort: 'low', format: betaZodOutputFormat(DescribeSchema) },
+        messages: [{ role: 'user', content: `Describe this wine for me.\n\n${facts}` }],
+      },
+      { signal },
+    );
+    if (res.stop_reason === 'refusal') return { ok: false, reason: 'Claude couldn’t answer that' };
+    if (res.stop_reason === 'max_tokens' || !res.parsed_output) return { ok: false, reason: 'the answer was cut short — try again' };
+    const o = res.parsed_output;
+    return { ok: true, take: { whatItIs: o.what_it_is, taste: o.taste, fit: o.fit, serve: o.serve, caveat: o.caveat } };
+  } catch (e) {
+    if (signal?.aborted) return { ok: false, reason: 'cancelled' };
+    const why = reason(e);
+    if (why) return { ok: false, reason: why };
     throw e;
   }
 }

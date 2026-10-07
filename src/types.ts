@@ -101,6 +101,8 @@ export interface Wine {
   photo: Photo | null;
   /** Published tasting notes (winery/shop), summarised — kept apart from the user's own notes. */
   about?: AboutWine | null;
+  /** Palate's written description of this wine for you, kept so reopening the page is free. */
+  take?: WineTake | null;
   /**
    * Not part of the collection: a wine saved to try later ('want') or a suggestion
    * dismissed as "Not for me" ('passed'). Stored as wines so they sync like the rest.
@@ -112,6 +114,18 @@ export interface Wine {
   likeThis?: LikeThisCache | null;
   createdAt: number;
   updatedAt: number;
+}
+
+/** What a wine is, how it tastes, how it fits your taste and how to serve it — written by Claude from what it knows. */
+export interface WineTake {
+  whatItIs: string;
+  taste: string;
+  fit: string;
+  serve: string;
+  caveat: string;
+  writtenAt: number;
+  /** Your rating when it was written: a different rating since means "For you" may be out of date. */
+  rating: Rating | null;
 }
 
 export type WineDraft = Omit<Wine, 'id' | 'createdAt' | 'updatedAt'>;
