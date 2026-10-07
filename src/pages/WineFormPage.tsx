@@ -119,7 +119,12 @@ export function WineFormPage() {
     setSaving(true);
     try {
       if (id) {
-        await updateWine(id, clean);
+        // Renamed to a different wine: Palate's take described the old one, so it's written again.
+        const before = await db.wines.get(id);
+        const same = before && before.producer === clean.producer && before.name === clean.name && before.vintage === clean.vintage;
+        // Never overwrite a take written while this form was open.
+        const { take: _take, ...rest } = clean;
+        await updateWine(id, same ? rest : { ...rest, take: null });
         toast('Changes saved');
         navigate(`/wine/${id}`, { replace: true });
       } else {

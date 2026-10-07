@@ -8,6 +8,7 @@ import { Stepper } from '../components/Inputs';
 import { RatingPicker } from '../components/Rating';
 import { Sheet } from '../components/Sheet';
 import { useToast } from '../components/Toast';
+import { WineTake } from '../components/WineTake';
 import { useFindingPhoto } from '../components/usePhotoFinder';
 import { deleteWine, updateWine } from '../db';
 import { useWine } from '../hooks';
@@ -230,6 +231,8 @@ export function WineDetailPage() {
           </div>
           <Stepper value={wine.owned} onChange={(owned) => updateWine(wine.id, { owned })} label="bottles owned" />
         </div>
+
+        <WineTake wine={wine} />
 
         <section className="detail-section">
           <div className="section-head">

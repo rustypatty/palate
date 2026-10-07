@@ -5144,3 +5144,17 @@ details.more[open] > .more-body {
 .profile-summary .muted {
   color: var(--ink-3);
 }
+
+/* Palate's take on a wine page */
+.take-card > .eyebrow:first-child {
+  color: var(--wine);
+}
+.take-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+}
