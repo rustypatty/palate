@@ -10,8 +10,6 @@ export const DROP_SHARE = 0.1;
 export const LOW_WINDOW_DAYS = 180;
 /** A drop stays on the home screen and the watch screen this long. */
 export const DROP_SHOWN_MS = 14 * 24 * 3600 * 1000;
-/** Shown on the buttons: the rough cost of one check. */
-export const CHECK_COST = '~10¢';
 const DAY_MS = 24 * 3600 * 1000;
 const KEEP_POINTS = 60;
 

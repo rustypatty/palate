@@ -3,7 +3,7 @@ import { updateWine } from '../db';
 import { useAllWines } from '../hooks';
 import { hasApiKey } from '../lib/labelReader';
 import { PREF_NOTICED, readPref, runPriceCheck, writePref } from '../lib/priceCheck';
-import { canWatch, CHECK_COST, dueForCheck, lastCheckedAt, priceDrops, watchedWines } from '../lib/priceWatch';
+import { canWatch, dueForCheck, lastCheckedAt, priceDrops, watchedWines } from '../lib/priceWatch';
 import { usePriceAuto, usePriceCheckedAt } from '../lib/usePicks';
 import type { Wine } from '../types';
 import { useToast } from './Toast';
@@ -52,9 +52,9 @@ export function usePriceAutoCheck() {
     if (!dueForCheck({ auto, watched, last: lastCheckedAt(wines, local) })) return;
     if (!hasApiKey() || !navigator.onLine) return;
     started.current = true;
-    // The first automatic check says what it costs, and where to turn it off.
+    // The first automatic check says what's happening, and where to turn it off.
     if (!readPref(PREF_NOTICED, false)) {
-      toast(`Checking prices for ${watched} watched ${watched === 1 ? 'bottle' : 'bottles'} · about ${CHECK_COST.replace('~', '')} a week. Turn off in My palate › Settings.`, 8000);
+      toast(`Checking prices for your ${watched} watched ${watched === 1 ? 'bottle' : 'bottles'}. Turn off in My palate › Settings.`, 8000);
       writePref(PREF_NOTICED, true);
     }
     void runPriceCheck(wines).then(async (r) => {
