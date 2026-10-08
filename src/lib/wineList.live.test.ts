@@ -1,12 +1,13 @@
 // @vitest-environment node
-import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 
 /**
  * Real wine list read + overview against the Anthropic API, to time it and see what it costs. Opt-in only:
  *   PALATE_LIVE_LIST=/path/to/menu.jpg NODE_USE_ENV_PROXY=1 npx vitest run src/lib/wineList.live.test.ts --silent=false
  */
-const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
+type NodeProcess = { env: Record<string, string | undefined>; getBuiltinModule: (m: 'node:fs') => { readFileSync: (p: string) => Uint8Array } };
+const proc = (globalThis as { process?: NodeProcess }).process;
+const env = proc?.env ?? {};
 const photo = env.PALATE_LIVE_LIST;
 const key = photo ? env.PALATE_TEST_KEY : undefined;
 
@@ -24,7 +25,7 @@ describe.skipIf(!key)('Wine list (live)', () => {
     }) as typeof fetch;
     const { readWineListWithClaude, overviewWineListWithClaude } = await import('./wineListClient');
     const t0 = Date.now();
-    const read = await readWineListWithClaude(key!, [new Blob([readFileSync(photo!)], { type: 'image/jpeg' })]);
+    const read = await readWineListWithClaude(key!, [new Blob([proc!.getBuiltinModule('node:fs').readFileSync(photo!) as Uint8Array<ArrayBuffer>], { type: 'image/jpeg' })]);
     const t1 = Date.now();
     expect(read.ok, read.ok ? '' : read.reason).toBe(true);
     if (!read.ok) return;
