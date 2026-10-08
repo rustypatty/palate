@@ -125,7 +125,7 @@ describe('save for a weekend', () => {
     expect(r[0].wine.id).toBe('rhone');
     const w = saveForWeekend(r, r[0], 'steak');
     expect(w?.wine.id).toBe('pauillac');
-    expect(w?.text).toBe('Your Grand Vin needs a couple of hours open. It would suit Saturday’s steak better.');
+    expect(w?.text).toBe('Your Château Essai Grand Vin needs a couple of hours open. It would suit Saturday’s steak better.');
   });
 
   it('suggests keeping a better-fitting, pricier bottle you rated higher', () => {
