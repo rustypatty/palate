@@ -82,6 +82,24 @@ function client(): Promise<SupabaseClient> {
   return clientPromise;
 }
 
+/** The signed-in user's access token, for Palate's own server functions (null when signed out). */
+export async function accessToken(): Promise<string | null> {
+  if (!cloudConfigured) return null;
+  const { data } = await (await client()).auth.getSession();
+  return data.session?.access_token ?? null;
+}
+
+/** Address of one of Palate's server functions, e.g. "claude". */
+export const functionsUrl = (name: string) => `${URL_}/functions/v1/${name}`;
+
+/** Settings kept with your account so Palate's server can see them (e.g. the weekly price check). */
+export async function saveAccountSetting(key: string, value: unknown): Promise<void> {
+  if (!cloudConfigured) return;
+  const sb = await client();
+  const { data } = await sb.auth.getSession();
+  if (data.session) await sb.auth.updateUser({ data: { [key]: value } });
+}
+
 function supabaseRemote(sb: SupabaseClient, userId: string): Remote {
   const path = (id: string) => `${userId}/${id}`;
   const check = <T>({ data, error }: { data: T | null; error: { message: string } | null }): T => {
@@ -208,10 +226,17 @@ export function startCloud() {
   setInterval(() => document.visibilityState === 'visible' && scheduleSync(0), 3 * 60_000);
   void client().then(async (sb) => {
     sb.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN') void syncNow();
-      if (event === 'SIGNED_OUT') setStatus({ state: 'signed-out' });
+      if (event === 'SIGNED_IN') {
+        void syncNow();
+        void import('./serverKey').then((m) => m.checkServerKey());
+      }
+      if (event === 'SIGNED_OUT') {
+        setStatus({ state: 'signed-out' });
+        void import('./serverKey').then((m) => m.checkServerKey());
+      }
     });
     if (!(await applySignInLink(sb))) void syncNow();
+    void import('./serverKey').then((m) => m.checkServerKey());
   });
 }
 

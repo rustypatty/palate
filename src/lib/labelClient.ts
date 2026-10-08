@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { claudeClient } from './claude';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
 import { resizeImage } from './image';
@@ -62,7 +63,7 @@ async function labelImage(photo: Blob): Promise<{ data: string; type: ImageType 
 
 export async function readLabelWithClaude(apiKey: string, photo: Blob, signal?: AbortSignal): Promise<LabelReading> {
   // Browser use is intentional: the key belongs to the person using the app and never leaves their device except to call Anthropic.
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 1, timeout: 90_000 });
+  const client = claudeClient(apiKey, { maxRetries: 1, timeout: 90_000 });
   const image = await labelImage(photo);
 
   try {
@@ -260,7 +261,7 @@ export type LookupOutcome = { ok: true; lookup: WineLookup } | { ok: false; reas
 export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading, photo: Blob | null, signal?: AbortSignal): Promise<LookupOutcome> {
   // No automatic retries: a retried lookup is billed twice. Generous timeout: searching and
   // reading pages can take a few minutes, and the response streams so the connection stays alive.
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 600_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 600_000 });
   // Without the user's own photo there's nothing to compare against: the shop photos come back as candidates.
   const userPhoto = photo ? await toBase64Jpeg(photo) : null;
 

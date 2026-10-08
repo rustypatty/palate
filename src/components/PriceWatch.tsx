@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { updateWine } from '../db';
 import { useAllWines } from '../hooks';
-import { hasApiKey } from '../lib/labelReader';
+import { getDeviceKey } from '../lib/labelReader';
+import { serverKeyReady } from '../lib/serverKey';
 import { PREF_NOTICED, readPref, runPriceCheck, writePref } from '../lib/priceCheck';
 import { canWatch, dueForCheck, lastCheckedAt, priceDrops, watchedWines } from '../lib/priceWatch';
 import { usePriceAuto, usePriceCheckedAt } from '../lib/usePicks';
@@ -39,7 +40,7 @@ export function WatchBell({ wine, small = false }: { wine: Wine; small?: boolean
   );
 }
 
-/** Once a week, when the app opens: check the watched bottles' prices (if auto-check is on). */
+/** Once a week, when the app opens: check the watched bottles' prices (if auto-check is on and the server isn't doing it). */
 export function usePriceAutoCheck() {
   const wines = useAllWines();
   const [auto] = usePriceAuto();
@@ -50,7 +51,8 @@ export function usePriceAutoCheck() {
     if (!wines || started.current) return;
     const watched = watchedWines(wines).length;
     if (!dueForCheck({ auto, watched, last: lastCheckedAt(wines, local) })) return;
-    if (!hasApiKey() || !navigator.onLine) return;
+    // With the key on the server, the server checks every Monday instead.
+    if (!getDeviceKey() || serverKeyReady() || !navigator.onLine) return;
     started.current = true;
     // The first automatic check says what's happening, and where to turn it off.
     if (!readPref(PREF_NOTICED, false)) {

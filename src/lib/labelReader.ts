@@ -1,18 +1,25 @@
 import type { WineDraft, WineStyle } from '../types';
+import { SERVER_KEY, serverKeyReady } from './serverKey';
 
 /**
- * Reads a wine label photo with Claude. Runs entirely in the browser with the
- * user's own API key (kept on this device only) — Palate has no server.
+ * Reads a wine label photo with Claude, in the browser, with your own API key: saved on
+ * this device, or held on Palate's server (see serverKey.ts).
  */
 
 const KEY_STORAGE = 'palate.anthropicKey';
 
-export function getApiKey(): string {
+/** The key saved in this browser, if any. */
+export function getDeviceKey(): string {
   try {
     return localStorage.getItem(KEY_STORAGE) ?? '';
   } catch {
     return '';
   }
+}
+
+/** The key Claude requests use: this device's, else the server's stand-in, else ''. */
+export function getApiKey(): string {
+  return getDeviceKey() || (serverKeyReady() ? SERVER_KEY : '');
 }
 
 /** Remove anything a copy-paste can drag along: spaces, line breaks, invisible characters, quotes. */
