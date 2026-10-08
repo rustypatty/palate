@@ -15,6 +15,7 @@ create table if not exists public.wines (
 create index if not exists wines_user_updated on public.wines (user_id, updated_at);
 
 -- Row Level Security: each person can only ever see and change their own wines.
+-- (select auth.uid()) is read once per query rather than once per row.
 alter table public.wines enable row level security;
 
 drop policy if exists "own wines: read"   on public.wines;
@@ -22,10 +23,10 @@ drop policy if exists "own wines: insert" on public.wines;
 drop policy if exists "own wines: update" on public.wines;
 drop policy if exists "own wines: delete" on public.wines;
 
-create policy "own wines: read"   on public.wines for select using (user_id = auth.uid());
-create policy "own wines: insert" on public.wines for insert with check (user_id = auth.uid());
-create policy "own wines: update" on public.wines for update using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy "own wines: delete" on public.wines for delete using (user_id = auth.uid());
+create policy "own wines: read"   on public.wines for select using (user_id = (select auth.uid()));
+create policy "own wines: insert" on public.wines for insert with check (user_id = (select auth.uid()));
+create policy "own wines: update" on public.wines for update using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+create policy "own wines: delete" on public.wines for delete using (user_id = (select auth.uid()));
 
 -- Photos: a private bucket; files live under a folder named after the user's id.
 insert into storage.buckets (id, name, public)
