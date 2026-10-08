@@ -5975,3 +5975,11 @@ details.more[open] > .more-body {
     transform: none;
   }
 }
+
+/* Shelf cards: producer above the wine's own name */
+.mini-p {
+  margin-top: 12px;
+}
+.mini-t.after-p {
+  margin-top: 4px;
+}
