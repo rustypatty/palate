@@ -18,6 +18,19 @@ export class PalateDB extends Dexie {
     });
     this.version(2).stores({ deletions: 'id' });
     this.version(3).stores({ stores: 'id' });
+    // Price watch: every wine gets watch off and an empty price history. Not indexed, and
+    // updatedAt is left alone so the upgrade doesn't send every wine to the cloud again.
+    this.version(4)
+      .stores({})
+      .upgrade((tx) =>
+        tx
+          .table('wines')
+          .toCollection()
+          .modify((w: Wine) => {
+            if (w.watch === undefined) w.watch = false;
+            if (w.priceHistory === undefined) w.priceHistory = [];
+          }),
+      );
   }
 }
 

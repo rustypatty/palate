@@ -7,6 +7,7 @@ import { BottleImage, BottlePlaceholder } from '../components/BottleImage';
 import { FilterSheet, SORTS } from '../components/FilterSheet';
 import { FillerTile, MiniWineCard, ShelfRow } from '../components/Shelf';
 import { RatePrompt, StorePicksRow } from '../components/StorePicks';
+import { TonightCard } from '../components/TonightCard';
 import { useWantCount, Wordmark } from '../components/Layout';
 import { WineCard } from '../components/WineCard';
 import { useDebounced, useMediaQuery, usePhotoUrl, useWines } from '../hooks';
@@ -264,6 +265,7 @@ function HomeRows({ wines, onShow }: { wines: Wine[]; onShow: (shelf: Shelf) => 
   const pair = wide && shortlist.length > 0 && cellar.length > 0 && shortlist.length <= 4 && cellar.length <= 4;
   return (
     <div className="home-rows">
+      {cellar.length > 0 && <TonightCard />}
       {taste && !taste.enough ? <RatePrompt rated={taste.rated} /> : <StorePicksRow />}
       {pair ? (
         <div className="shelf-pair">

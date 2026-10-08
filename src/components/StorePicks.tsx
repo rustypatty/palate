@@ -1,16 +1,20 @@
-import { RefreshCw, Sparkles, Store as StoreIcon } from 'lucide-react';
+import { ArrowUpRight, RefreshCw, Sparkles, Store as StoreIcon } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useLists, useWines } from '../hooks';
+import { useAllWines, useLists, useWines } from '../hooks';
 import { getApiKey } from '../lib/labelReader';
 import { markNotForMe, saveToWant } from '../lib/lists';
 import { possessive, refreshPogos, requestStoreList, storeById, STORES, type StoreId } from '../lib/stores';
 import { MIN_RATED } from '../lib/taste';
+import { formatPrice } from '../lib/format';
+import { dropReason, priceDrops, type Drop } from '../lib/priceWatch';
 import { useAllStoreItems, useBudget, useRestaurantBudget, useStoreChoice, useStoreMode, useStorePicks, useTaste } from '../lib/usePicks';
 
 /** Rough cost of one Claude store list, shown on the button. */
 import { HiddenRow, PickCard, PickRow, pickNames, ShelfRow, type PickLike } from './Shelf';
 import { useUndo } from './useUndo';
+import { BottleImage } from './BottleImage';
+import { BellIcon } from './PriceWatch';
 import { useToast } from './Toast';
 
 const BUDGETS: { value: number | null; label: string }[] = [
@@ -301,51 +305,117 @@ export function StorePicksRow() {
   const { fetchedAt, picks, saved } = useStorePicks(storeId, null, 10);
   const actions = usePickActions(store.name);
   const hiding = useUndo();
+  const all = useAllWines();
+  const drops = useMemo(() => (all ? priceDrops(all) : []), [all]);
+  // Drops at Total Wine rank first in Best bets.
+  const here = drops.filter((d) => d.now.store === store.name);
   if (fetchedAt === undefined) return null;
+  const dropsRow = drops.length > 0 && <PriceDropsLink drops={drops} />;
   if (!fetchedAt || picks.length === 0) {
     return (
-      <Link to="/store" className="cta-card lift">
-        <StoreIcon size={20} strokeWidth={1.7} />
-        <span className="cta-text">
-          <strong>
-            Heading to <em>{store.name}?</em>
-          </strong>
-          <span className="small muted">See which bottles there fit your taste.</span>
-        </span>
-        <span className="btn btn-wine cta-button">Open In store →</span>
-      </Link>
+      <div className="best-bets">
+        {dropsRow}
+        <Link to="/store" className="cta-card lift">
+          <StoreIcon size={20} strokeWidth={1.7} />
+          <span className="cta-text">
+            <strong>
+              Heading to <em>{store.name}?</em>
+            </strong>
+            <span className="small muted">See which bottles there fit your taste.</span>
+          </span>
+          <span className="btn btn-wine cta-button">Open In store →</span>
+        </Link>
+      </div>
     );
   }
   return (
-    <ShelfRow
-      title={
-        <>
-          Best bets <em>at {store.name}</em>
-        </>
-      }
-      sub={`${picks.length} found on ${store.domain} · ${ago(fetchedAt)}`}
-      arrows
-      grid={{}}
-      action={
-        <Link to="/store" className="text-link">
-          See all
-        </Link>
-      }
-    >
-      {picks.map((p) =>
-        hiding.isPending(p.item.key) ? (
-          <HiddenRow key={p.item.key} card label={pickNames(p).producer || p.item.title} onUndo={() => hiding.undo(p.item.key)} />
-        ) : (
-          <PickCard
-            key={p.item.key}
-            pick={p}
-            storeName={store.name}
-            saved={saved.has(p.item.key)}
-            onWant={() => actions.want(p)}
-            onPass={() => hiding.start(p.item.key, () => actions.pass(p))}
-          />
-        ),
-      )}
-    </ShelfRow>
+    <div className="best-bets">
+      {dropsRow}
+      <ShelfRow
+        title={
+          <>
+            Best bets <em>at {store.name}</em>
+          </>
+        }
+        sub={`${picks.length} found on ${store.domain} · ${ago(fetchedAt)}`}
+        arrows
+        grid={{}}
+        action={
+          <Link to="/store" className="text-link">
+            See all
+          </Link>
+        }
+      >
+        {here.map((d) => (
+          <DropPick key={`drop-${d.wine.id}`} drop={d} />
+        ))}
+        {picks.map((p) =>
+          hiding.isPending(p.item.key) ? (
+            <HiddenRow key={p.item.key} card label={pickNames(p).producer || p.item.title} onUndo={() => hiding.undo(p.item.key)} />
+          ) : (
+            <PickCard
+              key={p.item.key}
+              pick={p}
+              storeName={store.name}
+              saved={saved.has(p.item.key)}
+              onWant={() => actions.want(p)}
+              onPass={() => hiding.start(p.item.key, () => actions.pass(p))}
+            />
+          ),
+        )}
+      </ShelfRow>
+    </div>
+  );
+}
+
+/** "Price drops" at the top of Best bets: how many watched bottles got cheaper, to the watch screen. */
+function PriceDropsLink({ drops }: { drops: Drop[] }) {
+  const n = drops.length;
+  return (
+    <Link to="/watch" className="drops-link lift">
+      <span className="drops-bell">
+        <BellIcon size={20} filled />
+      </span>
+      <span className="drops-text">
+        <span className="eyebrow">Price drops</span>
+        <strong>
+          {n} {n === 1 ? 'favourite' : 'favourites'} <em>got cheaper</em>
+        </strong>
+        <span className="small muted drops-names">
+          {drops
+            .slice(0, 3)
+            .map((d) => `${d.wine.name || d.wine.producer} ${formatPrice(d.now.price)}`)
+            .join(' · ')}
+        </span>
+      </span>
+      <span className="text-link">See →</span>
+    </Link>
+  );
+}
+
+/** A watched bottle that got cheaper at this store, first in Best bets. */
+function DropPick({ drop }: { drop: Drop }) {
+  const { wine, now, was } = drop;
+  const name = [wine.name || wine.producer, wine.vintage ?? ''].filter(Boolean).join(' ');
+  return (
+    <div className="pick-card lift drop-pick">
+      <Link to={`/wine/${wine.id}`} className="tile" aria-label={`Open ${name}`}>
+        <span className="drop-tag">Price drop</span>
+        <BottleImage photo={wine.photo} alt="" />
+      </Link>
+      <div className="pc-body">
+        <div className="pc-producer">{wine.name && wine.producer ? wine.producer : ' '}</div>
+        <div className="pc-name">{name}</div>
+        <div className="pc-price">
+          <strong className="drop-now">{formatPrice(now.price)}</strong> {was !== null && was > now.price && <s>{formatPrice(was)}</s>} <span>{now.store}</span>
+        </div>
+        <p className="pc-reason">{dropReason(drop)}</p>
+      </div>
+      <div className="pc-actions">
+        <a href={now.url} target="_blank" rel="noreferrer" className="pc-link drop-pick-link">
+          <span className="pc-link-text">Link</span> <ArrowUpRight size={15} strokeWidth={1.6} />
+        </a>
+      </div>
+    </div>
   );
 }

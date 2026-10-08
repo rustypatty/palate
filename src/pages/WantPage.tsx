@@ -2,6 +2,7 @@ import { ArrowUpRight, Bookmark, Check, ChevronLeft, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BottleImage } from '../components/BottleImage';
+import { WatchBell } from '../components/PriceWatch';
 import { cleanReason, HiddenRow } from '../components/Shelf';
 import { useToast } from '../components/Toast';
 import { useUndo } from '../components/useUndo';
@@ -64,6 +65,7 @@ function WantCard({ wine, onRemove }: { wine: Wine; onRemove: () => void }) {
             'Bought it — rate it'
           )}
         </button>
+        <WatchBell wine={wine} />
         <button type="button" className="icon-btn" onClick={onRemove} aria-label="Remove from Want to try">
           <X size={18} strokeWidth={1.7} />
         </button>

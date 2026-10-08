@@ -8,7 +8,7 @@ import { storeById, type StoreId, type StoreItem, type SuggestedItem } from './s
 import { buildTaste } from './taste';
 
 // Per-device conveniences: which store and budget you last picked.
-function usePref<T>(key: string, fallback: T): [T, (v: T) => void] {
+export function usePref<T>(key: string, fallback: T): [T, (v: T) => void] {
   const read = useCallback((): T => {
     try {
       const raw = localStorage.getItem(key);
@@ -96,3 +96,11 @@ export function useAllStoreItems(): { storeId: StoreId; item: StoreItem | Sugges
     [caches],
   );
 }
+
+/** Tonight's last dish choice. */
+export const useTonightDish = () => usePref<import('./tonight').Dish>('palate.tonightDish', 'pasta');
+
+/** Price watch: check weekly when the app opens (on unless turned off in Settings). */
+export const usePriceAuto = () => usePref<boolean>('palate.priceAuto', true);
+/** When prices were last checked on this device. */
+export const usePriceCheckedAt = () => usePref<number | null>('palate.priceCheckedAt', null);
