@@ -112,7 +112,12 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
       if (!out.wines.length) return setError(out.unreadable || 'No wines could be read. Try straight-on photos without glare.');
       // The photos were only for reading the list: they're let go here, never saved.
       setPhotos([]);
-      update({ at: Date.now(), pages: photos.length, wines: out.wines, unreadable: out.unreadable, turns: [], done: {} });
+      const fresh: SavedList = { at: Date.now(), pages: photos.length, wines: out.wines, unreadable: out.unreadable, turns: [], done: {} };
+      update(fresh);
+      // Go straight on to your best picks, rather than waiting for a question.
+      if (abort.current === ctl) setBusy(null);
+      void ask(QUICK_QUESTIONS[0], fresh);
+      return;
     } catch (e) {
       if (!ctl.signal.aborted) failed(e);
     } finally {
@@ -120,19 +125,19 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
     }
   };
 
-  const ask = async (q: string) => {
+  const ask = async (q: string, base: SavedList | null = list, force = base !== list) => {
     const text = q.trim();
-    if (!list || !text || busy || needKey()) return;
+    if (!base || !text || (busy && !force) || needKey()) return;
     const ctl = new AbortController();
     abort.current = ctl;
     setError(null);
     setQuestion('');
     setBusy('Thinking it over…');
     try {
-      const out = await askWineList(list, text, listContext(wines ?? [], taste, budget), ctl.signal);
+      const out = await askWineList(base, text, listContext(wines ?? [], taste, budget), ctl.signal);
       if (ctl.signal.aborted) return;
       const turn = out.ok ? { q: text, a: out.answer } : { q: text, a: null, error: `Couldn’t answer: ${out.reason}.` };
-      update({ ...list, turns: [...list.turns, turn] });
+      update({ ...base, turns: [...base.turns, turn] });
     } catch (e) {
       if (!ctl.signal.aborted) failed(e);
     } finally {
