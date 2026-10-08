@@ -123,14 +123,16 @@ export function MiniWineCard({ wine, note }: { wine: Wine; note?: string }) {
       <div className="tile shelf-stage">
         <BottleImage photo={wine.photo} alt="" />
       </div>
-      <div className="mini-t">{wine.name || wine.producer || 'Untitled wine'}</div>
+      {/* The producer too: a cuvée alone ("Barolo", "Clásico") doesn't say which wine it is. */}
+      {wine.producer && wine.name && <div className="pc-producer mini-p">{wine.producer}</div>}
+      <div className={`mini-t${wine.producer && wine.name ? ' after-p' : ''}`}>{wine.name || wine.producer || 'Untitled wine'}</div>
       <div className={`mini-s${loved ? ' loved' : ''}`}>
         {loved ? (
           <>
             <Heart size={11} fill="currentColor" strokeWidth={0} /> Loved
           </>
         ) : (
-          (note ?? ([wine.name ? wine.producer : '', vintageLabel(wine)].filter(Boolean).join(' · ') || ' '))
+          (note ?? (vintageLabel(wine) || ' '))
         )}
       </div>
     </Link>
