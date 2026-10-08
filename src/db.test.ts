@@ -79,3 +79,20 @@ describe('price watch upgrade', () => {
     fresh.close();
   });
 });
+
+describe('one bottle, one record', () => {
+  it('completes a saved bottle instead of adding it again', async () => {
+    const first = await createWine({ ...emptyDraft(), producer: 'Domaine Exemple', name: 'En Sazenay', vintage: 2022, rating: 'loved', notes: 'Bright cherry.' }, db);
+    const again = await createWine({ ...emptyDraft(), producer: 'Domaine Exemple', name: 'Mercurey Premier Cru En Sazenay', vintage: 2022, owned: 1, region: 'Mercurey' }, db);
+    expect(again).toBe(first);
+    expect(await db.wines.count()).toBe(1);
+    expect(await db.wines.get(first)).toMatchObject({ name: 'Mercurey Premier Cru En Sazenay', rating: 'loved', notes: 'Bright cherry.', owned: 1, region: 'Mercurey' });
+  });
+
+  it('still adds a different wine from the same producer', async () => {
+    await createWine({ ...emptyDraft(), producer: 'Cascina Prova', name: 'Barolo', vintage: 2019 }, db);
+    await createWine({ ...emptyDraft(), producer: 'Cascina Prova', name: 'Barolo Marcenasco', vintage: 2019 }, db);
+    await createWine({ ...emptyDraft(), producer: 'Cascina Prova', name: 'Barolo', vintage: 2020 }, db);
+    expect(await db.wines.count()).toBe(3);
+  });
+});
