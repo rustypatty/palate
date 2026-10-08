@@ -104,7 +104,17 @@ export async function runImport(
   };
   // One at a time: parallel catalog searches time out.
   for (let k = 0; k < todo.length; k++) await one(todo[k], k);
-  for (const d of drafts) await createWine(d, database);
+  // A bottle already saved under another name completes that one instead of being added.
+  const before = new Set(current.map((w) => w.id));
+  let added = 0;
+  for (let k = 0; k < drafts.length; k++) {
+    const id = await createWine(drafts[k], database);
+    if (before.has(id)) alreadyThere.push([todo[k].name, todo[k].vintage].filter(Boolean).join(' '));
+    else {
+      added++;
+      before.add(id);
+    }
+  }
   saveProfile(plan.profile);
-  return { added: drafts.length, alreadyThere };
+  return { added, alreadyThere };
 }

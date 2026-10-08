@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { Deletion, StoredPhoto, Wine, WineDraft } from './types';
 import type { StoreCache } from './lib/stores';
+import { combine, isSameBottle } from './lib/dedupe';
 
 export class PalateDB extends Dexie {
   wines!: EntityTable<Wine, 'id'>;
@@ -63,10 +64,20 @@ export function emptyDraft(): WineDraft {
   };
 }
 
+/**
+ * Add a wine, unless it's a bottle already saved (same producer and vintage, same wine): then
+ * the saved one is completed with anything new instead, and its id returned. One bottle, one record.
+ */
 export async function createWine(draft: WineDraft, database: PalateDB = db): Promise<string> {
   const now = Date.now();
   const id = newId();
-  await database.wines.add({ ...draft, id, createdAt: now, updatedAt: now });
+  const fresh: Wine = { ...draft, id, createdAt: now, updatedAt: now };
+  const existing = (await database.wines.toArray()).find((w) => isSameBottle(w, fresh));
+  if (existing) {
+    await updateWine(existing.id, combine(existing, fresh), database);
+    return existing.id;
+  }
+  await database.wines.add(fresh);
   return id;
 }
 
