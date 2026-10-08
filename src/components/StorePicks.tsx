@@ -312,10 +312,11 @@ export function StorePicksRow() {
   if (fetchedAt === undefined) return null;
   const dropsRow = drops.length > 0 && <PriceDropsLink drops={drops} />;
   if (!fetchedAt || picks.length === 0) {
+    // Loose in the page's group (no wrapper), so a computer can hide the card on its own.
     return (
-      <div className="best-bets">
+      <>
         {dropsRow}
-        <Link to="/store" className="cta-card lift">
+        <Link to="/store" className="cta-card lift strip">
           <StoreIcon size={20} strokeWidth={1.7} />
           <span className="cta-text">
             <strong>
@@ -325,7 +326,7 @@ export function StorePicksRow() {
           </span>
           <span className="btn btn-wine cta-button">Open In store →</span>
         </Link>
-      </div>
+      </>
     );
   }
   return (

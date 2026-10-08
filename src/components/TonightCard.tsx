@@ -1,10 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
 
-/** "Tonight →" on the Collection screen, when there's at least one bottle at home. */
+/** "Tonight →" on the Collection screen, when there's at least one bottle at home (phones; computers use the hero's doorways). */
 export function TonightCard() {
   const location = useLocation();
   return (
-    <Link to="/tonight" state={{ background: location }} className="tonight-card lift">
+    <Link to="/tonight" state={{ background: location }} className="tonight-card lift strip">
       <span className="tonight-card-text">
         <span className="eyebrow">Open from your cellar</span>
         <strong>
