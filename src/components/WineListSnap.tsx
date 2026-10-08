@@ -15,9 +15,12 @@ import {
   listWineTitle,
   loadList,
   MAX_LIST_PAGES,
-  QUICK_QUESTIONS,
+  overviewWineList,
   readWineList,
   saveList,
+  sectionTitle,
+  withDetails,
+  type ListAnswer,
   type ListPick,
   type ListWine,
   type SavedList,
@@ -65,6 +68,17 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
   const [list, setList] = useState<SavedList | null>(loadList);
   const [question, setQuestion] = useState('');
   const [showList, setShowList] = useState(false);
+  // The answer while Claude is still writing it, shown as it comes in.
+  const [live, setLive] = useState<{ q: string; a: ListAnswer } | null>(null);
+  const frame = useRef(0);
+  const showLive = (q: string) => (a: ListAnswer) => {
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => setLive({ q, a }));
+  };
+  const endLive = () => {
+    cancelAnimationFrame(frame.current);
+    setLive(null);
+  };
 
   const thumbs = useMemo(() => photos.map((p) => URL.createObjectURL(p)), [photos]);
   const idle = photos.length === 0 && !busy;
@@ -104,9 +118,10 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
     const ctl = new AbortController();
     abort.current = ctl;
     setError(null);
-    setBusy(`Reading ${photos.length === 1 ? 'the page' : `${photos.length} pages`}… about a minute`);
+    const reading = `Reading ${photos.length === 1 ? 'the list' : `${photos.length} pages`}…`;
+    setBusy(reading);
     try {
-      const out = await readWineList(photos, ctl.signal);
+      const out = await readWineList(photos, ctl.signal, (n) => abort.current === ctl && setBusy(`${reading} ${n} ${n === 1 ? 'wine' : 'wines'} so far`));
       if (ctl.signal.aborted) return;
       if (!out.ok) return setError(`Couldn’t read the list: ${out.reason}.`);
       if (!out.wines.length) return setError(out.unreadable || 'No wines could be read. Try straight-on photos without glare.');
@@ -114,14 +129,36 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
       setPhotos([]);
       const fresh: SavedList = { at: Date.now(), pages: photos.length, wines: out.wines, unreadable: out.unreadable, turns: [], done: {} };
       update(fresh);
-      // Go straight on to your best picks, rather than waiting for a question.
+      // Go straight on to the overview and picks, rather than waiting for a question.
       if (abort.current === ctl) setBusy(null);
-      void ask(QUICK_QUESTIONS[0], fresh);
+      void overview(fresh);
       return;
     } catch (e) {
       if (!ctl.signal.aborted) failed(e);
     } finally {
       if (abort.current === ctl) setBusy(null);
+    }
+  };
+
+  /** The overview and the picks in every section, in one go. */
+  const overview = async (base: SavedList) => {
+    if (needKey()) return;
+    const ctl = new AbortController();
+    abort.current = ctl;
+    setError(null);
+    setBusy('Picking the best for you…');
+    try {
+      const out = await overviewWineList(base, listContext(wines ?? [], taste, budget), budget, ctl.signal, showLive(''));
+      if (ctl.signal.aborted) return;
+      const turn = out.ok ? { q: '', a: out.answer } : { q: '', a: null, error: `Couldn’t pick from the list: ${out.reason}.` };
+      update({ ...base, turns: [...base.turns, turn] });
+    } catch (e) {
+      if (!ctl.signal.aborted) failed(e);
+    } finally {
+      if (abort.current === ctl) {
+        setBusy(null);
+        endLive();
+      }
     }
   };
 
@@ -134,14 +171,17 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
     setQuestion('');
     setBusy('Thinking it over…');
     try {
-      const out = await askWineList(base, text, listContext(wines ?? [], taste, budget), ctl.signal);
+      const out = await askWineList(base, text, listContext(wines ?? [], taste, budget), ctl.signal, showLive(text));
       if (ctl.signal.aborted) return;
       const turn = out.ok ? { q: text, a: out.answer } : { q: text, a: null, error: `Couldn’t answer: ${out.reason}.` };
       update({ ...base, turns: [...base.turns, turn] });
     } catch (e) {
       if (!ctl.signal.aborted) failed(e);
     } finally {
-      if (abort.current === ctl) setBusy(null);
+      if (abort.current === ctl) {
+        setBusy(null);
+        endLive();
+      }
     }
   };
 
@@ -155,14 +195,14 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
   const act = {
     want: async (w: ListWine, p: ListPick) => {
       if (!list) return;
-      await createWine({ ...draftFromListWine(w, p.why, p.n, list.at), list: 'want' });
+      await createWine({ ...draftFromListWine(withDetails(w, p), p.why, p.n, list.at), list: 'want' });
       mark(p.n, 'want');
       toast('Saved to Want to try');
     },
     order: async (w: ListWine, p: ListPick) => {
       if (!list) return;
       // Into your collection, ready to rate after dinner. Its photo comes from the web, as always.
-      const draft = draftFromListWine(w, p.why, p.n, list.at);
+      const draft = draftFromListWine(withDetails(w, p), p.why, p.n, list.at);
       const id = (await adoptWant(draft)) ?? (await createWine(draft));
       mark(p.n, 'ordered');
       toast('Added to your wines — rate it after dinner');
@@ -170,8 +210,8 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
     },
   };
 
-  const hasGlass = list?.wines.some((w) => w.glass_price > 0);
-  const quick = QUICK_QUESTIONS.filter((q) => q !== 'By the glass' || hasGlass);
+  // An older list, or one whose overview failed: offer it again.
+  const hasOverview = Boolean(list?.turns.some((t) => t.a?.sections));
   const sections = useMemo(() => {
     const out: { name: string; wines: { w: ListWine; n: number }[] }[] = [];
     list?.wines.forEach((w, i) => {
@@ -182,10 +222,48 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
     return out;
   }, [list?.wines]);
 
+  /** An answer: the reply, the picks (in sections for the overview), and what's worth remembering. */
+  const answer = (a: ListAnswer, writing = false) =>
+    list && (
+      <div className="wl-a">
+        {a.reply
+          .split(/\n{2,}/)
+          .filter(Boolean)
+          .map((para, j) => (
+            <p key={j} className="wl-reply">
+              {cleanReason(para)}
+            </p>
+          ))}
+        {a.sections?.map((s) => (
+          <div key={s.kind} className="wl-section">
+            <h3 className="wl-section-title">{sectionTitle(s.kind, budget)}</h3>
+            <div className="pick-list">
+              {s.picks.map((p, k) => (
+                <ListPickCard key={`${s.kind}-${p.n}`} w={list.wines[p.n - 1]} p={p} rank={k + 1} done={list.done?.[p.n]} act={act} live={writing} />
+              ))}
+            </div>
+          </div>
+        ))}
+        {a.picks.length > 0 && (
+          <div className="pick-list">
+            {a.picks.map((p, k) => (
+              <ListPickCard key={`${p.n}-${k}`} w={list.wines[p.n - 1]} p={p} rank={k + 1} done={list.done?.[p.n]} act={act} live={writing} />
+            ))}
+          </div>
+        )}
+        {a.tip && (
+          <div className="tone-card">
+            <h3>Worth remembering</h3>
+            <p className="reason">{cleanReason(a.tip)}</p>
+          </div>
+        )}
+      </div>
+    );
+
   const status = busy && (
     <div className="picks-status busy">
       <span role="status">{busy}</span>
-      <button type="button" className="btn btn-white btn-sm" onClick={() => (abort.current?.abort(), setBusy(null))}>
+      <button type="button" className="btn btn-white btn-sm" onClick={() => (abort.current?.abort(), setBusy(null), endLive())}>
         Cancel
       </button>
     </div>
@@ -212,6 +290,13 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
               </button>
             )}
           </div>
+          {live && (
+            <div className="wl-turn writing">
+              {live.q && <p className="wl-q">{live.q}</p>}
+              {answer(live.a, true)}
+            </div>
+          )}
+
           {busy ? (
             status
           ) : (
@@ -271,31 +356,9 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
 
           {list.turns.map((t, i) => (
             <div key={i} className="wl-turn">
-              <p className="wl-q">{t.q}</p>
+              {t.q && <p className="wl-q">{t.q}</p>}
               {t.a ? (
-                <div className="wl-a">
-                  {t.a.reply
-                    .split(/\n{2,}/)
-                    .filter(Boolean)
-                    .map((para, j) => (
-                      <p key={j} className="wl-reply">
-                        {cleanReason(para)}
-                      </p>
-                    ))}
-                  {t.a.picks.length > 0 && (
-                    <div className="pick-list">
-                      {t.a.picks.map((p, k) => (
-                        <ListPickCard key={`${p.n}-${k}`} w={list.wines[p.n - 1]} p={p} rank={k + 1} done={list.done?.[p.n]} act={act} />
-                      ))}
-                    </div>
-                  )}
-                  {t.a.tip && (
-                    <div className="tone-card">
-                      <h3>Worth remembering</h3>
-                      <p className="reason">{cleanReason(t.a.tip)}</p>
-                    </div>
-                  )}
-                </div>
+                answer(t.a)
               ) : (
                 <p className="small" role="alert" style={{ color: 'var(--danger)' }}>
                   {t.error}
@@ -309,11 +372,11 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
           ) : (
             <>
               <div className="wl-quick" aria-label="Quick questions">
-                {quick.map((q) => (
-                  <button key={q} type="button" className="chip" onClick={() => ask(q)}>
-                    {q}
+                {!hasOverview && (
+                  <button type="button" className="chip" onClick={() => list && overview(list)}>
+                    Overview &amp; picks
                   </button>
-                ))}
+                )}
                 <button
                   type="button"
                   className="chip"
@@ -367,16 +430,20 @@ function ListPickCard({
   rank,
   done,
   act,
+  live = false,
 }: {
   w: ListWine | undefined;
   p: ListPick;
   rank: number;
   done?: 'want' | 'ordered';
+  /** Still being written: no buttons yet. */
+  live?: boolean;
   act: { want: (w: ListWine, p: ListPick) => Promise<void>; order: (w: ListWine, p: ListPick) => Promise<string | undefined> };
 }) {
   const [orderedId, setOrderedId] = useState<string | null>(null);
   if (!w) return null;
-  const facts = [w.grapes.join(', '), w.region].filter(Boolean).join(' · ');
+  const full = withDetails(w, p);
+  const facts = [full.grapes.join(', '), full.region].filter(Boolean).join(' · ');
   return (
     <article className="shelf-card compact wl-pick">
       <div className="sc-head">
@@ -393,7 +460,7 @@ function ListPickCard({
         {facts && <div className="sc-note">{facts}</div>}
       </div>
       <p className="reason">{cleanReason(p.why)}</p>
-      <div className="pr-actions">
+      {!live && <div className="pr-actions">
         {done === 'ordered' ? (
           orderedId ? (
             <Link to={`/wine/${orderedId}`} className="btn btn-tone">
@@ -414,8 +481,7 @@ function ListPickCard({
             </button>
           </>
         )}
-      </div>
+      </div>}
     </article>
   );
 }
-
