@@ -79,7 +79,8 @@
 
   /* Layout */
   --nav-h: 72px;
-  --nav-gap: 22px;
+  /* Space under the floating tab bar: small, so it sits just above Safari's own bar. */
+  --nav-gap: 8px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --gutter: 16px;
   --text-in: 8px;
@@ -281,6 +282,14 @@ img {
   backdrop-filter: blur(18px) saturate(160%);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
   box-shadow: 0 20px 40px -18px rgba(60, 30, 15, 0.4), 0 1px 3px rgba(60, 30, 15, 0.06);
+}
+
+/* Added to the home screen: no Safari bar below, so sit low like iOS's own tab bars,
+   over the home indicator's space but clear of the indicator itself. */
+@media (display-mode: standalone) {
+  .bottomnav {
+    bottom: max(12px, calc(var(--safe-bottom) - 12px));
+  }
 }
 
 .bottomnav .tabs {
