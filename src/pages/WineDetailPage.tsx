@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { MoreLikeThis, SuggestionNote } from '../components/MoreLikeThis';
 import { BottleImage } from '../components/BottleImage';
 import { Stepper } from '../components/Inputs';
+import { WatchBell } from '../components/PriceWatch';
 import { RatingPicker } from '../components/Rating';
 import { Sheet } from '../components/Sheet';
 import { useToast } from '../components/Toast';
@@ -183,7 +184,10 @@ export function WineDetailPage() {
             <div className="cellar-title">In my cellar</div>
             <div className="small muted">{wine.owned === 0 ? 'None on hand' : `${wine.owned} ${wine.owned === 1 ? 'bottle' : 'bottles'} on hand`}</div>
           </div>
-          <Stepper value={wine.owned} onChange={(owned) => updateWine(wine.id, { owned })} label="bottles owned" />
+          <div className="cellar-controls">
+            <WatchBell wine={wine} />
+            <Stepper value={wine.owned} onChange={(owned) => updateWine(wine.id, { owned })} label="bottles owned" />
+          </div>
         </div>
 
         <WineTake wine={wine} />

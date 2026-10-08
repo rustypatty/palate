@@ -71,6 +71,16 @@ export interface Suggestion {
   at: number;
 }
 
+/** One price seen for a watched bottle. */
+export interface PricePoint {
+  /** When it was seen (ISO date and time). */
+  date: string;
+  price: number;
+  /** Store name, e.g. "Total Wine". */
+  store: string;
+  url: string;
+}
+
 export interface AboutWine {
   text: string;
   sourceName: string;
@@ -112,6 +122,10 @@ export interface Wine {
   suggestion?: Suggestion | null;
   /** Bottles like this one found at your stores, saved so reopening the page is free. */
   likeThis?: LikeThisCache | null;
+  /** Price watch: check this bottle's price at your stores each week (Loved wines and Want to try). */
+  watch?: boolean;
+  /** Prices seen by the price watch, oldest first. */
+  priceHistory?: PricePoint[];
   createdAt: number;
   updatedAt: number;
 }

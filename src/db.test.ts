@@ -1,6 +1,7 @@
 // @vitest-environment node
 // (jsdom’s Blob does not survive fake-indexeddb’s structured clone; Node’s does.)
 import { beforeEach, describe, expect, it } from 'vitest';
+import Dexie from 'dexie';
 import { createWine, deleteWine, emptyDraft, PalateDB, prunePhotos, savePhoto, updateWine } from './db';
 import { exportBackup, importBackup } from './lib/backup';
 
@@ -62,5 +63,19 @@ describe('backup', () => {
   it('rejects files that are not backups', async () => {
     await expect(importBackup(new Blob(['{"hello":1}']), db)).rejects.toThrow(/isn’t a Palate backup/);
     await expect(importBackup(new Blob(['nope']), db)).rejects.toThrow(/isn’t a Palate backup/);
+  });
+});
+
+describe('price watch upgrade', () => {
+  it('gives existing wines watch off and an empty price history, without touching updatedAt', async () => {
+    const name = `upgrade-${Math.random()}`;
+    const old = new Dexie(name);
+    old.version(3).stores({ wines: 'id, updatedAt, createdAt, rating, country, style, producer, barcode', photos: 'id', deletions: 'id', stores: 'id' });
+    await old.table('wines').add({ ...emptyDraft(), id: 'x', createdAt: 1, updatedAt: 5 });
+    old.close();
+    const fresh = new PalateDB(name);
+    const w = await fresh.wines.get('x');
+    expect(w).toMatchObject({ watch: false, priceHistory: [], updatedAt: 5 });
+    fresh.close();
   });
 });

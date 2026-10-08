@@ -1,6 +1,8 @@
 import { Bookmark, LayoutGrid, Plus, Store, Wine } from 'lucide-react';
 import { Link, matchPath, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLists } from '../hooks';
+import { underlay } from './overlay';
+import { usePriceAutoCheck } from './PriceWatch';
 import { useCatalogNotes } from './useCatalogNotes';
 import { usePhotoFinder } from './usePhotoFinder';
 
@@ -18,10 +20,12 @@ export function useWantCount(): number {
 }
 
 export function Layout() {
-  const location = useLocation();
+  // Under an overlay (Tonight), the page it was opened from.
+  const location = underlay(useLocation());
   const wantCount = useWantCount();
   usePhotoFinder();
   useCatalogNotes();
+  usePriceAutoCheck();
   // Add/Edit wine has its own sticky Save bar instead of the navigation.
   const editing = Boolean(matchPath('/add', location.pathname) || matchPath('/wine/:id/edit', location.pathname));
 

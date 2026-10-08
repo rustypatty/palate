@@ -1,11 +1,12 @@
-import { Download, Minus, Plus, Upload } from 'lucide-react';
+import { ChevronRight, Download, Minus, Plus, Upload } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { CloudSync, cloudSummary, useCloudStatus } from '../components/CloudSync';
 import { TasteHeader, TasteQuote } from '../components/TasteCard';
 import { ProfileImport, ProfileSummary, useProfile } from '../components/ProfileImport';
 import { useToast } from '../components/Toast';
-import { useWines } from '../hooks';
+import { BellIcon } from '../components/PriceWatch';
+import { useAllWines, useWines } from '../hooks';
 import { downloadBlob, exportBackup, importBackup } from '../lib/backup';
 import { STYLE_LABEL } from '../lib/constants';
 import { tally } from '../lib/filters';
@@ -13,6 +14,9 @@ import { formatPrice } from '../lib/format';
 import { apiKeyProblem, getApiKey, normalizeApiKey, setApiKey, testApiKey } from '../lib/labelReader';
 import { favouriteRed, profileFavourites } from '../lib/profile';
 import { buildTaste } from '../lib/taste';
+import { CHECK_COST, lastCheckedAt, priceDrops, watchedWines } from '../lib/priceWatch';
+import { usePriceAuto, usePriceCheckedAt } from '../lib/usePicks';
+import { ago } from '../components/StorePicks';
 import type { Wine } from '../types';
 
 function LabelReadingSettings({ onFocusRequest, onChange }: { onFocusRequest: () => void; onChange: () => void }) {
@@ -151,6 +155,13 @@ export function ProfilePage() {
   const [open, setOpen] = useState<string | null>(null);
   const [, setKeyTick] = useState(0);
   const keySaved = Boolean(getApiKey());
+  const everything = useAllWines();
+  const [priceAuto, setPriceAuto] = usePriceAuto();
+  const [checkedHere] = usePriceCheckedAt();
+  const watch = useMemo(() => {
+    const watched = everything ? watchedWines(everything) : [];
+    return { n: watched.length, drops: everything ? priceDrops(everything).length : 0, last: lastCheckedAt(watched, checkedHere) };
+  }, [everything, checkedHere]);
 
   useEffect(() => {
     navigator.storage?.persisted?.().then(setPersisted).catch(() => {});
@@ -273,6 +284,38 @@ export function ProfilePage() {
       </section>
 
       <section className="palate-section">
+        <h2 className="title-lg">Price watch</h2>
+        <Link to="/watch" className="cta-card lift watch-link">
+          <BellIcon size={22} filled={watch.drops > 0} />
+          <span className="cta-text">
+            <strong>
+              {watch.drops > 0 ? (
+                <>
+                  {watch.drops} {watch.drops === 1 ? 'favourite' : 'favourites'} <em>got cheaper</em>
+                </>
+              ) : watch.n > 0 ? (
+                <>
+                  Watching <em>{watch.n} {watch.n === 1 ? 'bottle' : 'bottles'}</em>
+                </>
+              ) : (
+                <>
+                  Watch <em>a price</em>
+                </>
+              )}
+            </strong>
+            <span className="small muted">
+              {watch.n > 0
+                ? watch.last
+                  ? `Checked ${ago(watch.last)} at your stores`
+                  : 'Not checked yet'
+                : 'Tap the bell on a loved wine or a Want to try bottle.'}
+            </span>
+          </span>
+          <ChevronRight size={20} strokeWidth={1.7} />
+        </Link>
+      </section>
+
+      <section className="palate-section">
         <h2 className="title-lg">Settings</h2>
         <div className="folds">
           <Fold title="Sync across devices" status={cloudSummary(cloud)} open={open === 'sync'} onToggle={() => toggle('sync')}>
@@ -280,6 +323,24 @@ export function ProfilePage() {
           </Fold>
           <Fold title="Label reading with Claude" status={keySaved ? 'Key saved on this device' : 'No key yet'} open={open === 'key'} onToggle={() => toggle('key')}>
             <LabelReadingSettings onFocusRequest={() => setOpen('key')} onChange={() => setKeyTick((t) => t + 1)} />
+          </Fold>
+          <Fold
+            title="Price watch"
+            status={watch.n === 0 ? 'Nothing watched' : priceAuto ? `Checks weekly · about ${CHECK_COST.replace('~', '')} a week` : 'Auto-check off'}
+            open={open === 'watch'}
+            onToggle={() => toggle('watch')}
+          >
+            <div className="fold-content">
+              <label className="switch-row">
+                <span>
+                  <span className="switch-title">Check prices automatically</span>
+                  <span className="small muted">
+                    Once a week, when you open Palate, if you’re watching any bottles. About {CHECK_COST.replace('~', '')} a check, on your Anthropic key.
+                  </span>
+                </span>
+                <input type="checkbox" role="switch" className="switch" checked={priceAuto} onChange={(e) => setPriceAuto(e.target.checked)} />
+              </label>
+            </div>
           </Fold>
           <Fold title="Your data" status={usage ? `${usage} on this device` : 'On this device'} open={open === 'data'} onToggle={() => toggle('data')}>
             <div className="fold-content">
