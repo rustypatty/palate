@@ -25,6 +25,7 @@ import { useRestaurantBudget, useStoreChoice, useStoreMode, useTaste } from '../
 import { coachBottle, VERDICT_LABEL, type BottleCoach } from '../lib/coach';
 import { shelfContext } from '../lib/shelf';
 import { tokens } from '../lib/text';
+import { isStaleApp, reloadForUpdate } from '../lib/appUpdate';
 import type { WineDraft, WineStyle } from '../types';
 import type { AddPrefill } from './WineFormPage';
 
@@ -144,6 +145,14 @@ export function InStorePage() {
   const [lookingUp, setLookingUp] = useState(false);
   const [typing, setTyping] = useState(Boolean(prefill));
   const checkRef = useRef<HTMLElement>(null);
+  // Load the label, shelf and wine-list readers now. If Palate was updated while it was open,
+  // the old version's readers are gone from the site: reload now, before any photos are taken,
+  // rather than losing them halfway through a read.
+  useEffect(() => {
+    Promise.all([import('../lib/labelClient'), import('../lib/shelfClient'), import('../lib/wineListClient')]).catch((e: unknown) => {
+      if (isStaleApp(e)) reloadForUpdate();
+    });
+  }, []);
   const loaded = wines !== undefined;
   const scrolled = useRef(false);
   useEffect(() => {
