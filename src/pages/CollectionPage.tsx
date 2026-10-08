@@ -265,8 +265,11 @@ function HomeRows({ wines, onShow }: { wines: Wine[]; onShow: (shelf: Shelf) => 
   const pair = wide && shortlist.length > 0 && cellar.length > 0 && shortlist.length <= 4 && cellar.length <= 4;
   return (
     <div className="home-rows">
-      {cellar.length > 0 && <TonightCard />}
-      {taste && !taste.enough ? <RatePrompt rated={taste.rated} /> : <StorePicksRow />}
+      {/* The prompt cards sit together, closer than the shelves below them. */}
+      <div className="home-top">
+        {cellar.length > 0 && <TonightCard />}
+        {taste && !taste.enough ? <RatePrompt rated={taste.rated} /> : <StorePicksRow />}
+      </div>
       {pair ? (
         <div className="shelf-pair">
           {shortRow}

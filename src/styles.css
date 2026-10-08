@@ -4727,7 +4727,7 @@ details.more[open] > .more-body {
 @media (min-width: 1024px) {
   .home-rows {
     gap: 96px;
-    margin-top: 96px;
+    margin-top: 48px;
   }
   .collection {
     margin-top: 96px;
@@ -5844,5 +5844,17 @@ details.more[open] > .more-body {
 @media (min-width: 900px) {
   .wl-section-title {
     font-size: 28px;
+  }
+}
+
+/* Tonight and the store card: one group, a small gap apart */
+.home-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+@media (min-width: 900px) {
+  .home-top {
+    gap: 20px;
   }
 }
