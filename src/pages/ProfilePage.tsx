@@ -14,7 +14,7 @@ import { formatPrice } from '../lib/format';
 import { apiKeyProblem, getApiKey, normalizeApiKey, setApiKey, testApiKey } from '../lib/labelReader';
 import { favouriteRed, profileFavourites } from '../lib/profile';
 import { buildTaste } from '../lib/taste';
-import { CHECK_COST, lastCheckedAt, priceDrops, watchedWines } from '../lib/priceWatch';
+import { lastCheckedAt, priceDrops, watchedWines } from '../lib/priceWatch';
 import { usePriceAuto, usePriceCheckedAt } from '../lib/usePicks';
 import { ago } from '../components/StorePicks';
 import type { Wine } from '../types';
@@ -326,7 +326,7 @@ export function ProfilePage() {
           </Fold>
           <Fold
             title="Price watch"
-            status={watch.n === 0 ? 'Nothing watched' : priceAuto ? `Checks weekly · about ${CHECK_COST.replace('~', '')} a week` : 'Auto-check off'}
+            status={watch.n === 0 ? 'Nothing watched' : priceAuto ? 'Checks weekly' : 'Auto-check off'}
             open={open === 'watch'}
             onToggle={() => toggle('watch')}
           >
@@ -335,7 +335,7 @@ export function ProfilePage() {
                 <span>
                   <span className="switch-title">Check prices automatically</span>
                   <span className="small muted">
-                    Once a week, when you open Palate, if you’re watching any bottles. About {CHECK_COST.replace('~', '')} a check, on your Anthropic key.
+                    Once a week, when you open Palate, if you’re watching any bottles.
                   </span>
                 </span>
                 <input type="checkbox" role="switch" className="switch" checked={priceAuto} onChange={(e) => setPriceAuto(e.target.checked)} />

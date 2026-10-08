@@ -180,7 +180,7 @@ export function TonightPage() {
           </>
         )}
 
-        <p className="footnote tonight-foot">Picked from your cellar · free</p>
+        <p className="footnote tonight-foot">Picked from your cellar</p>
 
         {undoing && openedWine && (
           <div className="undo-toast" role="status">

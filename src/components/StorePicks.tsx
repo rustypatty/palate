@@ -71,14 +71,14 @@ function usePickActions(storeName: string) {
   };
 }
 
-/** How much is saved for each store: "8 picks", "Ready · free", "No list yet". */
+/** How much is saved for each store: "8 picks", "Ready", "No list yet". */
 function useStoreCounts(): Map<StoreId, string> {
   const entries = useAllStoreItems();
   return useMemo(() => {
     const out = new Map<StoreId, string>();
     for (const store of STORES) {
       const n = (entries ?? []).filter((e) => e.storeId === store.id).length;
-      out.set(store.id, n === 0 ? 'No list yet' : store.kind === 'catalog' ? 'Ready · free' : `${n} ${n === 1 ? 'pick' : 'picks'}`);
+      out.set(store.id, n === 0 ? 'No list yet' : store.kind === 'catalog' ? 'Ready' : `${n} ${n === 1 ? 'pick' : 'picks'}`);
     }
     return out;
   }, [entries]);
@@ -199,7 +199,7 @@ export function StorePicksPanel() {
     </button>
   ) : catalog ? (
     <button type="button" className="btn btn-white btn-sm" onClick={load}>
-      <RefreshCw size={15} strokeWidth={1.8} /> {fetchedAt ? 'Refresh' : 'Load list'} · free
+      <RefreshCw size={15} strokeWidth={1.8} /> {fetchedAt ? 'Refresh' : 'Load list'}
     </button>
   ) : hasKey ? (
     <button type="button" className="btn btn-white btn-sm" onClick={load}>

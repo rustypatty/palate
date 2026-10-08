@@ -9,7 +9,7 @@ import { useAllWines } from '../hooks';
 import { formatPrice } from '../lib/format';
 import { hasApiKey } from '../lib/labelReader';
 import { priceCheck, runPriceCheck } from '../lib/priceCheck';
-import { CHECK_COST, dropReason, lastCheckedAt, latestPrice, priceDrops, storesSeen, watchedWines, type Drop } from '../lib/priceWatch';
+import { dropReason, lastCheckedAt, latestPrice, priceDrops, storesSeen, watchedWines, type Drop } from '../lib/priceWatch';
 import { usePriceCheckedAt } from '../lib/usePicks';
 import type { Wine } from '../types';
 
@@ -103,7 +103,7 @@ export function WatchPage() {
         <div className="tone-card watch-empty">
           <div className="tone-title">Nothing watched yet</div>
           <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
-            Tap the <BellIcon size={15} /> bell on a wine you loved or a Want to try bottle, and Palate checks its price at your stores each week. Nothing watched, nothing to pay.
+            Tap the <BellIcon size={15} /> bell on a wine you loved or a Want to try bottle, and Palate checks its price at your stores each week.
           </p>
         </div>
       ) : (
@@ -144,11 +144,11 @@ export function WatchPage() {
       {count > 0 && (
         <div className="watch-check">
           <p className="footnote">
-            {count} {count === 1 ? 'bottle' : 'bottles'} watched · checked weekly · about {CHECK_COST.replace('~', '')} a week
+            {count} {count === 1 ? 'bottle' : 'bottles'} watched · checked weekly
           </p>
           {hasApiKey() ? (
             <button type="button" className="btn btn-wine btn-lg" onClick={check} disabled={running}>
-              {running ? 'Checking prices…' : `Check now · ${CHECK_COST}`}
+              {running ? 'Checking prices…' : 'Check now'}
             </button>
           ) : (
             <Link to="/profile" className="btn btn-tone btn-lg">

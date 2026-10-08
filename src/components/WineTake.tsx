@@ -95,7 +95,7 @@ export function WineTake({ wine }: { wine: Wine }) {
           <span className="muted small">From Palate’s wine catalog.</span>
           {canWrite && (
             <button type="button" className="btn btn-ghost btn-sm" onClick={write} disabled={state.status === 'busy'}>
-              {state.status === 'busy' ? 'Writing…' : 'Add how it fits you · about 3¢'}
+              {state.status === 'busy' ? 'Writing…' : 'Add how it fits you'}
             </button>
           )}
         </div>
