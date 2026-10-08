@@ -15,9 +15,10 @@ import {
   listWineTitle,
   loadList,
   MAX_LIST_PAGES,
-  QUICK_QUESTIONS,
+  overviewWineList,
   readWineList,
   saveList,
+  sectionTitle,
   type ListPick,
   type ListWine,
   type SavedList,
@@ -114,10 +115,29 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
       setPhotos([]);
       const fresh: SavedList = { at: Date.now(), pages: photos.length, wines: out.wines, unreadable: out.unreadable, turns: [], done: {} };
       update(fresh);
-      // Go straight on to your best picks, rather than waiting for a question.
+      // Go straight on to the overview and picks, rather than waiting for a question.
       if (abort.current === ctl) setBusy(null);
-      void ask(QUICK_QUESTIONS[0], fresh);
+      void overview(fresh);
       return;
+    } catch (e) {
+      if (!ctl.signal.aborted) failed(e);
+    } finally {
+      if (abort.current === ctl) setBusy(null);
+    }
+  };
+
+  /** The overview and the picks in every section, in one go. */
+  const overview = async (base: SavedList) => {
+    if (needKey()) return;
+    const ctl = new AbortController();
+    abort.current = ctl;
+    setError(null);
+    setBusy('Picking the best for you…');
+    try {
+      const out = await overviewWineList(base, listContext(wines ?? [], taste, budget), budget, ctl.signal);
+      if (ctl.signal.aborted) return;
+      const turn = out.ok ? { q: '', a: out.answer } : { q: '', a: null, error: `Couldn’t pick from the list: ${out.reason}.` };
+      update({ ...base, turns: [...base.turns, turn] });
     } catch (e) {
       if (!ctl.signal.aborted) failed(e);
     } finally {
@@ -170,8 +190,8 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
     },
   };
 
-  const hasGlass = list?.wines.some((w) => w.glass_price > 0);
-  const quick = QUICK_QUESTIONS.filter((q) => q !== 'By the glass' || hasGlass);
+  // An older list, or one whose overview failed: offer it again.
+  const hasOverview = Boolean(list?.turns.some((t) => t.a?.sections));
   const sections = useMemo(() => {
     const out: { name: string; wines: { w: ListWine; n: number }[] }[] = [];
     list?.wines.forEach((w, i) => {
@@ -271,7 +291,7 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
 
           {list.turns.map((t, i) => (
             <div key={i} className="wl-turn">
-              <p className="wl-q">{t.q}</p>
+              {t.q && <p className="wl-q">{t.q}</p>}
               {t.a ? (
                 <div className="wl-a">
                   {t.a.reply
@@ -282,6 +302,16 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
                         {cleanReason(para)}
                       </p>
                     ))}
+                  {t.a.sections?.map((s) => (
+                    <div key={s.kind} className="wl-section">
+                      <h3 className="wl-section-title">{sectionTitle(s.kind, budget)}</h3>
+                      <div className="pick-list">
+                        {s.picks.map((p, k) => (
+                          <ListPickCard key={`${s.kind}-${p.n}`} w={list.wines[p.n - 1]} p={p} rank={k + 1} done={list.done?.[p.n]} act={act} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                   {t.a.picks.length > 0 && (
                     <div className="pick-list">
                       {t.a.picks.map((p, k) => (
@@ -309,11 +339,11 @@ export function WineListSnap({ ref, onIdle, budget = null }: { ref?: Ref<SnapHan
           ) : (
             <>
               <div className="wl-quick" aria-label="Quick questions">
-                {quick.map((q) => (
-                  <button key={q} type="button" className="chip" onClick={() => ask(q)}>
-                    {q}
+                {!hasOverview && (
+                  <button type="button" className="chip" onClick={() => list && overview(list)}>
+                    Overview &amp; picks
                   </button>
-                ))}
+                )}
                 <button
                   type="button"
                   className="chip"

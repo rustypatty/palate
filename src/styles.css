@@ -5826,3 +5826,23 @@ details.more[open] > .more-body {
     transform: translateY(-6px);
   }
 }
+
+/* Wine list overview: one titled group per kind of pick */
+.wl-section {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+}
+.wl-section-title {
+  margin: 0;
+  padding: 0 var(--text-in);
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 24px;
+  line-height: 1.2;
+}
+@media (min-width: 900px) {
+  .wl-section-title {
+    font-size: 28px;
+  }
+}

@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
 import { resizeImage } from './image';
-import { listAsText, type AskOutcome, type ListAnswer, type ListWine, type ReadListOutcome, type SavedList } from './wineList';
+import { cleanSections, listAsText, sectionTitle, VALUE_LINE, type AskOutcome, type ListAnswer, type ListWine, type ReadListOutcome, type SavedList } from './wineList';
 
 const MODEL = 'claude-opus-5-5';
 const STYLES = ['red', 'white', 'rose', 'sparkling', 'orange', 'dessert', 'fortified', 'unknown'] as const;
@@ -37,6 +37,26 @@ const AnswerSchema = z.object({
     )
     .describe('The wines you recommend for this question, best first, at most 5. Empty if the question is not asking for recommendations.'),
   tip: z.string().describe('Optional one- or two-sentence lesson worth remembering (e.g. which appellations give structured Pinot). Empty if none.'),
+});
+
+const OverviewSchema = z.object({
+  reply: z.string().describe('A short overview of the list for me: 2–3 short paragraphs on what it is strong in, where my kind of wine is, and what to skip. Refer to wines by name and price. No markdown headings.'),
+  sections: z
+    .array(
+      z.object({
+        kind: z.enum(['match', 'value', 'new', 'glass']),
+        picks: z
+          .array(
+            z.object({
+              n: z.number().describe('The wine’s number on the list.'),
+              why: z.string().describe('Why it suits me, comparing it by name with wines I rated, and what it will taste like. 1–2 sentences, under 45 words.'),
+            }),
+          )
+          .describe('Best first, at most 3.'),
+      }),
+    )
+    .describe('One entry for each kind asked for.'),
+  tip: z.string().describe('Optional one- or two-sentence lesson worth remembering. Empty if none.'),
 });
 
 // Keep the schemas and the app's types in step.
@@ -111,28 +131,78 @@ export async function readWineListWithClaude(apiKey: string, photos: Blob[], sig
 
 /** An earlier answer as plain text, so the conversation reads naturally to Claude. */
 function answerText(a: ListAnswer, wines: ListWine[]): string {
-  const picks = a.picks
-    .map((p) => {
-      const w = wines[p.n - 1];
-      return w ? `- #${p.n} ${[w.producer, w.wine, w.vintage].filter(Boolean).join(' ')}${w.price ? ` ($${w.price})` : ''}: ${p.why}` : '';
-    })
-    .filter(Boolean)
-    .join('\n');
-  return [a.reply, picks && `Picks:\n${picks}`, a.tip].filter(Boolean).join('\n\n');
+  const lines = (picks: ListAnswer['picks']) =>
+    picks
+      .map((p) => {
+        const w = wines[p.n - 1];
+        return w ? `- #${p.n} ${[w.producer, w.wine, w.vintage].filter(Boolean).join(' ')}${w.price ? ` ($${w.price})` : ''}: ${p.why}` : '';
+      })
+      .filter(Boolean)
+      .join('\n');
+  const picks = lines(a.picks);
+  const sections = (a.sections ?? []).map((s) => `${sectionTitle(s.kind, null)}:\n${lines(s.picks)}`);
+  return [a.reply, picks && `Picks:\n${picks}`, ...sections, a.tip].filter(Boolean).join('\n\n');
 }
 
-export async function askWineListWithClaude(apiKey: string, list: SavedList, question: string, context: string, signal?: AbortSignal): Promise<AskOutcome> {
-  const client = clientFor(apiKey);
-  const system =
+function systemFor(list: SavedList, context: string): string {
+  return (
     'You are a knowledgeable friend helping me order wine at a restaurant from its list. ' +
     'Recommend for my palate, using my ratings and especially the words in my notes, and say how each pick compares with wines I know. ' +
     'Mind the price I give; restaurant prices are usually 2–4× retail, so call out a bottle that is unusually good value for this list. ' +
     'Only recommend wines that are on the list, by their number. Be concise, specific and honest about trade-offs; no filler.\n\n' +
-    `${context}\n\nThe wine list (number. wine — price):\n${listAsText(list.wines)}`;
+    `${context}\n\nThe wine list (number. wine — price):\n${listAsText(list.wines)}`
+  );
+}
+
+/** Right after a list is read: an overview, and the best picks for me, best value, something new and by the glass, in one go. */
+export async function overviewWineListWithClaude(apiKey: string, list: SavedList, context: string, budget: number | null, signal?: AbortSignal): Promise<AskOutcome> {
+  const client = clientFor(apiKey);
+  const glass = list.wines.some((w) => w.glass_price > 0);
+  const kinds = [
+    '"match": the best wines on the list for my palate, at any price unless I gave a budget',
+    `"value": the best value for me under $${budget ?? VALUE_LINE} a bottle`,
+    '"new": good ways to learn something new that I would probably still like',
+    ...(glass ? ['"glass": the best by-the-glass choices for me (only wines with a glass price)'] : []),
+  ];
+  const question =
+    `Give me an overview of this list, then up to 3 picks for each of these:\n${kinds.map((k) => `- ${k}`).join('\n')}\n` +
+    'A wine can appear in more than one section if it truly belongs there, but prefer variety.';
+  try {
+    const res = await client.beta.messages.parse(
+      {
+        model: MODEL,
+        max_tokens: 10000,
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        system: systemFor(list, context),
+        output_config: { effort: 'medium', format: betaZodOutputFormat(OverviewSchema) },
+        messages: [{ role: 'user', content: question }],
+      },
+      { signal },
+    );
+    if (res.stop_reason === 'refusal') return { ok: false, reason: 'Claude couldn’t answer that' };
+    if (res.stop_reason === 'max_tokens' || !res.parsed_output) return { ok: false, reason: 'the answer was cut short — try again' };
+    const o = res.parsed_output;
+    const sections = cleanSections(
+      o.sections.map((s) => ({ kind: s.kind, picks: s.picks.map((p) => ({ ...p, tag: '' as const })) })),
+      list.wines,
+    );
+    return { ok: true, answer: { reply: o.reply, picks: [], sections, tip: o.tip } };
+  } catch (e) {
+    if (signal?.aborted) return { ok: false, reason: 'cancelled' };
+    const r = reason(e);
+    if (r) return { ok: false, reason: r };
+    throw e;
+  }
+}
+
+export async function askWineListWithClaude(apiKey: string, list: SavedList, question: string, context: string, signal?: AbortSignal): Promise<AskOutcome> {
+  const client = clientFor(apiKey);
+  const system = systemFor(list, context);
   const messages: Anthropic.Beta.BetaMessageParam[] = [];
   for (const t of list.turns) {
     if (!t.a) continue;
-    messages.push({ role: 'user', content: t.q }, { role: 'assistant', content: answerText(t.a, list.wines) });
+    messages.push({ role: 'user', content: t.q || 'Give me an overview of this list and your picks.' }, { role: 'assistant', content: answerText(t.a, list.wines) });
   }
   messages.push({ role: 'user', content: question });
   try {
