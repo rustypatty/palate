@@ -1,29 +1,57 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
+import { partialParse } from '@anthropic-ai/sdk/_vendor/partial-json-parser/parser';
 import { z } from 'zod';
 import { resizeImage } from './image';
-import { cleanSections, listAsText, sectionTitle, VALUE_LINE, type AskOutcome, type ListAnswer, type ListWine, type ReadListOutcome, type SavedList } from './wineList';
+import {
+  cleanSections,
+  listAsText,
+  liveAnswer,
+  sectionTitle,
+  VALUE_LINE,
+  type AskOutcome,
+  type ListAnswer,
+  type ListWine,
+  type ReadListOutcome,
+  type SavedList,
+} from './wineList';
 
 const MODEL = 'claude-opus-5-5';
 const STYLES = ['red', 'white', 'rose', 'sparkling', 'orange', 'dessert', 'fortified', 'unknown'] as const;
 
+// Only what's printed, one short line per wine and each heading once: Claude writes about
+// 100 words a second, so every word saved here is time saved at the table. Grapes, region
+// and style are filled in later for the picks alone.
 const ListSchema = z.object({
-  wines: z.array(
+  sections: z.array(
     z.object({
-      section: z.string().describe('The heading this wine is listed under on the menu, e.g. "Burgundy", "Pauillac", "Rest of the world".'),
-      producer: z.string().describe('Winery / producer / château as printed.'),
-      wine: z.string().describe('Cuvée, vineyard or appellation, e.g. "Pommard Les Argillières". Empty if only the producer is given.'),
-      vintage: z.string().describe('Year as printed, "NV", or empty if none.'),
-      region: z.string().describe('Most specific region or appellation, from the entry or its section.'),
-      country: z.string(),
-      grapes: z.array(z.string()).describe('Main grapes: printed, or what the appellation requires (red Burgundy = Pinot Noir). Empty if unsure.'),
-      style: z.enum(STYLES),
-      price: z.number().describe('Bottle price as printed; 0 if none.'),
-      glass_price: z.number().describe('By-the-glass price if listed; 0 if none.'),
+      name: z.string().describe('The heading on the menu, e.g. "Burgundy" or "Italian Reds Flight".'),
+      wines: z
+        .array(z.string())
+        .describe('One line per wine: "producer | rest of the entry as printed | vintage | glass price | bottle price". Keep hints like "(Napa)". Vintage as a year ("\'20" is 2020), "NV" or empty. Prices as plain numbers, empty if none.'),
     }),
   ),
   unreadable: z.string().describe('One short sentence about entries or prices you could not read (glare, shadow, cut off); empty if none.'),
 });
+
+/** "Scarpa | Barbaresco | 2020 | 18 | 85" → a wine on the list. */
+export function lineToWine(section: string, line: string): ListWine | null {
+  const [producer = '', wine = '', vintage = '', glass = '', bottle = ''] = line.split('|').map((x) => x.trim());
+  if (!producer && !wine) return null;
+  const price = (x: string) => {
+    const n = parseFloat(x.replace(/[^0-9.]/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  };
+  return { section, producer, wine, vintage, region: '', country: '', grapes: [], style: 'unknown', price: price(bottle), glass_price: price(glass) };
+}
+
+/** What a picked wine is: the menu rarely says, so the pick fills it in. */
+const DETAILS = {
+  region: z.string().describe('Most specific region or appellation.'),
+  country: z.string(),
+  grapes: z.array(z.string()).describe('Main grapes. Empty if unsure.'),
+  style: z.enum(STYLES),
+};
 
 const AnswerSchema = z.object({
   reply: z.string().describe('Your answer in plain words, 2–6 short paragraphs. Refer to wines by name and price. No markdown headings.'),
@@ -33,6 +61,7 @@ const AnswerSchema = z.object({
         n: z.number().describe('The wine’s number on the list.'),
         why: z.string().describe('Why it suits me, comparing it by name with wines I rated, and what it will taste like. 2–3 sentences, under 70 words.'),
         tag: z.enum(['match', 'value', 'new', '']).describe('"match" = best palate match, "value" = best value, "new" = good way to learn something new; at most one of each.'),
+        ...DETAILS,
       }),
     )
     .describe('The wines you recommend for this question, best first, at most 5. Empty if the question is not asking for recommendations.'),
@@ -50,6 +79,7 @@ const OverviewSchema = z.object({
             z.object({
               n: z.number().describe('The wine’s number on the list.'),
               why: z.string().describe('Why it suits me, comparing it by name with wines I rated, and what it will taste like. 1–2 sentences, under 45 words.'),
+              ...DETAILS,
             }),
           )
           .describe('Best first, at most 3.'),
@@ -59,11 +89,36 @@ const OverviewSchema = z.object({
   tip: z.string().describe('Optional one- or two-sentence lesson worth remembering. Empty if none.'),
 });
 
-// Keep the schemas and the app's types in step.
-const _a: z.infer<typeof ListSchema>['wines'][number] extends ListWine ? true : never = true;
-const _b: z.infer<typeof AnswerSchema> extends ListAnswer ? true : never = true;
-void _a;
-void _b;
+type PickOut = { n: number; why: string; tag?: '' | 'match' | 'value' | 'new'; region: string; country: string; grapes: string[]; style: ListWine['style'] };
+const pickFrom = ({ n, why, tag, ...details }: PickOut) => ({ n, why, tag: tag ?? ('' as const), details });
+
+/** Timings and token counts of the last request, for the live speed tests. */
+export const lastRun = { firstTextMs: 0, totalMs: 0, usage: null as Anthropic.Beta.BetaUsage | null };
+
+/** Stream a structured answer, reporting what's written so far, and return the parsed whole. */
+async function streamParsed<T>(
+  client: Anthropic,
+  params: Parameters<Anthropic['beta']['messages']['stream']>[0],
+  signal: AbortSignal | undefined,
+  onPartial?: (partial: unknown) => void,
+): Promise<{ stop: string | null; parsed: T | null }> {
+  const t0 = Date.now();
+  lastRun.firstTextMs = 0;
+  const stream = client.beta.messages.stream(params, { signal });
+  stream.on('text', (_delta, snapshot) => {
+    if (!lastRun.firstTextMs) lastRun.firstTextMs = Date.now() - t0;
+    if (!onPartial) return;
+    try {
+      onPartial(partialParse(snapshot));
+    } catch {
+      /* not parseable yet */
+    }
+  });
+  const res = await stream.finalMessage();
+  lastRun.totalMs = Date.now() - t0;
+  lastRun.usage = res.usage;
+  return { stop: res.stop_reason, parsed: (res as { parsed_output?: T | null }).parsed_output ?? null };
+}
 
 async function toBase64Jpeg(photo: Blob): Promise<string> {
   // Menu text is small: keep the full resolution Claude reads (about 1568px on the long edge).
@@ -90,7 +145,7 @@ function reason(e: unknown): string | null {
 const clientFor = (apiKey: string) =>
   new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com', dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 300_000 });
 
-export async function readWineListWithClaude(apiKey: string, photos: Blob[], signal?: AbortSignal): Promise<ReadListOutcome> {
+export async function readWineListWithClaude(apiKey: string, photos: Blob[], signal?: AbortSignal, onProgress?: (wines: number) => void): Promise<ReadListOutcome> {
   const client = clientFor(apiKey);
   try {
     const images = await Promise.all(photos.map(toBase64Jpeg));
@@ -102,12 +157,14 @@ export async function readWineListWithClaude(apiKey: string, photos: Blob[], sig
       {
         type: 'text',
         text:
-          'These are photos of a restaurant’s wine list. Write out every wine on it, in the order listed, with its section heading and price. ' +
-          'Prices sit at the end of the dotted line on the same row; read them carefully. If a page appears twice, list its wines once. ' +
+          'These are photos of a restaurant’s wine list. Copy out every wine on it, in the order listed, with its section heading and prices — only what is printed. ' +
+          'Prices sit at the end of the line on the same row; read them carefully. If a page appears twice, list its wines once. ' +
           'Never invent a wine, vintage or price you cannot actually read — leave it empty or 0 and mention it in "unreadable".',
       },
     ];
-    const res = await client.beta.messages.parse(
+    let seen = 0;
+    const { stop, parsed } = await streamParsed<z.infer<typeof ListSchema>>(
+      client,
       {
         model: MODEL,
         max_tokens: 32000,
@@ -116,11 +173,18 @@ export async function readWineListWithClaude(apiKey: string, photos: Blob[], sig
         output_config: { effort: 'low', format: betaZodOutputFormat(ListSchema) },
         messages: [{ role: 'user', content }],
       },
-      { signal },
+      signal,
+      onProgress &&
+        ((partial) => {
+          const secs = (partial as { sections?: { wines?: unknown[] }[] })?.sections;
+          const n = Array.isArray(secs) ? secs.reduce((t, x) => t + (Array.isArray(x?.wines) ? x.wines.length : 0), 0) : 0;
+          if (n !== seen) onProgress((seen = n));
+        }),
     );
-    if (res.stop_reason === 'refusal') return { ok: false, reason: 'Claude couldn’t help with these photos' };
-    if (res.stop_reason === 'max_tokens' || !res.parsed_output) return { ok: false, reason: 'the list was too long to read in one go — try fewer pages' };
-    return { ok: true, wines: res.parsed_output.wines, unreadable: res.parsed_output.unreadable };
+    if (stop === 'refusal') return { ok: false, reason: 'Claude couldn’t help with these photos' };
+    if (stop === 'max_tokens' || !parsed) return { ok: false, reason: 'the list was too long to read in one go — try fewer pages' };
+    const wines = parsed.sections.flatMap((x) => x.wines.map((l) => lineToWine(x.name, l)).filter((w): w is ListWine => w !== null));
+    return { ok: true, wines, unreadable: parsed.unreadable };
   } catch (e) {
     if (signal?.aborted) return { ok: false, reason: 'cancelled' };
     const r = reason(e);
@@ -155,7 +219,14 @@ function systemFor(list: SavedList, context: string): string {
 }
 
 /** Right after a list is read: an overview, and the best picks for me, best value, something new and by the glass, in one go. */
-export async function overviewWineListWithClaude(apiKey: string, list: SavedList, context: string, budget: number | null, signal?: AbortSignal): Promise<AskOutcome> {
+export async function overviewWineListWithClaude(
+  apiKey: string,
+  list: SavedList,
+  context: string,
+  budget: number | null,
+  signal?: AbortSignal,
+  onPartial?: (a: ListAnswer) => void,
+): Promise<AskOutcome> {
   const client = clientFor(apiKey);
   const glass = list.wines.some((w) => w.glass_price > 0);
   const kinds = [
@@ -168,7 +239,8 @@ export async function overviewWineListWithClaude(apiKey: string, list: SavedList
     `Give me an overview of this list, then up to 3 picks for each of these:\n${kinds.map((k) => `- ${k}`).join('\n')}\n` +
     'A wine can appear in more than one section if it truly belongs there, but prefer variety.';
   try {
-    const res = await client.beta.messages.parse(
+    const { stop, parsed: o } = await streamParsed<z.infer<typeof OverviewSchema>>(
+      client,
       {
         model: MODEL,
         max_tokens: 10000,
@@ -178,13 +250,13 @@ export async function overviewWineListWithClaude(apiKey: string, list: SavedList
         output_config: { effort: 'medium', format: betaZodOutputFormat(OverviewSchema) },
         messages: [{ role: 'user', content: question }],
       },
-      { signal },
+      signal,
+      onPartial && ((p) => { const a = liveAnswer(p); if (a) onPartial(a); }),
     );
-    if (res.stop_reason === 'refusal') return { ok: false, reason: 'Claude couldn’t answer that' };
-    if (res.stop_reason === 'max_tokens' || !res.parsed_output) return { ok: false, reason: 'the answer was cut short — try again' };
-    const o = res.parsed_output;
+    if (stop === 'refusal') return { ok: false, reason: 'Claude couldn’t answer that' };
+    if (stop === 'max_tokens' || !o) return { ok: false, reason: 'the answer was cut short — try again' };
     const sections = cleanSections(
-      o.sections.map((s) => ({ kind: s.kind, picks: s.picks.map((p) => ({ ...p, tag: '' as const })) })),
+      o.sections.map((s) => ({ kind: s.kind, picks: s.picks.map(pickFrom) })),
       list.wines,
     );
     return { ok: true, answer: { reply: o.reply, picks: [], sections, tip: o.tip } };
@@ -196,7 +268,14 @@ export async function overviewWineListWithClaude(apiKey: string, list: SavedList
   }
 }
 
-export async function askWineListWithClaude(apiKey: string, list: SavedList, question: string, context: string, signal?: AbortSignal): Promise<AskOutcome> {
+export async function askWineListWithClaude(
+  apiKey: string,
+  list: SavedList,
+  question: string,
+  context: string,
+  signal?: AbortSignal,
+  onPartial?: (a: ListAnswer) => void,
+): Promise<AskOutcome> {
   const client = clientFor(apiKey);
   const system = systemFor(list, context);
   const messages: Anthropic.Beta.BetaMessageParam[] = [];
@@ -206,7 +285,8 @@ export async function askWineListWithClaude(apiKey: string, list: SavedList, que
   }
   messages.push({ role: 'user', content: question });
   try {
-    const res = await client.beta.messages.parse(
+    const { stop, parsed } = await streamParsed<z.infer<typeof AnswerSchema>>(
+      client,
       {
         model: MODEL,
         max_tokens: 8000,
@@ -216,13 +296,13 @@ export async function askWineListWithClaude(apiKey: string, list: SavedList, que
         output_config: { effort: 'medium', format: betaZodOutputFormat(AnswerSchema) },
         messages,
       },
-      { signal },
+      signal,
+      onPartial && ((p) => { const a = liveAnswer(p); if (a) onPartial(a); }),
     );
-    if (res.stop_reason === 'refusal') return { ok: false, reason: 'Claude couldn’t answer that' };
-    if (res.stop_reason === 'max_tokens' || !res.parsed_output) return { ok: false, reason: 'the answer was cut short — try again' };
-    const answer = res.parsed_output;
-    answer.picks = answer.picks.filter((p) => p.n >= 1 && p.n <= list.wines.length).slice(0, 5);
-    return { ok: true, answer };
+    if (stop === 'refusal') return { ok: false, reason: 'Claude couldn’t answer that' };
+    if (stop === 'max_tokens' || !parsed) return { ok: false, reason: 'the answer was cut short — try again' };
+    const picks = parsed.picks.map(pickFrom).filter((p) => p.n >= 1 && p.n <= list.wines.length).slice(0, 5);
+    return { ok: true, answer: { reply: parsed.reply, picks, tip: parsed.tip } };
   } catch (e) {
     if (signal?.aborted) return { ok: false, reason: 'cancelled' };
     const r = reason(e);

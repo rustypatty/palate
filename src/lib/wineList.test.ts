@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanSections, draftFromListWine, listAsText, sectionTitle, type ListWine } from './wineList';
+import { cleanSections, draftFromListWine, listAsText, liveAnswer, sectionTitle, withDetails, type ListWine } from './wineList';
 
 const w = (over: Partial<ListWine>): ListWine => ({
   section: 'Burgundy', producer: 'Faiveley', wine: 'Nuits-Saint-Georges Les Montroziers', vintage: '2022', region: 'Nuits-Saint-Georges',
@@ -44,5 +44,35 @@ describe('overview sections', () => {
   it('titles the value section with your budget', () => {
     expect(sectionTitle('value', null)).toBe('Best value under $100');
     expect(sectionTitle('value', 80)).toBe('Best value under $80');
+  });
+});
+
+describe('details for the picks only', () => {
+  const read = w({ region: '', country: '', grapes: [], style: 'unknown' });
+  it('fills in what the list didn’t print from the pick', () => {
+    expect(withDetails(read, { details: { region: 'Barbaresco', country: 'Italy', grapes: ['Nebbiolo'], style: 'red' } })).toMatchObject({
+      region: 'Barbaresco',
+      country: 'Italy',
+      grapes: ['Nebbiolo'],
+      style: 'red',
+    });
+    expect(withDetails(read, {})).toBe(read);
+  });
+});
+
+describe('answers while they are being written', () => {
+  it('shows only complete-enough parts', () => {
+    const a = liveAnswer({ reply: 'This list is strong in', sections: [{ kind: 'match', picks: [{ n: 2, why: 'Firm' }, { n: 3 }] }, { kind: 'val' }] });
+    expect(a).toEqual({ reply: 'This list is strong in', picks: [], sections: [{ kind: 'match', picks: [{ n: 2, why: 'Firm', tag: '' }] }], tip: '' });
+    expect(liveAnswer(null)).toBeNull();
+  });
+});
+
+describe('reading one line per wine', () => {
+  it('splits a line into the wine and its prices', async () => {
+    const { lineToWine } = await import('./wineListClient');
+    expect(lineToWine('Italian Reds', 'Scarpa | Barbaresco | 2020 | 18 | 85')).toMatchObject({ section: 'Italian Reds', producer: 'Scarpa', wine: 'Barbaresco', vintage: '2020', glass_price: 18, price: 85 });
+    expect(lineToWine('Spanish Reds', 'Hacienda Monasterio | Ribera del Duero | 2020 | $19 | ')).toMatchObject({ glass_price: 19, price: 0 });
+    expect(lineToWine('x', ' |  | | |')).toBeNull();
   });
 });

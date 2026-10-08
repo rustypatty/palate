@@ -23,11 +23,20 @@ export interface ListWine {
   glass_price: number;
 }
 
+/** What a wine is, filled in for the picks only (the menu rarely prints it, and reading it for every wine is slow). */
+export interface WineDetails {
+  region: string;
+  country: string;
+  grapes: string[];
+  style: WineStyle | 'unknown';
+}
+
 export interface ListPick {
   /** Number of the wine in the list (1-based). */
   n: number;
   why: string;
   tag: 'match' | 'value' | 'new' | '';
+  details?: WineDetails;
 }
 
 export type SectionKind = 'match' | 'value' | 'new' | 'glass';
@@ -115,6 +124,34 @@ export function saveList(s: SavedList | null): void {
   }
 }
 
+/** The wine as read from the list, with what the pick says it is filled in. */
+export function withDetails(w: ListWine, p: Pick<ListPick, 'details'>): ListWine {
+  const d = p.details;
+  if (!d) return w;
+  return {
+    ...w,
+    region: w.region || d.region,
+    country: w.country || d.country,
+    grapes: w.grapes.length ? w.grapes : d.grapes,
+    style: w.style !== 'unknown' ? w.style : d.style,
+  };
+}
+
+/** Partial answers while Claude is still writing: only what's complete enough to show. */
+export function liveAnswer(partial: unknown): ListAnswer | null {
+  if (!partial || typeof partial !== 'object') return null;
+  const o = partial as { reply?: unknown; picks?: unknown; sections?: unknown; tip?: unknown };
+  const picks = (xs: unknown): ListPick[] =>
+    Array.isArray(xs) ? xs.filter((p): p is ListPick => typeof p?.n === 'number' && typeof p?.why === 'string').map((p) => ({ ...p, tag: p.tag ?? '' })) : [];
+  const sections = Array.isArray(o.sections)
+    ? o.sections
+        .filter((s): s is ListSection => SECTION_KINDS.includes(s?.kind))
+        .map((s) => ({ kind: s.kind, picks: picks(s.picks) }))
+        .filter((s) => s.picks.length)
+    : undefined;
+  return { reply: typeof o.reply === 'string' ? o.reply : '', picks: picks(o.picks), sections, tip: typeof o.tip === 'string' ? o.tip : '' };
+}
+
 /** "Domaine Faiveley Nuits-Saint-Georges Les Montroziers 2022" */
 export function listWineTitle(w: Pick<ListWine, 'producer' | 'wine' | 'vintage'>): string {
   return [w.producer, w.wine, w.vintage].filter(Boolean).join(' ');
@@ -155,23 +192,23 @@ export function draftFromListWine(w: ListWine, why: string, n: number, at: numbe
 }
 
 // The Anthropic SDK is loaded on first use so it doesn't slow down opening the app.
-export async function readWineList(photos: Blob[], signal?: AbortSignal): Promise<ReadListOutcome> {
+export async function readWineList(photos: Blob[], signal?: AbortSignal, onProgress?: (wines: number) => void): Promise<ReadListOutcome> {
   const { getApiKey } = await import('./labelReader');
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false, reason: 'add your Anthropic API key in My palate first' };
-  return (await import('./wineListClient')).readWineListWithClaude(apiKey, photos, signal);
+  return (await import('./wineListClient')).readWineListWithClaude(apiKey, photos, signal, onProgress);
 }
 
-export async function overviewWineList(list: SavedList, context: string, budget: number | null, signal?: AbortSignal): Promise<AskOutcome> {
+export async function overviewWineList(list: SavedList, context: string, budget: number | null, signal?: AbortSignal, onPartial?: (a: ListAnswer) => void): Promise<AskOutcome> {
   const { getApiKey } = await import('./labelReader');
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false, reason: 'add your Anthropic API key in My palate first' };
-  return (await import('./wineListClient')).overviewWineListWithClaude(apiKey, list, context, budget, signal);
+  return (await import('./wineListClient')).overviewWineListWithClaude(apiKey, list, context, budget, signal, onPartial);
 }
 
-export async function askWineList(list: SavedList, question: string, context: string, signal?: AbortSignal): Promise<AskOutcome> {
+export async function askWineList(list: SavedList, question: string, context: string, signal?: AbortSignal, onPartial?: (a: ListAnswer) => void): Promise<AskOutcome> {
   const { getApiKey } = await import('./labelReader');
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false, reason: 'add your Anthropic API key in My palate first' };
-  return (await import('./wineListClient')).askWineListWithClaude(apiKey, list, question, context, signal);
+  return (await import('./wineListClient')).askWineListWithClaude(apiKey, list, question, context, signal, onPartial);
 }
