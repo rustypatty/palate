@@ -118,6 +118,7 @@ export function WatchPage() {
                     <BottleImage photo={w.photo} alt="" />
                   </Link>
                   <div className="watch-text">
+                    {w.producer && w.name && <div className="pc-producer">{w.producer}</div>}
                     <Link to={`/wine/${w.id}`} className="watch-name">
                       {nameOf(w)}
                     </Link>

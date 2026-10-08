@@ -6,7 +6,7 @@ import { getApiKey } from '../lib/labelReader';
 import { markNotForMe, saveToWant } from '../lib/lists';
 import { possessive, refreshPogos, requestStoreList, storeById, STORES, type StoreId } from '../lib/stores';
 import { MIN_RATED } from '../lib/taste';
-import { formatPrice } from '../lib/format';
+import { formatPrice, producerAndName } from '../lib/format';
 import { dropReason, priceDrops, type Drop } from '../lib/priceWatch';
 import { useAllStoreItems, useBudget, useRestaurantBudget, useStoreChoice, useStoreMode, useStorePicks, useTaste } from '../lib/usePicks';
 
@@ -385,7 +385,7 @@ function PriceDropsLink({ drops }: { drops: Drop[] }) {
         <span className="small muted drops-names">
           {drops
             .slice(0, 3)
-            .map((d) => `${d.wine.name || d.wine.producer} ${formatPrice(d.now.price)}`)
+            .map((d) => `${producerAndName(d.wine)} ${formatPrice(d.now.price)}`)
             .join(' · ')}
         </span>
       </span>

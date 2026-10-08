@@ -14,6 +14,7 @@ import { WineCard } from '../components/WineCard';
 import { useDebounced, useMediaQuery, usePhotoUrl, useWines } from '../hooks';
 import { useBottleBox } from '../components/useTrimmedPhoto';
 import { PRICE_BANDS, STYLE_LABEL } from '../lib/constants';
+import { producerAndName } from '../lib/format';
 import { shownPhoto } from '../lib/image';
 import { lookupBarcode } from '../lib/imageSearch';
 import { activeFilterCount, applyFilters, DEFAULT_FILTERS, type Filters, type Shelf } from '../lib/filters';
@@ -125,7 +126,7 @@ function Hero({ wines }: { wines: Wine[] }) {
         {captioned.length > 0 && (
           <div className="hero-caption desktop-only">
             <div className="eyebrow">{captioned.length === 1 ? 'Your latest love' : `Your loved ${NUMBER_WORDS[captioned.length].toLowerCase()}`}</div>
-            <div className="hero-caption-name one-line">{captioned.map((w) => w.name || w.region || shortProducer(w)).join(' · ')}</div>
+            <div className="hero-caption-name">{captioned.map((w) => producerAndName(w)).join(' · ')}</div>
           </div>
         )}
         {wide && <HeroDoors wines={wines} />}

@@ -8,7 +8,7 @@ import { useToast } from '../components/Toast';
 import { updateWine } from '../db';
 import { useWines } from '../hooks';
 import { RATING_LABEL } from '../lib/constants';
-import { fullName } from '../lib/format';
+import { fullName, producerAndName } from '../lib/format';
 import { DISHES, nextIndex, rankTonight, saveForWeekend } from '../lib/tonight';
 import { useTonightDish } from '../lib/usePicks';
 import type { Wine } from '../types';
@@ -184,7 +184,7 @@ export function TonightPage() {
 
         {undoing && openedWine && (
           <div className="undo-toast" role="status">
-            <span>Opened {openedWine.name || openedWine.producer}. Enjoy.</span>
+            <span>Opened {producerAndName(openedWine)}. Enjoy.</span>
             <button type="button" className="text-link" onClick={undo}>
               Undo
             </button>

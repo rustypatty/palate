@@ -1,4 +1,5 @@
 import type { Wine } from '../types';
+import { producerAndName } from './format';
 import { fold } from './text';
 
 /**
@@ -192,11 +193,9 @@ const DISH_NOUN: Record<Dish, string> = {
   glass: 'a weekend dinner',
 };
 
-/** Short name for a sentence: "your Pauillac", "your Monte Bello". */
+/** A wine named in a sentence, producer included: "your Château Essai Grand Vin". */
 function shortName(w: Wine): string {
-  const n = w.name.trim();
-  if (n && n.length <= 24) return n;
-  return w.region.trim() || w.producer.trim() || n || 'other bottle';
+  return producerAndName(w);
 }
 
 /**
