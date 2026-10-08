@@ -5,6 +5,7 @@
 -- Safe to run more than once.
 
 create table if not exists public.catalog_wine_notes (
+  id            bigint      generated always as identity primary key,
   name_key      text        not null,              -- noteKey() in src/lib/catalogNotes.ts
   vintage       integer,                           -- null: any vintage
   wine_id       text,                              -- catalog_wines.wine_id, when the wine is in the catalog
@@ -16,6 +17,14 @@ create table if not exists public.catalog_wine_notes (
   source        text        not null default 'palate',
   updated_at    timestamptz not null default now()
 );
+
+-- Tables made before the id column existed get it here.
+alter table public.catalog_wine_notes add column if not exists id bigint generated always as identity;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conrelid = 'public.catalog_wine_notes'::regclass and contype = 'p') then
+    alter table public.catalog_wine_notes add primary key (id);
+  end if;
+end $$;
 
 create unique index if not exists catalog_wine_notes_key on public.catalog_wine_notes (name_key, (coalesce(vintage, 0)));
 create index if not exists catalog_wine_notes_wine on public.catalog_wine_notes (wine_id);
