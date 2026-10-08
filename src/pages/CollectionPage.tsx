@@ -8,6 +8,7 @@ import { FilterSheet, SORTS } from '../components/FilterSheet';
 import { FillerTile, MiniWineCard, ShelfRow } from '../components/Shelf';
 import { RatePrompt, StorePicksRow } from '../components/StorePicks';
 import { TonightCard } from '../components/TonightCard';
+import { HeroDoors } from '../components/HeroDoors';
 import { useWantCount, Wordmark } from '../components/Layout';
 import { WineCard } from '../components/WineCard';
 import { useDebounced, useMediaQuery, usePhotoUrl, useWines } from '../hooks';
@@ -62,6 +63,8 @@ function Hero({ wines }: { wines: Wine[] }) {
   // The caption names the bottles in the picture (or the latest loved ones if none have photos).
   const captioned = row.length ? row : loved.slice(0, 4);
   const n = loved.length;
+  // Computers: the Tonight and In store doorways sit in the hero (phones keep the cards below it).
+  const wide = useMediaQuery('(min-width: 1024px)');
 
   // Phone: the loved bottles take turns in the light, each rising into place.
   const slides = withPhoto.slice(0, 8);
@@ -125,6 +128,7 @@ function Hero({ wines }: { wines: Wine[] }) {
             <div className="hero-caption-name one-line">{captioned.map((w) => w.name || w.region || shortProducer(w)).join(' · ')}</div>
           </div>
         )}
+        {wide && <HeroDoors wines={wines} />}
       </div>
       {shown?.photo && (
         <div

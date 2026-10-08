@@ -4727,7 +4727,7 @@ details.more[open] > .more-body {
 @media (min-width: 1024px) {
   .home-rows {
     gap: 96px;
-    margin-top: 48px;
+    margin-top: 96px;
   }
   .collection {
     margin-top: 96px;
@@ -5856,5 +5856,113 @@ details.more[open] > .more-body {
 @media (min-width: 900px) {
   .home-top {
     gap: 20px;
+  }
+}
+
+/* ---------- Desktop hero: text and doorways on the left, the loved bottles on the right ---------- */
+
+.hero-doors {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .hero-block {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 48px;
+  }
+  .hero-text {
+    grid-column: 1;
+    grid-row: 1;
+    max-width: none;
+    padding: 64px 0 56px 64px;
+  }
+  .hero-block .hero-bottles {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    grid-column: 2;
+    grid-row: 1;
+    align-self: end;
+    margin: 0 64px 64px 0;
+  }
+  .hero-doors {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    max-width: 640px;
+    margin-top: 28px;
+  }
+  .hero-door {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 112px;
+    padding: 20px 22px;
+    padding-right: 76px;
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    color: var(--ink);
+    text-decoration: none;
+    transition: transform 0.45s var(--glide), box-shadow 0.45s var(--glide), background 0.45s var(--glide);
+  }
+  .hero-door.primary {
+    background: #fff;
+  }
+  .hero-door:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--sh-card);
+  }
+  .hero-door .eyebrow {
+    color: var(--ink-hero);
+  }
+  .hero-door.primary .eyebrow {
+    color: var(--wine);
+  }
+  .hero-door-title {
+    font-family: var(--font-display);
+    font-size: 22px;
+    line-height: 1.15;
+  }
+  .hero-door-title em {
+    font-style: italic;
+  }
+  .hero-door-sub {
+    font-size: 13px;
+    color: #8f877f;
+  }
+  .hero-door-go {
+    position: absolute;
+    right: 18px;
+    bottom: 18px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: #f4f0ea;
+    color: var(--ink);
+  }
+  .hero-door.primary .hero-door-go {
+    background: var(--wine-grad);
+    color: #fff;
+    box-shadow: var(--sh-wine);
+  }
+  /* The doorways replace the Tonight and "Heading to…" cards on a computer. */
+  .home-top .strip {
+    display: none;
+  }
+  .home-top:not(:has(> :not(.strip))) {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
+  .hero-door:hover {
+    transform: none;
   }
 }
