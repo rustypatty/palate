@@ -225,12 +225,25 @@ async function run(): Promise<Record<string, unknown>> {
   return { watched: watched.length, due: due.length, found: prices.size, saved };
 }
 
+async function probe(): Promise<Record<string, unknown>> {
+  const key = Deno.env.get('ANTHROPIC_API_KEY');
+  if (!key) return { key: false };
+  const res = await fetch('https://api.anthropic.com/v1/messages/count_tokens', {
+    method: 'POST',
+    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: MODEL, messages: [{ role: 'user', content: 'Hi' }] }),
+  });
+  return { key: true, accepted: res.ok, status: res.status };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   // Only the scheduled job may run this: it sends a secret kept in the database's vault.
   const secret = req.headers.get('x-cron-secret') ?? '';
   const { data: allowed } = secret ? await admin.rpc('check_cron_secret', { s: secret }) : { data: false };
   if (allowed !== true) return json({ error: 'not allowed' }, 401);
+  // {"probe": true}: is the Anthropic key set and accepted? Uses the free token counter, so costs nothing.
+  if ((await req.json().catch(() => ({})))?.probe) return json(await probe());
   // Answer now and keep working: the scheduler doesn't wait for the search.
   const work = run()
     .then((r) => console.log('price-check', JSON.stringify(r)))
