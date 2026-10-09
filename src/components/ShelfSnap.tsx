@@ -139,7 +139,10 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
   const add = (files: FileList | null) => {
     if (!files?.length) return;
     setError(null);
-    setPhotos((cur) => [...cur, ...Array.from(files)].slice(0, MAX_SHELF_PHOTOS));
+    // Copy the files now: the input is cleared right after this call, which empties its FileList
+    // before React runs the update below (so only the first photo or two used to get through).
+    const picked = Array.from(files);
+    setPhotos((cur) => [...cur, ...picked].slice(0, MAX_SHELF_PHOTOS));
   };
 
   const read = async () => {
