@@ -258,18 +258,33 @@ export async function sendLink(email: string): Promise<string | null> {
 }
 
 /**
- * Sign in with the code from the same email. For the Home Screen app on iPhone, where the
- * email's link opens in Safari instead (a separate app with its own storage).
+ * Sign in with a code shown on a device that's already signed in (makeSignInCode). For the
+ * Home Screen app on iPhone, where the email's link opens in Safari instead (a separate app
+ * with its own storage).
  */
 export async function verifyCode(email: string, code: string): Promise<string | null> {
   try {
     const sb = await client();
-    const { error } = await sb.auth.verifyOtp({ email, token: code, type: 'email' });
+    let { error } = await sb.auth.verifyOtp({ email, token: code, type: 'email' });
+    if (error) ({ error } = await sb.auth.verifyOtp({ email, token: code, type: 'magiclink' }));
     if (!error) return null;
-    if (/expired|invalid/i.test(error.message)) return 'That code didn’t work. Check it, or send a new email (codes expire after an hour).';
+    if (/expired|invalid/i.test(error.message)) return 'That code didn’t work. Check it and your email, or show a new code (codes work once, for an hour).';
     return error.message;
   } catch (e) {
     return friendly(e);
+  }
+}
+
+/** A one-time code (valid an hour) that signs another device in to this account. */
+export async function makeSignInCode(): Promise<{ code: string } | { error: string }> {
+  try {
+    const token = await accessToken();
+    if (!token) return { error: 'Sign in first.' };
+    const res = await fetch(functionsUrl('signin-code'), { method: 'POST', headers: { Authorization: `Bearer ${token}`, apikey: KEY ?? '' } });
+    const body = (await res.json().catch(() => ({}))) as { code?: string; error?: string };
+    return body.code ? { code: body.code } : { error: 'Couldn’t make a code. Try again in a minute.' };
+  } catch (e) {
+    return { error: friendly(e) };
   }
 }
 

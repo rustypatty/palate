@@ -5983,3 +5983,19 @@ details.more[open] > .more-body {
 .mini-t.after-p {
   margin-top: 4px;
 }
+
+/* A sign-in code shown for another device (Settings › Sync across devices). */
+.signin-code {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--tone, rgba(0, 0, 0, 0.04));
+}
+.signin-code-digits {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  font-variant-numeric: tabular-nums;
+  user-select: all;
+}
