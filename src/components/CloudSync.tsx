@@ -1,6 +1,10 @@
 import { Cloud, RefreshCw } from 'lucide-react';
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { cloudStatus, sendLink, signOut, syncNow } from '../lib/cloud';
+import { cloudStatus, sendLink, signOut, syncNow, verifyCode } from '../lib/cloud';
+
+/** Opened from the Home Screen icon (iPhone) or as an installed app. */
+const installed = () =>
+  window.matchMedia?.('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
 export function useCloudStatus() {
   return useSyncExternalStore(cloudStatus.subscribe, cloudStatus.get);
@@ -31,6 +35,7 @@ export function CloudSync({ bare = false }: { bare?: boolean } = {}) {
   const [email, setEmail] = useState(() => localStorage.getItem('palate.email') ?? '');
   const [step, setStep] = useState<'email' | 'sent'>('email');
   const [busy, setBusy] = useState(false);
+  const [code, setCode] = useState('');
   const [message, setMessage] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
   const [now, setNow] = useState(Date.now);
 
@@ -100,6 +105,20 @@ export function CloudSync({ bare = false }: { bare?: boolean } = {}) {
     setStep('sent');
   };
 
+  const enterCode = async () => {
+    const c = code.replace(/\D/g, '');
+    if (c.length < 6) {
+      setMessage({ kind: 'error', text: 'Type the code from the email.' });
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    const err = await verifyCode(email, c);
+    setBusy(false);
+    if (err) setMessage({ kind: 'error', text: err });
+    // Signed in: the status changes and this screen shows the sync instead.
+  };
+
   const shown = message ?? (status.message ? { kind: 'error' as const, text: status.message } : null);
 
   return (
@@ -141,9 +160,38 @@ export function CloudSync({ bare = false }: { bare?: boolean } = {}) {
             We emailed a sign-in link to <strong>{email}</strong>. It can take a minute to arrive.
           </p>
           <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
-            Open the email <strong>on this device</strong> and tap <strong>Sign in</strong>. If it opens inside your email app instead of
-            Safari, use its menu to open it in Safari.
+            {installed() ? (
+              <>Type the code from the email below. (The email’s link would open in Safari, not here.)</>
+            ) : (
+              <>
+                Open the email <strong>on this device</strong> and tap <strong>Sign in</strong>, or type the code from it below.
+              </>
+            )}
           </p>
+          <form
+            className="url-row"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void enterCode();
+            }}
+          >
+            <label htmlFor="cloud-code" className="sr-only">
+              Code from the email
+            </label>
+            <input
+              id="cloud-code"
+              className="input"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="Code from the email"
+              maxLength={12}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+            />
+            <button type="submit" className="btn btn-dark" style={{ minHeight: 58 }} disabled={busy || code.replace(/\D/g, '').length < 6}>
+              {busy ? 'Checking…' : 'Sign in'}
+            </button>
+          </form>
         </>
       )}
       {shown && (

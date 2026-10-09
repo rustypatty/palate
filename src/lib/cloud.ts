@@ -257,6 +257,22 @@ export async function sendLink(email: string): Promise<string | null> {
   }
 }
 
+/**
+ * Sign in with the code from the same email. For the Home Screen app on iPhone, where the
+ * email's link opens in Safari instead (a separate app with its own storage).
+ */
+export async function verifyCode(email: string, code: string): Promise<string | null> {
+  try {
+    const sb = await client();
+    const { error } = await sb.auth.verifyOtp({ email, token: code, type: 'email' });
+    if (!error) return null;
+    if (/expired|invalid/i.test(error.message)) return 'That code didn’t work. Check it, or send a new email (codes expire after an hour).';
+    return error.message;
+  } catch (e) {
+    return friendly(e);
+  }
+}
+
 export async function signOut() {
   const sb = await client();
   await sb.auth.signOut({ scope: 'local' });
