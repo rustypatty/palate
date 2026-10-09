@@ -71,6 +71,19 @@ export interface Suggestion {
   at: number;
 }
 
+/** A bottle from an imported wishlist: shown together on Want to try, your priorities first. */
+export interface Wish {
+  collection: string;
+  /** "Benchmark", "Prestige", "Icon", "Legend", "Trophy", "White Icon"… */
+  tier: string;
+  /** Your own order of bottles to try first (1 = first), when you gave one. */
+  priority: number | null;
+  /** Usual US price for a 750 ml bottle, a range; open-ended when it can go much higher. */
+  priceMin: number;
+  priceMax: number | null;
+  openEnded: boolean;
+}
+
 /** One price seen for a watched bottle. */
 export interface PricePoint {
   /** When it was seen (ISO date and time). */
@@ -120,6 +133,8 @@ export interface Wine {
   list?: WineList | null;
   /** Why and where this wine was suggested, kept after it joins the collection. */
   suggestion?: Suggestion | null;
+  /** From a wishlist you imported (e.g. "Italy & France: Great Wines"): its tier, your priority and the usual price. */
+  wish?: Wish | null;
   /** Bottles like this one found at your stores, saved so reopening the page is free. */
   likeThis?: LikeThisCache | null;
   /** No longer used: Loved wines and Want to try bottles are watched unless `watchOff` (see priceWatch.ts). */

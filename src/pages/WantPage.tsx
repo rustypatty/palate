@@ -9,6 +9,7 @@ import { useUndo } from '../components/useUndo';
 import { deleteWine, updateWine } from '../db';
 import { useLists } from '../hooks';
 import { formatPrice, vintageLabel } from '../lib/format';
+import { wishGroups, wishPrice } from '../lib/wishlist';
 import type { Wine } from '../types';
 
 /** Where a saved bottle was suggested: "Total Wine", else where you said you'd buy it. */
@@ -31,16 +32,24 @@ function WantCard({ wine, onRemove }: { wine: Wine; onRemove: () => void }) {
         <Link to={`/wine/${wine.id}`} className="wc-name">
           {name}
         </Link>
-        <div className="wc-price">
-          {wine.price !== null && <strong>{formatPrice(wine.price)}</strong>}{' '}
-          {wine.suggestion?.url ? (
-            <a href={wine.suggestion.url} target="_blank" rel="noreferrer">
-              {storeOf(wine)} <ArrowUpRight size={13} strokeWidth={1.6} />
-            </a>
-          ) : (
-            <span>{storeOf(wine)}</span>
-          )}
-        </div>
+        {wine.wish ? (
+          // From an imported wishlist: your priority, the usual price and the tier.
+          <div className="wc-price">
+            {wine.wish.priority !== null && <span className="wish-priority">#{wine.wish.priority}</span>}
+            <strong>{wishPrice(wine.wish)}</strong> <span>{wine.wish.tier}</span>
+          </div>
+        ) : (
+          <div className="wc-price">
+            {wine.price !== null && <strong>{formatPrice(wine.price)}</strong>}{' '}
+            {wine.suggestion?.url ? (
+              <a href={wine.suggestion.url} target="_blank" rel="noreferrer">
+                {storeOf(wine)} <ArrowUpRight size={13} strokeWidth={1.6} />
+              </a>
+            ) : (
+              <span>{storeOf(wine)}</span>
+            )}
+          </div>
+        )}
         {wine.suggestion?.reason && <p className="wc-reason">{cleanReason(wine.suggestion.reason)}</p>}
       </div>
       <div className="wc-actions">
@@ -74,13 +83,28 @@ function WantCard({ wine, onRemove }: { wine: Wine; onRemove: () => void }) {
   );
 }
 
+/** "Italy & France: Great Wines" → "Italy & France: *Great Wines*". */
+function GroupTitle({ name }: { name: string }) {
+  const i = name.indexOf(': ');
+  return i < 0 ? (
+    <em>{name}</em>
+  ) : (
+    <>
+      {name.slice(0, i + 2)}
+      <em>{name.slice(i + 2)}</em>
+    </>
+  );
+}
+
 export function WantPage() {
   const lists = useLists();
   const navigate = useNavigate();
   const removing = useUndo();
+  // Imported wishlists first, each its own group; then the rest by store.
+  const wishes = useMemo(() => wishGroups(lists?.want ?? []), [lists]);
   const groups = useMemo(() => {
     const out = new Map<string, Wine[]>();
-    for (const w of lists?.want ?? []) out.set(storeOf(w), [...(out.get(storeOf(w)) ?? []), w]);
+    for (const w of lists?.want ?? []) if (!w.wish) out.set(storeOf(w), [...(out.get(storeOf(w)) ?? []), w]);
     // Total Wine first, then the biggest lists.
     return [...out].sort((a, b) => Number(b[0] === 'Total Wine') - Number(a[0] === 'Total Wine') || b[1].length - a[1].length);
   }, [lists]);
@@ -101,7 +125,7 @@ export function WantPage() {
         </h1>
         {n > 0 && (
           <p className="lede">
-            {n} saved from your store picks. Tick one off when you buy it.
+            {n} saved. Tick one off when you buy it.
           </p>
         )}
       </header>
@@ -122,12 +146,13 @@ export function WantPage() {
           </div>
         </div>
       ) : (
-        groups.map(([store, wines]) => (
-          <section key={store} className="want-group" aria-label={`At ${store}`}>
+        [
+          ...wishes.map(([name, wines]) => ({ key: name, title: name, wines, wish: true })),
+          ...groups.map(([store, wines]) => ({ key: store, title: store, wines, wish: false })),
+        ].map(({ key, title, wines, wish }) => (
+          <section key={key} className="want-group" aria-label={wish ? title : `At ${title}`}>
             <div className="want-group-head">
-              <h2>
-                At <em>{store}</em>
-              </h2>
+              <h2>{wish ? <GroupTitle name={title} /> : <>At <em>{title}</em></>}</h2>
               <span>
                 {wines.length} {wines.length === 1 ? 'bottle' : 'bottles'}
               </span>

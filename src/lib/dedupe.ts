@@ -91,6 +91,7 @@ export function combine(keep: Wine, drop: Wine): Partial<WineDraft> {
     take: keep.take ?? drop.take,
     lesson: keep.lesson ?? drop.lesson,
     suggestion: keep.suggestion ?? drop.suggestion,
+    wish: keep.wish ?? drop.wish,
     watchOff: Boolean(keep.watchOff && drop.watchOff),
     priceHistory: [...(keep.priceHistory ?? []), ...(drop.priceHistory ?? [])].sort((x, y) => x.date.localeCompare(y.date)),
   };
