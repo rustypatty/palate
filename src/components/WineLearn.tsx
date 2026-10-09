@@ -44,15 +44,14 @@ export function WineLearn({ wine }: { wine: Wine }) {
     else if (state.status !== 'busy') write(true);
   };
 
-  const sub = lesson
-    ? 'The grape · The place · How it’s made · Taste for it'
-    : state.status === 'busy'
+  const sub =
+    state.status === 'busy' && !lesson
       ? 'Writing the four cards…'
-      : state.status === 'error'
+      : state.status === 'error' && !lesson
         ? `Couldn’t write it (${state.reason}). Tap to try again.`
-        : !canWrite
+        : !lesson && !canWrite
           ? 'Add your Anthropic key in My palate to unlock it'
-          : 'Written once · ~2¢';
+          : 'The grape · The place · How it’s made · Taste for it';
 
   return (
     <>
