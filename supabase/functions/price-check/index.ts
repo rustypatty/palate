@@ -1,5 +1,5 @@
 import { admin, cors, json, owner } from '../_shared/owner.ts';
-import { notify } from '../_shared/push.ts';
+import { notify, type Note } from '../_shared/push.ts';
 
 /**
  * The Monday price check, run by pg_cron (see supabase/price_check_cron.sql) so it happens even
@@ -269,6 +269,29 @@ function dropNote(drops: { wine: Wine; point: PricePoint; was: number | null }[]
   };
 }
 
+/**
+ * {"sample": true}: what a drop alert looks like, with your real watched bottles and made-up
+ * prices (said so in the alert). Changes nothing and costs nothing.
+ */
+async function sample(): Promise<Record<string, unknown>> {
+  const userId = await owner();
+  if (!userId) return { skipped: 'no account' };
+  const { data: rows } = await admin.from('wines').select('id, data').eq('user_id', userId).eq('deleted', false);
+  const watched = (rows ?? []).map((r) => ({ ...(r.data as Wine), id: r.id as string })).filter(isWatched);
+  // Bottles with a price you paid first, so "down from" has something real to start from.
+  watched.sort((a, b) => Number(Boolean(b.price)) - Number(Boolean(a.price)));
+  if (!watched.length) return { skipped: 'nothing watched' };
+  const date = new Date().toISOString();
+  const fake = (w: Wine, store: string) => {
+    const was = w.price ?? w.priceHistory?.at(-1)?.price ?? 40;
+    return { wine: w, point: { date, price: Math.round(was * 0.85), store }, was };
+  };
+  const mark = (n: Note) => ({ ...n, title: `Sample · ${n.title}`, body: `${n.body} (Sample prices; nothing changed.)`, tag: `sample-${n.tag}` });
+  const one = await notify(userId, mark(dropNote([fake(watched[0], 'Total Wine')])));
+  const several = watched.length > 1 ? await notify(userId, mark(dropNote(watched.slice(1, 4).map((w, i) => fake(w, ['Spec’s', 'Total Wine', 'Twin Liquors'][i]))))) : null;
+  return { one, several };
+}
+
 async function probe(): Promise<Record<string, unknown>> {
   const key = Deno.env.get('ANTHROPIC_API_KEY');
   if (!key) return { key: false };
@@ -287,7 +310,9 @@ Deno.serve(async (req) => {
   const { data: allowed } = secret ? await admin.rpc('check_cron_secret', { s: secret }) : { data: false };
   if (allowed !== true) return json({ error: 'not allowed' }, 401);
   // {"probe": true}: is the Anthropic key set and accepted? Uses the free token counter, so costs nothing.
-  if ((await req.json().catch(() => ({})))?.probe) return json(await probe());
+  const body = await req.json().catch(() => ({}));
+  if (body?.probe) return json(await probe());
+  if (body?.sample) return json(await sample());
   // Answer now and keep working: the scheduler doesn't wait for the search.
   const work = run()
     .then((r) => console.log('price-check', JSON.stringify(r)))
