@@ -6,6 +6,13 @@ import type { LessonOutcome, LessonRequest } from './learn';
 
 const MODEL = 'claude-opus-5-5';
 
+// Each card's headline, shown big at the top of its card.
+const big = (what: string, example: string) => z.string().describe(`${what}, in one or two words (e.g. "${example}").`);
+const title = (example: string) => z.string().describe(`A title for this card, at most 8 words (e.g. "${example}").`);
+const term = z
+  .string()
+  .describe('The first wine term in this card a learner may not know, as "Term: plain-word definition." in one sentence. Empty if there is none.');
+
 const LessonSchema = z.object({
   grape: z
     .string()
@@ -25,6 +32,18 @@ const LessonSchema = z.object({
       'One concrete thing to notice the next time I drink it, as a small tasting exercise that ties back to the lesson. ' +
         'If one of my related bottles makes a good comparison, name it. 1–2 sentences.',
     ),
+  grape_big: big('The main grape', 'Tempranillo'),
+  grape_title: title('Cherry and leather, with a bright lift'),
+  grape_term: term,
+  place_big: big('The place: the sub-region or appellation', 'Rioja Alta'),
+  place_title: title('Sheltered by mountains, cooled at night'),
+  place_term: term,
+  making_big: big('The key fact about how it’s made', 'Five years'),
+  making_title: title('What “Gran Reserva” requires'),
+  making_term: term,
+  taste_big: big('A word to start the tasting exercise', 'Notice…'),
+  taste_title: title('Fresh fruit, then aged notes, then the lift'),
+  taste_term: term,
 });
 
 function reason(e: unknown): string | null {
@@ -71,7 +90,21 @@ export async function lessonWithClaude(apiKey: string, r: LessonRequest, signal?
     if (res.stop_reason === 'refusal') return { ok: false, reason: 'Claude couldn’t answer that' };
     if (res.stop_reason === 'max_tokens' || !res.parsed_output) return { ok: false, reason: 'the answer was cut short — try again' };
     const o = res.parsed_output;
-    return { ok: true, lesson: { grape: o.grape, place: o.place, making: o.making, tasteFor: o.taste_for } };
+    return {
+      ok: true,
+      lesson: {
+        grape: o.grape,
+        place: o.place,
+        making: o.making,
+        tasteFor: o.taste_for,
+        cards: [
+          { big: o.grape_big, title: o.grape_title, term: o.grape_term },
+          { big: o.place_big, title: o.place_title, term: o.place_term },
+          { big: o.making_big, title: o.making_title, term: o.making_term },
+          { big: o.taste_big, title: o.taste_title, term: o.taste_term },
+        ],
+      },
+    };
   } catch (e) {
     if (signal?.aborted) return { ok: false, reason: 'cancelled' };
     const why = reason(e);

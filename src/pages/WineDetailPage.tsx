@@ -13,7 +13,7 @@ import { WineTake } from '../components/WineTake';
 import { useFindingPhoto } from '../components/usePhotoFinder';
 import { deleteWine, updateWine } from '../db';
 import { useWine } from '../hooks';
-import { RATING_LABEL, STYLE_LABEL } from '../lib/constants';
+import { RATING_LABEL } from '../lib/constants';
 import { formatDate, formatPrice, fullName, placeLabel } from '../lib/format';
 import { shownPhoto } from '../lib/image';
 import { findPhotoFor, lastMiss, photoQueue } from '../lib/photoFinder';
@@ -52,18 +52,11 @@ export function WineDetailPage() {
   const region = wine.region.trim();
   const rest = region && title.startsWith(region + ' ') ? title.slice(region.length + 1).trim() : '';
   const split = rest ? [region, rest] : null;
-  const facts: [string, string][] = [
-    ['Vintage', wine.vintage === null ? '' : String(wine.vintage)],
-    ['Style', wine.style ? STYLE_LABEL[wine.style] : ''],
-    ['Country', wine.country],
-    ['Region', wine.region],
-    ['Grapes', wine.grapes.join(', ')],
-    ['Price', wine.price !== null ? formatPrice(wine.price) : ''],
-    ['Bought at', wine.store],
-    ['Tasted', wine.tastedOn ? formatDate(wine.tastedOn) : ''],
-    ['Barcode', wine.barcode],
-  ];
-  const shown = facts.filter(([, v]) => v);
+  // Vintage, place and grapes in one line under the name: "2017 · Rioja, Spain · Tempranillo, Graciano".
+  const subtitle = [wine.vintage !== null ? String(wine.vintage) : '', placeLabel(wine), wine.grapes.join(', ')].filter(Boolean).join(' · ');
+  // Under My notes: when you tasted it, and what you paid where.
+  const paid = [wine.price !== null ? `Paid ${formatPrice(wine.price)}` : '', wine.store ? `${wine.price !== null ? 'at' : 'Bought at'} ${wine.store}` : ''].filter(Boolean).join(' ');
+  const tastedLine = [wine.tastedOn ? `Tasted ${formatDate(wine.tastedOn)}` : '', paid].filter(Boolean).join(' · ');
   // Notes: the first short line reads as a quote, the rest as body text.
   const notes = wine.notes.trim();
   const lines = notes.split(/\n+/);
@@ -133,7 +126,7 @@ export function WineDetailPage() {
               title
             )}
           </h1>
-          <div className="meta">{[wine.vintage !== null ? String(wine.vintage) : null, placeLabel(wine)].filter(Boolean).join(' · ')}</div>
+          {subtitle && <div className="meta">{subtitle}</div>}
         </div>
 
         <SuggestionNote wine={wine} />
@@ -191,11 +184,13 @@ export function WineDetailPage() {
           </div>
         </div>
 
-        <WineTake wine={wine} />
+        <WineTake wine={wine}>
+          <WineLearn wine={wine} />
+        </WineTake>
 
-        <WineLearn wine={wine} />
+        <MoreLikeThis wine={wine} />
 
-        <section className="detail-section">
+        <section className="detail-section notes-section">
           <div className="section-head">
             <h2 className="eyebrow">My notes</h2>
             <Link to={`/wine/${wine.id}/edit`} className="text-link">
@@ -210,22 +205,8 @@ export function WineDetailPage() {
           ) : (
             <p className="notes muted">No notes yet. What did you think?</p>
           )}
+          {tastedLine && <p className="tasted-line">{tastedLine}</p>}
         </section>
-
-        {shown.length > 0 && (
-          <section className="detail-section">
-            <dl className="facts">
-              {shown.map(([k, v]) => (
-                <div key={k}>
-                  <dt className="eyebrow">{k}</dt>
-                  <dd>{v}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        )}
-
-        <MoreLikeThis wine={wine} />
 
         <div className="detail-footer">
           <Link to={`/wine/${wine.id}/edit`} className="btn btn-dark btn-lg">

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createWine, emptyDraft, PalateDB } from '../db';
 import { wine } from '../test/fixtures';
-import { cellarLinks, lessonRequest, needsLesson, writeLesson, type LessonRequest } from './learn';
+import { cellarLinks, LESSON_VERSION, lessonRequest, needsLesson, writeLesson, type LessonRequest } from './learn';
 
 const cdp = wine({ id: 'cdp', producer: 'Domaine Essai', name: 'Châteauneuf-du-Pape', region: 'Châteauneuf-du-Pape', grapes: ['Grenache', 'Syrah'], style: 'red', rating: 'loved' });
 const cdp2 = wine({ id: 'cdp2', producer: 'Clos Exemple', name: 'Châteauneuf-du-Pape Vieilles Vignes', region: 'Châteauneuf-du-Pape', grapes: ['Grenache'], style: 'red' });
@@ -65,8 +65,15 @@ describe('writing the lesson', () => {
     expect(asked).toHaveLength(1);
     expect(asked[0]).toMatchObject({ producer: 'Domaine Essai', vintage: '2021', related: [] });
     const saved = (await database.wines.get(id))!;
-    expect(saved.lesson).toMatchObject(LESSON);
+    expect(saved.lesson).toMatchObject({ ...LESSON, v: LESSON_VERSION });
     expect(needsLesson(saved)).toBe(false);
+  });
+
+  it('rewrites a lesson from before the cards had headlines, once', () => {
+    const old = { ...LESSON, writtenAt: 1 };
+    const w = { id: 'x', producer: 'A', name: 'B', list: null } as unknown as Parameters<typeof needsLesson>[0];
+    expect(needsLesson({ ...w, lesson: old })).toBe(true);
+    expect(needsLesson({ ...w, lesson: { ...old, v: LESSON_VERSION } })).toBe(false);
   });
 
   it('keeps nothing when Claude fails', async () => {
