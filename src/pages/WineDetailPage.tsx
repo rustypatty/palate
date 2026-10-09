@@ -8,6 +8,7 @@ import { WatchBell } from '../components/PriceWatch';
 import { RatingPicker } from '../components/Rating';
 import { Sheet } from '../components/Sheet';
 import { useToast } from '../components/Toast';
+import { WineLearn } from '../components/WineLearn';
 import { WineTake } from '../components/WineTake';
 import { useFindingPhoto } from '../components/usePhotoFinder';
 import { deleteWine, updateWine } from '../db';
@@ -191,6 +192,8 @@ export function WineDetailPage() {
         </div>
 
         <WineTake wine={wine} />
+
+        <WineLearn wine={wine} />
 
         <section className="detail-section">
           <div className="section-head">
