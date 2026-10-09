@@ -11,7 +11,9 @@ import { downloadBlob, exportBackup, importBackup } from '../lib/backup';
 import { STYLE_LABEL } from '../lib/constants';
 import { tally } from '../lib/filters';
 import { formatPrice } from '../lib/format';
-import { apiKeyProblem, getApiKey, normalizeApiKey, setApiKey, testApiKey } from '../lib/labelReader';
+import { apiKeyProblem, getDeviceKey, normalizeApiKey, setApiKey, testApiKey } from '../lib/labelReader';
+import { saveAccountSetting } from '../lib/cloud';
+import { useServerKey } from '../lib/serverKey';
 import { favouriteRed, profileFavourites } from '../lib/profile';
 import { buildTaste } from '../lib/taste';
 import { lastCheckedAt, priceDrops, watchedWines } from '../lib/priceWatch';
@@ -24,7 +26,8 @@ function LabelReadingSettings({ onFocusRequest, onChange }: { onFocusRequest: ()
   const focusKey = (location.state as { focusKey?: number } | null)?.focusKey;
   const inputRef = useRef<HTMLInputElement>(null);
   const boxRef = useRef<HTMLElement>(null);
-  const [saved, setSaved] = useState(getApiKey);
+  const [saved, setSaved] = useState(getDeviceKey);
+  const onServer = useServerKey();
   const [draft, setDraft] = useState('');
   const [status, setStatus] = useState<{ kind: 'ok' | 'error' | 'busy'; text: string } | null>(null);
 
@@ -80,6 +83,11 @@ function LabelReadingSettings({ onFocusRequest, onChange }: { onFocusRequest: ()
           a shelf or wine-list reading, a store list or bottles like this.
         </li>
       </ul>
+      {onServer && !saved && (
+        <p className="small" role="status" style={{ margin: 0, color: 'var(--good)' }}>
+          Your key is stored on Palate’s server, so it works on every device you sign in on. Nothing to enter here.
+        </p>
+      )}
       {saved ? (
         <div className="key-row">
           <code>{`${saved.slice(0, 10)}…${saved.slice(-4)}`}</code>
@@ -96,7 +104,7 @@ function LabelReadingSettings({ onFocusRequest, onChange }: { onFocusRequest: ()
             Remove
           </button>
         </div>
-      ) : (
+      ) : onServer ? null : (
         <form
           className="url-row"
           onSubmit={(e) => {
@@ -128,7 +136,7 @@ function LabelReadingSettings({ onFocusRequest, onChange }: { onFocusRequest: ()
           {status.text}
         </p>
       )}
-      <p className="small muted" style={{ margin: 0 }}>
+      <p className="small muted" style={{ margin: 0 }} hidden={onServer && !saved}>
         The key is stored only in this browser and sent only to Anthropic. Anyone using this device and browser could use it, so consider setting a
         monthly spend limit for it in the Anthropic Console.
       </p>
@@ -154,7 +162,8 @@ export function ProfilePage() {
   const online = cloud.state === 'syncing' || cloud.state === 'synced' || cloud.state === 'error';
   const [open, setOpen] = useState<string | null>(null);
   const [, setKeyTick] = useState(0);
-  const keySaved = Boolean(getApiKey());
+  const keySaved = Boolean(getDeviceKey());
+  const onServer = useServerKey();
   const everything = useAllWines();
   const [priceAuto, setPriceAuto] = usePriceAuto();
   const [checkedHere] = usePriceCheckedAt();
@@ -321,12 +330,12 @@ export function ProfilePage() {
           <Fold title="Sync across devices" status={cloudSummary(cloud)} open={open === 'sync'} onToggle={() => toggle('sync')}>
             <CloudSync bare />
           </Fold>
-          <Fold title="Label reading with Claude" status={keySaved ? 'Key saved on this device' : 'No key yet'} open={open === 'key'} onToggle={() => toggle('key')}>
+          <Fold title="Label reading with Claude" status={keySaved ? 'Key saved on this device' : onServer ? 'Key stored on the server' : 'No key yet'} open={open === 'key'} onToggle={() => toggle('key')}>
             <LabelReadingSettings onFocusRequest={() => setOpen('key')} onChange={() => setKeyTick((t) => t + 1)} />
           </Fold>
           <Fold
             title="Price watch"
-            status={watch.n === 0 ? 'Nothing watched' : priceAuto ? 'Checks weekly' : 'Auto-check off'}
+            status={watch.n === 0 ? 'Nothing watched' : !priceAuto ? 'Auto-check off' : onServer ? 'Checks every Monday' : 'Checks weekly'}
             open={open === 'watch'}
             onToggle={() => toggle('watch')}
           >
@@ -335,10 +344,22 @@ export function ProfilePage() {
                 <span>
                   <span className="switch-title">Check prices automatically</span>
                   <span className="small muted">
-                    Once a week, when you open Palate, if you’re watching any bottles.
+                    {onServer
+                      ? 'Every Monday morning on Palate’s server, even if you don’t open the app, if you’re watching any bottles.'
+                      : 'Once a week, when you open Palate, if you’re watching any bottles.'}
                   </span>
                 </span>
-                <input type="checkbox" role="switch" className="switch" checked={priceAuto} onChange={(e) => setPriceAuto(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  role="switch"
+                  className="switch"
+                  checked={priceAuto}
+                  onChange={(e) => {
+                    setPriceAuto(e.target.checked);
+                    // The Monday check on the server reads this from your account.
+                    void saveAccountSetting('price_auto', e.target.checked).catch(() => {});
+                  }}
+                />
               </label>
             </div>
           </Fold>

@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { claudeClient } from './claude';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
 import { relayedImageUrl } from './labelClient';
@@ -190,7 +191,7 @@ export async function findBottlePhotosWithClaude(
   known: { url: string; site: string }[] = [],
 ): Promise<BottlePhotoOutcome> {
   // No automatic retries: a retry would be billed twice.
-  const client = new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com', dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 300_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 300_000 });
   try {
     if (known.length) {
       const onKnown = await bottleImages(known, wine, signal);

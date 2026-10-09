@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { claudeClient } from './claude';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
 import type { BottleCoach, CoachOutcome, CoachRequest, DescribeOutcome, DescribeRequest } from './coach';
@@ -31,7 +32,7 @@ function reason(e: unknown): string | null {
 
 export async function coachBottleWithClaude(apiKey: string, r: CoachRequest, signal?: AbortSignal): Promise<CoachOutcome> {
   // Browser use is intentional: the key is the user's own. No automatic retries: a retry would be billed twice.
-  const client = new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com', dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 120_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 120_000 });
   const system =
     'You are my wine coach in a shop, helping me decide on one bottle I am holding. Be specific and honest, like a knowledgeable friend: ' +
     'name the wines of mine you compare it with, explain wine terms briefly, and do not oversell. Use only what you know about this wine; ' +
@@ -83,7 +84,7 @@ const DescribeSchema = z.object({
 });
 
 export async function describeWineWithClaude(apiKey: string, r: DescribeRequest, signal?: AbortSignal): Promise<DescribeOutcome> {
-  const client = new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com', dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 120_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 120_000 });
   const system =
     'You are my wine coach, writing a short description of one wine in my collection or on my list. Be specific and honest, like a knowledgeable friend: ' +
     'name the wines of mine you compare it with, explain wine terms briefly, and do not oversell. Use only what you know about this wine; ' +

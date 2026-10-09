@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { claudeClient } from './claude';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
 import { resizeImage } from './image';
@@ -84,7 +85,7 @@ export async function readShelfWithClaude(apiKey: string, photos: Blob[], contex
 export async function readShelfImagesWithClaude(apiKey: string, images: string[], context: string, store: string, signal?: AbortSignal): Promise<ShelfOutcome> {
   // Browser use is intentional: the key is the user's own and only ever sent to Anthropic.
   // No automatic retries: a retry would be billed twice.
-  const client = new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com', dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 300_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 300_000 });
   try {
     const content: Anthropic.Beta.BetaContentBlockParam[] = [
       ...images.map((data, i) => [
@@ -158,7 +159,7 @@ const PRICE_TOOL = {
 
 /** Look up current US prices online for a few bottles, to back up (or correct) the price calls. */
 export async function checkPricesWithClaude(apiKey: string, report: ShelfReport, indexes: number[], signal?: AbortSignal): Promise<PriceCheckOutcome> {
-  const client = new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com', dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 600_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 600_000 });
   const list = indexes
     .map((i) => {
       const b = report.bottles[i];

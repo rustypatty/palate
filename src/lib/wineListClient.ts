@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { claudeClient } from './claude';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { partialParse } from '@anthropic-ai/sdk/_vendor/partial-json-parser/parser';
 import { z } from 'zod';
@@ -143,7 +144,7 @@ function reason(e: unknown): string | null {
 // Browser use is intentional: the key is the user's own and only ever sent to Anthropic.
 // No automatic retries: a retry would be billed twice.
 const clientFor = (apiKey: string) =>
-  new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com', dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 300_000 });
+  claudeClient(apiKey, { maxRetries: 0, timeout: 300_000 });
 
 export async function readWineListWithClaude(apiKey: string, photos: Blob[], signal?: AbortSignal, onProgress?: (wines: number) => void): Promise<ReadListOutcome> {
   const client = clientFor(apiKey);

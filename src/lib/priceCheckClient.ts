@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { claudeClient } from './claude';
 import { z } from 'zod';
 import type { PricePoint, Wine } from '../types';
 import { normalizeUrl, SEARCH_STORES, storeForDomain } from './likeThis';
@@ -96,7 +97,7 @@ export function cheapestVerified(wines: Wine[], report: z.infer<typeof ReportSch
 /** One search for every watched bottle's current price at your stores. */
 export async function checkPricesWithClaude(apiKey: string, wines: Wine[], signal?: AbortSignal): Promise<CheckOutcome> {
   // No automatic retries (a retry is billed twice). Always Anthropic's own address.
-  const client = new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com', dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 600_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 600_000 });
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: priceCheckPrompt(wines) }];
   const seen = new Set<string>();
   const usage: CheckUsage = { inputTokens: 0, outputTokens: 0, searches: 0 };

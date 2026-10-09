@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { claudeClient } from './claude';
 import { z } from 'zod';
 import { withProfile } from './profile';
 import type { Store, StoreList, SuggestedItem } from './stores';
@@ -144,7 +145,7 @@ function prompt(r: StoreListRequest): string {
 export async function findStoreListWithClaude(apiKey: string, req: StoreListRequest, signal?: AbortSignal): Promise<StoreListOutcome> {
   // No automatic retries (a retry is billed twice); searching can take a minute or two.
   // Always Anthropic's own address, whatever the environment says.
-  const client = new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com', dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 600_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 600_000 });
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: prompt(req) }];
   const seen = new Set<string>();
   let report: z.infer<typeof ReportSchema> | null = null;
