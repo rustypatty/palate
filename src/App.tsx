@@ -14,6 +14,7 @@ import { WineFormPage } from './pages/WineFormPage';
 // Opened now and then: loaded when first needed.
 const TonightPage = lazy(() => import('./pages/TonightPage').then((m) => ({ default: m.TonightPage })));
 const WatchPage = lazy(() => import('./pages/WatchPage').then((m) => ({ default: m.WatchPage })));
+const PassportPage = lazy(() => import('./pages/PassportPage').then((m) => ({ default: m.PassportPage })));
 
 export function App() {
   return (
@@ -45,6 +46,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={null}>
                 <WatchPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="passport"
+            element={
+              <Suspense fallback={null}>
+                <PassportPage />
               </Suspense>
             }
           />

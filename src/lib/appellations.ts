@@ -40,12 +40,12 @@ const LIST: Appellation[] = [
   ...a('Côtes du Rhône', 'Southern Rhône', 'France', ['Grenache', 'Syrah']),
   ...a('Ventoux', 'Southern Rhône', 'France', ['Grenache', 'Syrah']),
   ...a('Tavel', 'Southern Rhône', 'France', ['Grenache'], 'rose'),
-  // Northern Rhône
-  ...a('Côte-Rôtie', 'Northern Rhône', 'France', ['Syrah'], 'red'),
+  // Northern Rhône (easier-to-find names first: the wine passport suggests the first few)
   ...a('Crozes-Hermitage', 'Northern Rhône', 'France', ['Syrah']),
-  ...a('Hermitage', 'Northern Rhône', 'France', ['Syrah']),
   ...a('Saint-Joseph', 'Northern Rhône', 'France', ['Syrah']),
   ...a('Cornas', 'Northern Rhône', 'France', ['Syrah'], 'red'),
+  ...a('Côte-Rôtie', 'Northern Rhône', 'France', ['Syrah'], 'red'),
+  ...a('Hermitage', 'Northern Rhône', 'France', ['Syrah']),
   ...a('Condrieu', 'Northern Rhône', 'France', ['Viognier'], 'white'),
   // Bordeaux
   ...a('Pauillac', 'Bordeaux', 'France', LEFT_BANK, 'red'),
@@ -94,7 +94,7 @@ const LIST: Appellation[] = [
   ...a('Champagne', 'Champagne', 'France', [], 'sparkling'),
   ...a('Crémant', 'France (sparkling)', 'France', [], 'sparkling'),
   ...a('Bandol', 'Provence', 'France', ['Mourvèdre']),
-  ...a('Côtes de Provence', 'Provence', 'France', ['Grenache', 'Cinsault']),
+  ...a('Côtes de Provence', 'Provence', 'France', ['Grenache', 'Cinsault'], 'rose'),
   ...a('Languedoc', 'Languedoc', 'France', ['Grenache', 'Syrah']),
   ...a('Cahors', 'South-West France', 'France', ['Malbec'], 'red'),
   // Italy
@@ -151,6 +151,9 @@ const LIST: Appellation[] = [
   ...a('Marlborough', 'Marlborough', 'New Zealand', ['Sauvignon Blanc']),
   ...a('Central Otago', 'Central Otago', 'New Zealand', ['Pinot Noir']),
 ];
+
+/** Every appellation in the guide, in its order (by area). */
+export const APPELLATIONS: readonly Appellation[] = LIST;
 
 const keyOf = (s: string) => ` ${tokens(s).join(' ')} `;
 const INDEX = LIST.flatMap((x) => [x.name, ...(x.aliases ?? [])].map((n) => ({ x, key: keyOf(n), len: tokens(n).length }))).sort(

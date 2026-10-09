@@ -1,4 +1,4 @@
-import { ChevronRight, Download, Minus, Plus, Upload } from 'lucide-react';
+import { ChevronRight, Download, Minus, Plus, Stamp, Upload } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { CloudSync, cloudSummary, useCloudStatus } from '../components/CloudSync';
@@ -14,6 +14,7 @@ import { formatPrice } from '../lib/format';
 import { apiKeyProblem, getDeviceKey, normalizeApiKey, setApiKey, testApiKey } from '../lib/labelReader';
 import { saveAccountSetting } from '../lib/cloud';
 import { useServerKey } from '../lib/serverKey';
+import { buildPassport } from '../lib/passport';
 import { disablePush, enablePush, pushEnabled, pushSupport, sendTestPush } from '../lib/push';
 import { favouriteRed, profileFavourites } from '../lib/profile';
 import { buildTaste } from '../lib/taste';
@@ -236,6 +237,10 @@ export function ProfilePage() {
     const watched = everything ? watchedWines(everything) : [];
     return { n: watched.length, drops: everything ? priceDrops(everything).length : 0, last: lastCheckedAt(watched, checkedHere) };
   }, [everything, checkedHere]);
+  const passport = useMemo(() => {
+    const p = everything ? buildPassport(everything) : null;
+    return { tasted: p?.tasted ?? 0, places: p?.places.length ?? 0, grapes: p?.grapes.length ?? 0 };
+  }, [everything]);
 
   useEffect(() => {
     navigator.storage?.persisted?.().then(setPersisted).catch(() => {});
@@ -355,6 +360,24 @@ export function ProfilePage() {
       <section className="palate-section">
         <h2 className="title-lg">Your wine profile</h2>
         <ProfileImport />
+      </section>
+
+      <section className="palate-section">
+        <h2 className="title-lg">Learn</h2>
+        <Link to="/passport" className="cta-card lift">
+          <Stamp size={22} strokeWidth={1.7} />
+          <span className="cta-text">
+            <strong>
+              Your wine <em>passport</em>
+            </strong>
+            <span className="small muted">
+              {passport.tasted > 0
+                ? `${passport.places} ${passport.places === 1 ? 'region' : 'regions'} and ${passport.grapes} ${passport.grapes === 1 ? 'grape' : 'grapes'} so far · where to go next`
+                : 'Rate what you taste to collect places and grapes.'}
+            </span>
+          </span>
+          <ChevronRight size={20} strokeWidth={1.7} />
+        </Link>
       </section>
 
       <section className="palate-section">

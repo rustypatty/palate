@@ -5204,6 +5204,116 @@ details.more[open] > .more-body {
   background: var(--tone-hover);
 }
 
+/* Wine passport */
+.passport-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 26px;
+  padding-top: 10px;
+}
+.passport-intro {
+  display: grid;
+  gap: 12px;
+  padding: 0 var(--text-in);
+}
+.passport-section {
+  display: grid;
+  gap: 14px;
+}
+.next-list,
+.place-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+.next-card,
+.place-card {
+  display: grid;
+  gap: 10px;
+  padding: 18px 18px;
+  border-radius: var(--r-pick);
+  background: var(--card);
+  box-shadow: var(--sh-card);
+}
+.next-card > .eyebrow {
+  color: var(--wine);
+}
+.next-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.2;
+}
+.next-card p {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.next-waiting {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--tone);
+}
+.next-waiting a {
+  color: var(--wine);
+  font-weight: 600;
+}
+.next-try,
+.stamps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.place-head {
+  display: grid;
+  gap: 2px;
+}
+.place-head strong {
+  font-size: 17px;
+}
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: var(--pill);
+  background: var(--tone);
+  color: var(--ink);
+  font-size: 13px;
+  text-decoration: none;
+}
+a.stamp:hover {
+  background: var(--tone-hover);
+}
+.stamp.loved {
+  background: var(--wine);
+  color: #fff;
+}
+.stamp.todo {
+  background: transparent;
+  border: 1px dashed var(--line-strong, rgba(0, 0, 0, 0.22));
+  color: var(--ink-soft);
+}
+.stamp-n {
+  opacity: 0.75;
+  font-size: 12px;
+}
+@media (min-width: 900px) {
+  .passport-page {
+    max-width: 760px;
+    gap: 34px;
+    padding-top: 24px;
+  }
+  .passport-intro .headline {
+    font-size: 56px;
+  }
+  .next-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* ---------- Tonight ---------- */
 
 .tonight-card {
