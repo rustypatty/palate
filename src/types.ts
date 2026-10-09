@@ -122,8 +122,10 @@ export interface Wine {
   suggestion?: Suggestion | null;
   /** Bottles like this one found at your stores, saved so reopening the page is free. */
   likeThis?: LikeThisCache | null;
-  /** Price watch: check this bottle's price at your stores each week (Loved wines and Want to try). */
+  /** No longer used: Loved wines and Want to try bottles are watched unless `watchOff` (see priceWatch.ts). */
   watch?: boolean;
+  /** You switched the price watch off for this bottle (the bell). */
+  watchOff?: boolean;
   /** Prices seen by the price watch, oldest first. */
   priceHistory?: PricePoint[];
   createdAt: number;

@@ -83,3 +83,34 @@ self.addEventListener('fetch', (event) => {
     }),
   );
 });
+
+// Price-drop alerts from Palate's server (see src/lib/push.ts).
+self.addEventListener('push', (event) => {
+  let note = { title: 'Palate', body: '' };
+  try {
+    note = { ...note, ...event.data.json() };
+  } catch {
+    if (event.data) note.body = event.data.text();
+  }
+  event.waitUntil(
+    self.registration.showNotification(note.title, {
+      body: note.body,
+      tag: note.tag,
+      icon: './icon-192.png',
+      badge: './icon-192.png',
+      data: { url: note.url || '#/watch' },
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url || '#/watch', self.registration.scope).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+      const win = wins[0];
+      if (win) return win.navigate(url).then((w) => (w || win).focus());
+      return self.clients.openWindow(url);
+    }),
+  );
+});

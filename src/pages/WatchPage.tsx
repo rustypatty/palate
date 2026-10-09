@@ -103,7 +103,7 @@ export function WatchPage() {
         <div className="tone-card watch-empty">
           <div className="tone-title">Nothing watched yet</div>
           <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
-            Tap the <BellIcon size={15} /> bell on a wine you loved or a Want to try bottle, and Palate checks its price at your stores each week.
+            Wines you love and Want to try bottles are watched automatically: Palate checks their price at your stores each week. Tap the <BellIcon size={15} /> bell on one to stop.
           </p>
         </div>
       ) : (
