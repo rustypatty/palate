@@ -5154,54 +5154,574 @@ details.more[open] > .more-body {
   color: var(--ink-3);
 }
 
-/* Palate's take on a wine page */
-.take-card > .eyebrow:first-child {
-  color: var(--wine);
+/* ---------- Wine page: Palate's take, the Learn tile and the lesson sheet ---------- */
+
+/* 40px before Palate's take, 36px between the sections after it (on top of the page's own gap). */
+.detail-body {
+  --take-before: 18px;
+  --section-gap: 14px;
 }
-.take-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding-top: 4px;
-  border-top: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+.detail-body > .take-section {
+  margin-top: var(--take-before);
+}
+.detail-body > .take-section ~ * {
+  margin-top: var(--section-gap);
 }
 
-/* Learn on a wine page: why it tastes like this, and your bottles that share its place or grapes. */
-.learn-card > .eyebrow:first-child {
+.take-section {
+  display: grid;
+  gap: 22px;
+  margin-inline: calc(-1 * var(--gutter));
+  padding: 36px 24px;
+  background: linear-gradient(180deg, #faf6f0, #fff 70%);
+  min-width: 0;
+}
+.take-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
   color: var(--wine);
 }
-.learn-try {
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--tone);
-}
-.learn-links {
+.take-part {
   display: grid;
   gap: 10px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+  min-width: 0;
 }
-.learn-link {
-  display: grid;
-  gap: 6px;
+.take-head {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.15;
+  color: var(--ink);
 }
-.learn-chips {
+.take-head em {
+  font-style: italic;
+}
+.take-text {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+.take-text.muted {
+  color: var(--ink-3);
+}
+.taste-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
-.learn-chip {
-  padding: 6px 12px;
-  border-radius: var(--pill);
+.taste-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 18px;
   background: var(--tone);
   color: var(--ink);
   font-size: 13px;
-  text-decoration: none;
+  font-weight: 600;
+  white-space: nowrap;
 }
-.learn-chip:hover {
-  background: var(--tone-hover);
+.serve-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.serve-tile {
+  display: grid;
+  gap: 2px;
+  padding: 14px 12px;
+  border-radius: 20px;
+  background: var(--tone);
+  min-width: 0;
+}
+.serve-value {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.serve-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.serve-pairing {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.take-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #a39a91;
+}
+.take-action {
+  border: 0;
+  background: none;
+  padding: 12px 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.take-action:disabled {
+  opacity: 0.6;
+}
+
+/* The Learn tile: one button, with two card edges peeking above so it reads as a stack. */
+.learn-tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.learn-tile:hover,
+.learn-tile:active {
+  transform: translateY(-4px);
+}
+.learn-tile:focus-visible {
+  outline: none;
+}
+.learn-tile:focus-visible .learn-face {
+  box-shadow: 0 0 0 3px var(--wine), 0 20px 34px -24px rgba(80, 45, 25, 0.45);
+}
+.learn-edge {
+  position: absolute;
+  height: 30px;
+}
+.learn-edge.back {
+  left: 22px;
+  right: 22px;
+  top: -12px;
+  border-radius: 24px;
+  background: #e9dccd;
+}
+.learn-edge.mid {
+  left: 11px;
+  right: 11px;
+  top: -6px;
+  border-radius: 26px;
+  background: #f0e5d8;
+}
+.learn-face {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 20px 20px 22px;
+  border-radius: 28px;
+  background: radial-gradient(80% 90% at 100% 0%, rgba(236, 190, 122, 0.45), rgba(236, 190, 122, 0) 60%), linear-gradient(160deg, #f7efe4, #f1e6da);
+  box-shadow: 0 20px 34px -24px rgba(80, 45, 25, 0.45);
+}
+.learn-text {
+  flex: 1;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.learn-eyebrow {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--wine);
+}
+.learn-title {
+  font-family: var(--font-display);
+  font-size: 23px;
+  line-height: 1.15;
+  color: var(--ink);
+}
+.learn-title em {
+  font-style: italic;
+}
+.learn-sub {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #6f675f;
+}
+.learn-arrow {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  color: #fff;
+}
+
+/* My notes at the bottom, with when you tasted it. */
+.tasted-line {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+/* The lesson sheet: a bottom sheet on a phone, a centred card on a computer. */
+.lesson-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+}
+.lesson-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(35, 31, 29, 0.38);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  opacity: 0;
+  transition: opacity 0.42s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.lesson-layer.open .lesson-backdrop {
+  opacity: 1;
+}
+.lesson-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 700px;
+  max-height: 85dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 36px 36px 0 0;
+  background: #fff;
+  box-shadow: 0 -30px 60px -30px rgba(40, 20, 10, 0.4);
+  transform: translateY(100%);
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  outline: none;
+}
+.lesson-layer.open .lesson-sheet {
+  transform: translateY(0);
+}
+.lesson-grab {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 6px;
+  cursor: grab;
+  touch-action: none;
+}
+.lesson-grab span {
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: #e2dbd3;
+}
+.lesson-top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 18px 0 24px;
+}
+.lesson-progress {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.lesson-progress span {
+  height: 4px;
+  border-radius: 2px;
+  background: #e9e3db;
+  transition: background 0.4s;
+}
+.lesson-progress span.done {
+  background: var(--ink);
+}
+.lesson-close,
+.lesson-back {
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: var(--tone);
+  color: var(--ink);
+  cursor: pointer;
+}
+.lesson-close {
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+}
+.lesson-cards {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  touch-action: pan-y;
+}
+.lesson-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 14px 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  opacity: 0;
+  transform: translateX(60px);
+  pointer-events: none;
+  transition: transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.45s;
+}
+.lesson-card.before {
+  transform: translateX(-60px);
+}
+.lesson-card.current {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.lesson-head {
+  flex: none;
+  height: 190px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 22px;
+  border-radius: 30px;
+  overflow: hidden;
+}
+.lesson-head.grape {
+  background: radial-gradient(80% 90% at 100% 0%, rgba(122, 31, 53, 0.16), rgba(122, 31, 53, 0) 60%), linear-gradient(160deg, #f7efe4, #efe3d6);
+}
+.lesson-head.place {
+  background: radial-gradient(80% 90% at 100% 0%, rgba(236, 190, 122, 0.55), rgba(236, 190, 122, 0) 60%), linear-gradient(160deg, #f6eddf, #ece0d0);
+}
+.lesson-head.making {
+  background: radial-gradient(80% 90% at 0% 0%, rgba(150, 105, 70, 0.22), rgba(150, 105, 70, 0) 60%), linear-gradient(160deg, #f4ebe0, #e9ddcf);
+}
+.lesson-head.taste {
+  background: radial-gradient(80% 90% at 100% 100%, rgba(122, 31, 53, 0.2), rgba(122, 31, 53, 0) 60%), linear-gradient(160deg, #f8efe6, #f0e2d6);
+}
+.lesson-eyebrow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--wine);
+}
+.lesson-n {
+  color: #8a7a6c;
+}
+.lesson-big {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 50px;
+  line-height: 1;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.lesson-body {
+  display: grid;
+  gap: 12px;
+  padding: 22px 10px 16px;
+}
+.lesson-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.lesson-text {
+  margin: 0;
+  font-size: 15.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+.lesson-term {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--tone);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: #6f675f;
+}
+.lesson-compare {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.compare-tile {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 8px 8px 10px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--tone);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  min-width: 0;
+}
+.compare-photo {
+  position: relative;
+  display: block;
+  height: 78px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fbf7f1, #efe5d8);
+  overflow: hidden;
+}
+.compare-name {
+  padding: 0 2px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  line-height: 1.2;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.compare-why {
+  padding: 0 2px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.lesson-nav {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px calc(30px + env(safe-area-inset-bottom));
+}
+.lesson-back {
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
+  transition: opacity 0.3s;
+}
+.lesson-back:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.lesson-next {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+  border: 0;
+  border-radius: 28px;
+  background: var(--ink);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+@media (min-width: 900px) {
+  .detail-body {
+    --take-before: 14px;
+    --section-gap: 10px;
+  }
+  .take-section {
+    margin-inline: 0;
+    padding: 36px 32px;
+    border-radius: 36px;
+  }
+  .lesson-sheet {
+    left: 50%;
+    right: auto;
+    top: 50%;
+    bottom: auto;
+    width: 520px;
+    height: min(700px, 85vh);
+    max-height: none;
+    border-radius: 36px;
+    box-shadow: 0 40px 80px -30px rgba(40, 20, 10, 0.45);
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 40px));
+    transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.35s;
+  }
+  .lesson-layer.open .lesson-sheet {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+  .lesson-nav {
+    padding-bottom: 22px;
+  }
+  /* A centred card isn't dragged down: no handle, just a little room above the progress. */
+  .lesson-grab {
+    visibility: hidden;
+    padding-bottom: 2px;
+  }
+}
+
+/* Reduced motion: fades only. */
+@media (prefers-reduced-motion: reduce) {
+  .learn-tile,
+  .learn-tile:hover,
+  .learn-tile:active {
+    transform: none;
+    transition: none;
+  }
+  /* The site-wide rule turns motion off; the lesson keeps a short fade so it doesn't just blink. */
+  .lesson-sheet,
+  .lesson-layer.open .lesson-sheet {
+    transform: none;
+    transition: opacity 0.2s !important;
+  }
+  .lesson-sheet {
+    opacity: 0;
+  }
+  .lesson-layer.open .lesson-sheet {
+    opacity: 1;
+  }
+  .lesson-backdrop {
+    transition: opacity 0.2s !important;
+  }
+  .lesson-card,
+  .lesson-card.before {
+    transform: none;
+    transition: opacity 0.2s !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) and (min-width: 900px) {
+  .lesson-sheet,
+  .lesson-layer.open .lesson-sheet {
+    transform: translate(-50%, -50%);
+  }
 }
 
 /* Wine passport */

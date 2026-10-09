@@ -1,97 +1,81 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { ArrowRight } from 'lucide-react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAllWines } from '../hooks';
-import { producerAndName } from '../lib/format';
 import { hasApiKey } from '../lib/labelReader';
 import { cellarLinks, needsLesson, writeLesson } from '../lib/learn';
 import type { Wine } from '../types';
-import { cleanReason } from './Shelf';
+
+// Loaded when first opened: most visits to a wine page never open the lesson.
+const LessonSheet = lazy(() => import('./LessonSheet').then((m) => ({ default: m.LessonSheet })));
 
 /**
- * "Learn" on a wine page: why it tastes the way it does, and your other bottles that share its
- * place or grapes. Written automatically the first time the wine is opened, then kept.
+ * The "Learn" tile inside Palate's take: one stacked tile that opens the lesson sheet (the grape,
+ * the place, how it's made, what to taste for). The lesson is written once by Claude the first
+ * time the wine is opened, then kept; tapping before it's written writes it, then opens it.
  */
 export function WineLearn({ wine }: { wine: Wine }) {
   const all = useAllWines();
+  const navigate = useNavigate();
   const links = useMemo(() => (all ? cellarLinks(wine, all) : []), [wine, all]);
   const [state, setState] = useState<{ status: 'idle' | 'busy' } | { status: 'error'; reason: string }>({ status: 'idle' });
+  const [open, setOpen] = useState(false);
   const canWrite = hasApiKey();
 
-  const write = () => {
+  const write = (thenOpen: boolean) => {
     if (!all) return;
     setState({ status: 'busy' });
-    void writeLesson(wine, all).then((out) => setState(out.ok ? { status: 'idle' } : { status: 'error', reason: out.reason }));
+    void writeLesson(wine, all).then((out) => {
+      setState(out.ok ? { status: 'idle' } : { status: 'error', reason: out.reason });
+      if (out.ok && thenOpen) setOpen(true);
+    });
   };
 
   useEffect(() => {
-    if (all && canWrite && navigator.onLine && needsLesson(wine)) write();
+    if (all && canWrite && navigator.onLine && needsLesson(wine)) write(false);
   }, [wine.id, Boolean(all)]);
 
   if (wine.list === 'passed') return null;
-  const l = wine.lesson;
-  if (!l && !canWrite && !links.length) return null;
+  const lesson = wine.lesson;
 
-  const parts: [string, string][] = l
-    ? [
-        ['The grape', l.grape],
-        ['The place', l.place],
-        ['How it’s made', l.making],
-      ]
-    : [];
+  const tap = () => {
+    if (lesson) setOpen(true);
+    else if (!canWrite) navigate('/profile', { state: { focusKey: Date.now() } });
+    else if (state.status !== 'busy') write(true);
+  };
+
+  const sub =
+    state.status === 'busy' && !lesson
+      ? 'Writing the four cards…'
+      : state.status === 'error' && !lesson
+        ? `Couldn’t write it (${state.reason}). Tap to try again.`
+        : !lesson && !canWrite
+          ? 'Add your Anthropic key in My palate to unlock it'
+          : 'The grape · The place · How it’s made · Taste for it';
 
   return (
-    <section className="coach-card learn-card" aria-live="polite">
-      <span className="eyebrow">Learn · why it tastes like this</span>
-      {l ? (
-        <>
-          {parts
-            .filter(([, text]) => text.trim())
-            .map(([title, text]) => (
-              <div key={title} className="coach-part">
-                <div className="eyebrow">{title}</div>
-                <p>{cleanReason(text)}</p>
-              </div>
-            ))}
-          {l.tasteFor.trim() && (
-            <div className="coach-part learn-try">
-              <div className="eyebrow">Taste for it</div>
-              <p>{cleanReason(l.tasteFor)}</p>
-            </div>
-          )}
-        </>
-      ) : !canWrite ? (
-        <p className="muted small">Add your Anthropic API key in My palate and Palate will explain the grape, the place and how it’s made.</p>
-      ) : state.status === 'error' ? (
-        <>
-          <p className="small" style={{ color: 'var(--warn)' }}>Couldn’t write this ({state.reason}).</p>
-          <button type="button" className="btn btn-white btn-sm" onClick={write} style={{ justifySelf: 'start' }}>
-            Try again
-          </button>
-        </>
-      ) : (
-        <p className="muted small">Working out the grape, the place and how it’s made…</p>
+    <>
+      <button type="button" className="learn-tile" onClick={tap} aria-busy={state.status === 'busy'}>
+        <span className="learn-edge back" aria-hidden="true" />
+        <span className="learn-edge mid" aria-hidden="true" />
+        <span className="learn-face">
+          <span className="learn-text">
+            <span className="learn-eyebrow">Learn · 4 short cards</span>
+            <span className="learn-title">
+              Why it tastes <em>like this</em>
+            </span>
+            <span className="learn-sub">{sub}</span>
+          </span>
+          <span className="learn-arrow" aria-hidden="true">
+            <ArrowRight size={18} strokeWidth={1.9} />
+          </span>
+        </span>
+      </button>
+      {open && lesson && (
+        <Suspense fallback={null}>
+          <LessonSheet wine={wine} lesson={lesson} links={links} onClose={() => setOpen(false)} />
+        </Suspense>
       )}
-
-      {links.length > 0 && (
-        <div className="learn-links">
-          <div className="eyebrow">In your cellar</div>
-          {links.map((link) => (
-            <div key={link.label} className="learn-link">
-              <span className="small muted">{link.label}</span>
-              <div className="learn-chips">
-                {link.wines.map((w) => (
-                  <Link key={w.id} to={`/wine/${w.id}`} className="learn-chip">
-                    {producerAndName(w)}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ))}
-          <p className="small muted" style={{ margin: 0 }}>
-            Open one next to this to compare.
-          </p>
-        </div>
-      )}
-    </section>
+    </>
   );
 }

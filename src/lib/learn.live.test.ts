@@ -25,5 +25,10 @@ describe.skipIf(!key)('Learn (live)', () => {
     expect(out.ok).toBe(true);
     if (!out.ok) return;
     for (const part of [out.lesson.grape, out.lesson.place, out.lesson.making, out.lesson.tasteFor]) expect(part.trim().length).toBeGreaterThan(40);
+    expect(out.lesson.cards).toHaveLength(4);
+    for (const c of out.lesson.cards!) {
+      expect(c.big.trim().split(/\s+/).length).toBeLessThanOrEqual(2);
+      expect(c.title.trim().split(/\s+/).length).toBeLessThanOrEqual(8);
+    }
   });
 });

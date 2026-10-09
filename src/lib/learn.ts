@@ -44,9 +44,12 @@ export function cellarLinks(wine: Wine, wines: Wine[]): CellarLink[] {
   return out;
 }
 
-/** Worth a lesson: a wine you have or want, with a name, and no lesson yet. */
+/** Lessons older than this are rewritten once (v2 added each card's big word, title and term). */
+export const LESSON_VERSION = 2;
+
+/** Worth a lesson: a wine you have or want, with a name, and no lesson yet (or one in an older format). */
 export function needsLesson(w: Wine): boolean {
-  return !w.lesson && w.list !== 'passed' && Boolean(w.producer || w.name);
+  return (!w.lesson || (w.lesson.v ?? 1) < LESSON_VERSION) && w.list !== 'passed' && Boolean(w.producer || w.name);
 }
 
 export interface LessonRequest {
@@ -61,7 +64,7 @@ export interface LessonRequest {
   related: string[];
 }
 
-export type LessonOutcome = { ok: true; lesson: Omit<WineLesson, 'writtenAt'> } | { ok: false; reason: string };
+export type LessonOutcome = { ok: true; lesson: Omit<WineLesson, 'writtenAt' | 'v'> } | { ok: false; reason: string };
 
 export function lessonRequest(wine: Wine, wines: Wine[]): LessonRequest {
   return {
@@ -96,7 +99,7 @@ export function writeLesson(
   if (running) return running;
   const job = write(lessonRequest(wine, wines))
     .then(async (out) => {
-      if (out.ok) await updateWine(wine.id, { lesson: { ...out.lesson, writtenAt: Date.now() } }, database);
+      if (out.ok) await updateWine(wine.id, { lesson: { ...out.lesson, v: LESSON_VERSION, writtenAt: Date.now() } }, database);
       return out;
     })
     .catch((e: unknown): LessonOutcome => ({ ok: false, reason: e instanceof Error ? e.message : 'unexpected error' }))

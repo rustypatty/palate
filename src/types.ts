@@ -134,12 +134,24 @@ export interface Wine {
   updatedAt: number;
 }
 
+/** One lesson card's headline: "Tempranillo" / "Cherry and leather, with a bright lift" / "Tannins: the drying grip…". */
+export interface LessonCard {
+  big: string;
+  title: string;
+  /** "Term: plain-word definition", or empty. */
+  term: string;
+}
+
 /** Why a wine tastes the way it does: the grape, the place, the making, and one thing to taste for. */
 export interface WineLesson {
   grape: string;
   place: string;
   making: string;
   tasteFor: string;
+  /** Each card's headline: one big word, a short title, and an optional plain-word definition (grape, place, making, taste for). */
+  cards?: [LessonCard, LessonCard, LessonCard, LessonCard];
+  /** Format version (learn.ts LESSON_VERSION): older lessons are rewritten once. */
+  v?: number;
   writtenAt: number;
 }
 
