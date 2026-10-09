@@ -258,14 +258,16 @@ function dropNote(drops: { wine: Wine; point: PricePoint; was: number | null }[]
       title: `${label(wine)} got cheaper`,
       body: `${usd(point.price)} at ${point.store}${was ? `, down from ${usd(was)}` : ''}.`,
       url: `#/wine/${wine.id}`,
-      tag: `drop-${wine.id}`,
+      // A tag per check: the phone silently replaces an alert with the same tag, so a new drop
+      // must not reuse last week's.
+      tag: `drop-${wine.id}-${point.date}`,
     };
   }
   return {
     title: `${drops.length} bottles you watch got cheaper`,
     body: drops.map((d) => `${label(d.wine)} ${usd(d.point.price)} at ${d.point.store}`).join(' · '),
     url: '#/watch',
-    tag: 'drops',
+    tag: `drops-${drops[0].point.date}`,
   };
 }
 
@@ -286,7 +288,7 @@ async function sample(): Promise<Record<string, unknown>> {
     const was = w.price ?? w.priceHistory?.at(-1)?.price ?? 40;
     return { wine: w, point: { date, price: Math.round(was * 0.85), store }, was };
   };
-  const mark = (n: Note) => ({ ...n, title: `Sample · ${n.title}`, body: `${n.body} (Sample prices; nothing changed.)`, tag: `sample-${n.tag}` });
+  const mark = (n: Note) => ({ ...n, title: `Sample · ${n.title}`, body: `${n.body} (Sample prices; nothing changed.)`, tag: `sample-${n.tag}-${Date.now()}` });
   const one = await notify(userId, mark(dropNote([fake(watched[0], 'Total Wine')])));
   const several = watched.length > 1 ? await notify(userId, mark(dropNote(watched.slice(1, 4).map((w, i) => fake(w, ['Spec’s', 'Total Wine', 'Twin Liquors'][i]))))) : null;
   return { one, several };
