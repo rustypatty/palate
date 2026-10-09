@@ -4,7 +4,7 @@ import { useAllWines } from '../hooks';
 import { getDeviceKey } from '../lib/labelReader';
 import { serverKeyReady } from '../lib/serverKey';
 import { PREF_NOTICED, readPref, runPriceCheck, writePref } from '../lib/priceCheck';
-import { canWatch, dueForCheck, lastCheckedAt, priceDrops, watchedWines } from '../lib/priceWatch';
+import { canWatch, dueForCheck, isWatched, lastCheckedAt, priceDrops, watchedWines } from '../lib/priceWatch';
 import { usePriceAuto, usePriceCheckedAt } from '../lib/usePicks';
 import type { Wine } from '../types';
 import { useToast } from './Toast';
@@ -22,7 +22,7 @@ export function BellIcon({ size = 20, filled = false }: { size?: number; filled?
 export function WatchBell({ wine, small = false }: { wine: Wine; small?: boolean }) {
   const toast = useToast();
   if (!canWatch(wine)) return null;
-  const on = Boolean(wine.watch);
+  const on = isWatched(wine);
   return (
     <button
       type="button"
@@ -31,7 +31,7 @@ export function WatchBell({ wine, small = false }: { wine: Wine; small?: boolean
       aria-label={on ? 'Watching the price. Stop watching' : 'Watch the price'}
       title={on ? 'Watching the price' : 'Watch the price'}
       onClick={async () => {
-        await updateWine(wine.id, { watch: !on });
+        await updateWine(wine.id, { watchOff: on });
         toast(on ? 'Stopped watching the price' : 'Watching the price · checked weekly');
       }}
     >

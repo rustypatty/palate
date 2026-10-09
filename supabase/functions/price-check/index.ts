@@ -1,10 +1,12 @@
 import { admin, cors, json, owner } from '../_shared/owner.ts';
+import { notify } from '../_shared/push.ts';
 
 /**
  * The Monday price check, run by pg_cron (see supabase/price_check_cron.sql) so it happens even
  * when the app isn't opened. Each run checks a few watched bottles not checked in the last few
  * days, which keeps every run short; the schedule repeats through Monday so all of them get done.
- * The prices land on the wines (priceHistory) and reach your devices with the next sync.
+ * The prices land on the wines (priceHistory) and reach your devices with the next sync; a drop
+ * also sends a phone alert to the devices that turned alerts on.
  *
  * Same search as the app's "Check now" (src/lib/priceCheckClient.ts): one Claude web search across
  * your stores, only keeping product pages that turned up in the search, the cheapest per bottle.
@@ -36,7 +38,8 @@ interface Wine {
   region?: string;
   list?: string | null;
   rating?: string | null;
-  watch?: boolean;
+  watchOff?: boolean;
+  price?: number | null;
   priceHistory?: PricePoint[];
   updatedAt?: number;
 }
@@ -44,7 +47,22 @@ interface Report {
   bottles: { n: number; offers: { url: string; price_usd: number }[] }[];
 }
 
-const canWatch = (w: Wine) => w.list === 'want' || (!w.list && w.rating === 'loved');
+// Same rules as src/lib/priceWatch.ts: Loved wines and Want to try bottles, unless switched off.
+const isWatched = (w: Wine) => (w.list === 'want' || (!w.list && w.rating === 'loved')) && !w.watchOff;
+const DAY_MS = 24 * 3600 * 1000;
+
+/** 10% or more below the last price (else what you paid), or the lowest in 180 days. */
+function dropFrom(history: PricePoint[], point: PricePoint, baseline: number | null): { drop: boolean; was: number | null } {
+  const last = history.length ? history[history.length - 1].price : baseline;
+  const at = Date.parse(point.date);
+  const recent = history.filter((p) => at - Date.parse(p.date) <= 180 * DAY_MS).map((p) => p.price);
+  const lowest = recent.length > 0 && point.price < Math.min(...recent);
+  const tenth = last !== null && last > 0 && point.price <= last * 0.9 + 1e-9;
+  return { drop: lowest || tenth, was: last };
+}
+
+const label = (w: Wine) => [w.producer, w.name].filter(Boolean).join(' ') || 'A bottle you watch';
+const usd = (n: number) => `$${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
 function normalizeUrl(u: string): string {
   try {
@@ -207,7 +225,7 @@ async function run(): Promise<Record<string, unknown>> {
   const { data: rows, error } = await admin.from('wines').select('id, data').eq('user_id', userId).eq('deleted', false);
   if (error) return { error: error.message };
   const now = Date.now();
-  const watched = (rows ?? []).map((r) => ({ ...(r.data as Wine), id: r.id as string })).filter((w) => w.watch && canWatch(w));
+  const watched = (rows ?? []).map((r) => ({ ...(r.data as Wine), id: r.id as string })).filter(isWatched);
   const due = watched.filter((w) => now - (checked[w.id] ?? 0) > RECHECK_MS).slice(0, PER_RUN);
   if (!due.length) return { watched: watched.length, due: 0 };
 
@@ -215,14 +233,40 @@ async function run(): Promise<Record<string, unknown>> {
   if (!report) return { watched: watched.length, due: due.length, error: note };
   const prices = cheapest(due, report, seen, new Date().toISOString());
   let saved = 0;
-  for (const [id, point] of prices) if (await savePoint(userId, id, point)) saved++;
+  const drops: { wine: Wine; point: PricePoint; was: number | null }[] = [];
+  for (const [id, point] of prices) {
+    if (!(await savePoint(userId, id, point))) continue;
+    saved++;
+    const wine = due.find((w) => w.id === id)!;
+    const d = dropFrom(wine.priceHistory ?? [], point, wine.price ?? null);
+    if (d.drop) drops.push({ wine, point, was: d.was });
+  }
+  const alerted = drops.length ? await notify(userId, dropNote(drops)) : null;
 
   // Remember what was checked (found or not), dropping bottles no longer watched.
   const ids = new Set(watched.map((w) => w.id));
   const next = Object.fromEntries(Object.entries(checked).filter(([id]) => ids.has(id)));
   for (const w of due) next[w.id] = now;
   await admin.auth.admin.updateUserById(userId, { app_metadata: { price_checked: next, price_checked_last: now } });
-  return { watched: watched.length, due: due.length, found: prices.size, saved };
+  return { watched: watched.length, due: due.length, found: prices.size, saved, drops: drops.length, alerted };
+}
+
+function dropNote(drops: { wine: Wine; point: PricePoint; was: number | null }[]) {
+  if (drops.length === 1) {
+    const { wine, point, was } = drops[0];
+    return {
+      title: `${label(wine)} got cheaper`,
+      body: `${usd(point.price)} at ${point.store}${was ? `, down from ${usd(was)}` : ''}.`,
+      url: `#/wine/${wine.id}`,
+      tag: `drop-${wine.id}`,
+    };
+  }
+  return {
+    title: `${drops.length} bottles you watch got cheaper`,
+    body: drops.map((d) => `${label(d.wine)} ${usd(d.point.price)} at ${d.point.store}`).join(' · '),
+    url: '#/watch',
+    tag: 'drops',
+  };
 }
 
 async function probe(): Promise<Record<string, unknown>> {

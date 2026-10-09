@@ -1,8 +1,8 @@
 import type { PricePoint, Wine } from '../types';
 
 /**
- * Price watch: Loved wines and Want to try bottles with the bell on get their price
- * checked at your stores, in one Claude search for all of them, about once a week.
+ * Price watch: Loved wines and Want to try bottles get their price checked at your stores
+ * about once a week, unless you switch a bottle's bell off.
  */
 
 export const WEEK_MS = 7 * 24 * 3600 * 1000;
@@ -15,7 +15,9 @@ const KEEP_POINTS = 60;
 
 /** The bell is for Loved wines and Want to try bottles. */
 export const canWatch = (w: Wine) => w.list === 'want' || (!w.list && w.rating === 'loved');
-export const watchedWines = (wines: Wine[]) => wines.filter((w) => w.watch && canWatch(w));
+/** Watched unless you switched it off. */
+export const isWatched = (w: Wine) => canWatch(w) && !w.watchOff;
+export const watchedWines = (wines: Wine[]) => wines.filter(isWatched);
 
 export interface Drop {
   wine: Wine;
@@ -42,7 +44,7 @@ export function isDrop(history: PricePoint[], point: Pick<PricePoint, 'date' | '
 /** The bottle's latest price, if it was a drop and is recent enough to show. */
 export function dropFor(w: Wine, now = Date.now()): Drop | null {
   const h = w.priceHistory ?? [];
-  if (!h.length || !w.watch || !canWatch(w)) return null;
+  if (!h.length || !isWatched(w)) return null;
   const point = h[h.length - 1];
   if (now - Date.parse(point.date) > DROP_SHOWN_MS) return null;
   const d = isDrop(h.slice(0, -1), point, w.price);

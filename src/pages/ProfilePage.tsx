@@ -14,12 +14,77 @@ import { formatPrice } from '../lib/format';
 import { apiKeyProblem, getDeviceKey, normalizeApiKey, setApiKey, testApiKey } from '../lib/labelReader';
 import { saveAccountSetting } from '../lib/cloud';
 import { useServerKey } from '../lib/serverKey';
+import { disablePush, enablePush, pushEnabled, pushSupport, sendTestPush } from '../lib/push';
 import { favouriteRed, profileFavourites } from '../lib/profile';
 import { buildTaste } from '../lib/taste';
 import { lastCheckedAt, priceDrops, watchedWines } from '../lib/priceWatch';
 import { usePriceAuto, usePriceCheckedAt } from '../lib/usePicks';
 import { ago } from '../components/StorePicks';
 import type { Wine } from '../types';
+
+/** Phone alerts when the Monday check finds a lower price. */
+function PriceAlerts() {
+  const support = pushSupport();
+  const [on, setOn] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ error: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    void pushEnabled().then(setOn);
+  }, []);
+
+  if (support === 'no') return null;
+  if (support === 'home-screen') {
+    return <p className="small muted" style={{ margin: 0 }}>To get an alert when a price drops, add Palate to your Home Screen (Share › Add to Home Screen) and turn alerts on there.</p>;
+  }
+
+  const change = async (want: boolean) => {
+    setBusy(true);
+    setNote(null);
+    if (want) {
+      const error = await enablePush();
+      setOn(error === null);
+      if (error) setNote({ error: true, text: error });
+    } else {
+      await disablePush();
+      setOn(false);
+    }
+    setBusy(false);
+  };
+
+  return (
+    <>
+      <label className="switch-row">
+        <span>
+          <span className="switch-title">Tell me when a price drops</span>
+          <span className="small muted">A notification on this device when a bottle you watch gets cheaper.</span>
+        </span>
+        <input type="checkbox" role="switch" className="switch" checked={Boolean(on)} disabled={on === null || busy} onChange={(e) => void change(e.target.checked)} />
+      </label>
+      {on && (
+        <button
+          type="button"
+          className="text-link"
+          style={{ alignSelf: 'flex-start' }}
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            const ok = await sendTestPush();
+            setNote(ok ? { error: false, text: 'Sent. It should arrive in a few seconds.' } : { error: true, text: 'Couldn’t send a test alert.' });
+            setBusy(false);
+          }}
+        >
+          Send a test alert
+        </button>
+      )}
+      {note && (
+        <p className="small" role="status" style={{ margin: 0, color: note.error ? 'var(--danger)' : 'var(--good)' }}>
+          {note.text}
+        </p>
+      )}
+    </>
+  );
+}
 
 function LabelReadingSettings({ onFocusRequest, onChange }: { onFocusRequest: () => void; onChange: () => void }) {
   const location = useLocation();
@@ -317,7 +382,7 @@ export function ProfilePage() {
                 ? watch.last
                   ? `Checked ${ago(watch.last)} at your stores`
                   : 'Not checked yet'
-                : 'Tap the bell on a loved wine or a Want to try bottle.'}
+                : 'Love a wine or add one to Want to try, and Palate watches its price.'}
             </span>
           </span>
           <ChevronRight size={20} strokeWidth={1.7} />
@@ -361,6 +426,7 @@ export function ProfilePage() {
                   }}
                 />
               </label>
+              {onServer && <PriceAlerts />}
             </div>
           </Fold>
           <Fold title="Your data" status={usage ? `${usage} on this device` : 'On this device'} open={open === 'data'} onToggle={() => toggle('data')}>

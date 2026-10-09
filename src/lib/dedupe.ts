@@ -90,7 +90,7 @@ export function combine(keep: Wine, drop: Wine): Partial<WineDraft> {
     photo: keep.photo ?? drop.photo,
     take: keep.take ?? drop.take,
     suggestion: keep.suggestion ?? drop.suggestion,
-    watch: Boolean(keep.watch || drop.watch),
+    watchOff: Boolean(keep.watchOff && drop.watchOff),
     priceHistory: [...(keep.priceHistory ?? []), ...(drop.priceHistory ?? [])].sort((x, y) => x.date.localeCompare(y.date)),
   };
 }

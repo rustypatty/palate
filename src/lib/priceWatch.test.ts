@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { wine } from '../test/fixtures';
 import { cheapestVerified, priceCheckPrompt } from './priceCheckClient';
-import { canWatch, dropFor, dropReason, dueForCheck, isDrop, lastCheckedAt, priceDrops, watchedWines, WEEK_MS, withPoint } from './priceWatch';
+import { canWatch, dropFor, dropReason, dueForCheck, isDrop, lastCheckedAt, priceDrops, watchedWines, isWatched, WEEK_MS, withPoint } from './priceWatch';
 import { normalizeUrl } from './likeThis';
 import type { PricePoint } from '../types';
 
@@ -15,8 +15,12 @@ describe('who can be watched', () => {
     expect(canWatch(wine({ list: 'want' }))).toBe(true);
     expect(canWatch(wine({ rating: 'liked' }))).toBe(false);
     expect(canWatch(wine({ list: 'passed', rating: 'loved' }))).toBe(false);
-    const ws = [wine({ rating: 'loved', watch: true }), wine({ rating: 'loved' }), wine({ rating: 'liked', watch: true })];
-    expect(watchedWines(ws)).toHaveLength(1);
+  });
+
+  it('watches them unless you switch the bell off', () => {
+    const ws = [wine({ rating: 'loved' }), wine({ list: 'want' }), wine({ rating: 'loved', watchOff: true }), wine({ rating: 'liked' })];
+    expect(watchedWines(ws)).toHaveLength(2);
+    expect(isWatched(wine({ rating: 'loved', watch: false }))).toBe(true);
   });
 });
 
@@ -45,10 +49,10 @@ describe('what counts as a drop', () => {
 
 describe('drops on screen', () => {
   const now = at('2026-09-10T12:00:00Z');
-  const loved = wine({ rating: 'loved', watch: true, price: 60, priceHistory: [pt('2026-09-01', 55), pt('2026-09-08', 48)] });
-  const want = wine({ list: 'want', watch: true, priceHistory: [pt('2026-09-01', 30), pt('2026-09-08', 26)] });
-  const steady = wine({ rating: 'loved', watch: true, priceHistory: [pt('2026-09-01', 30), pt('2026-09-08', 30)] });
-  const off = wine({ rating: 'loved', watch: false, priceHistory: [pt('2026-09-01', 55), pt('2026-09-08', 40)] });
+  const loved = wine({ rating: 'loved', price: 60, priceHistory: [pt('2026-09-01', 55), pt('2026-09-08', 48)] });
+  const want = wine({ list: 'want', priceHistory: [pt('2026-09-01', 30), pt('2026-09-08', 26)] });
+  const steady = wine({ rating: 'loved', priceHistory: [pt('2026-09-01', 30), pt('2026-09-08', 30)] });
+  const off = wine({ rating: 'loved', watchOff: true, priceHistory: [pt('2026-09-01', 55), pt('2026-09-08', 40)] });
 
   it('shows recent drops on watched bottles, biggest saving first', () => {
     const ds = priceDrops([steady, want, loved, off], now);
@@ -59,7 +63,7 @@ describe('drops on screen', () => {
   it('says why', () => {
     expect(dropReason(dropFor(loved, now)!)).toBe('Loved · lowest in 6 months');
     expect(dropReason(dropFor(want, now)!)).toBe('Want to try');
-    const tenth = wine({ rating: 'loved', watch: true, priceHistory: [pt('2026-04-01', 30), pt('2026-08-01', 50), pt('2026-09-08', 40)] });
+    const tenth = wine({ rating: 'loved', priceHistory: [pt('2026-04-01', 30), pt('2026-08-01', 50), pt('2026-09-08', 40)] });
     expect(dropReason(dropFor(tenth, now)!)).toBe('Loved · 20% less');
   });
 
@@ -86,7 +90,7 @@ describe('weekly check', () => {
   });
 
   it('counts a check made on another device', () => {
-    const w = wine({ rating: 'loved', watch: true, priceHistory: [pt('2026-09-08', 30)] });
+    const w = wine({ rating: 'loved', priceHistory: [pt('2026-09-08', 30)] });
     expect(lastCheckedAt([w], null)).toBe(at('2026-09-08T12:00:00Z'));
     expect(lastCheckedAt([w], at('2026-09-09T00:00:00Z'))).toBe(at('2026-09-09T00:00:00Z'));
     expect(lastCheckedAt([], null)).toBeNull();
@@ -94,8 +98,8 @@ describe('weekly check', () => {
 });
 
 describe('batched check', () => {
-  const a = wine({ producer: 'Prova', name: 'Barolo', rating: 'loved', watch: true, priceHistory: [pt('2026-09-01', 50)] });
-  const b = wine({ producer: 'Esempio', name: 'Chianti', list: 'want', watch: true });
+  const a = wine({ producer: 'Prova', name: 'Barolo', rating: 'loved', priceHistory: [pt('2026-09-01', 50)] });
+  const b = wine({ producer: 'Esempio', name: 'Chianti', list: 'want' });
 
   it('asks about every watched bottle in one prompt', () => {
     const p = priceCheckPrompt([a, b]);
