@@ -128,8 +128,19 @@ export interface Wine {
   watchOff?: boolean;
   /** Prices seen by the price watch, oldest first. */
   priceHistory?: PricePoint[];
+  /** "Learn": why this wine tastes the way it does, written once and kept (see learn.ts). */
+  lesson?: WineLesson | null;
   createdAt: number;
   updatedAt: number;
+}
+
+/** Why a wine tastes the way it does: the grape, the place, the making, and one thing to taste for. */
+export interface WineLesson {
+  grape: string;
+  place: string;
+  making: string;
+  tasteFor: string;
+  writtenAt: number;
 }
 
 /** What a wine is, how it tastes, how it fits your taste and how to serve it — written by Claude from what it knows. */

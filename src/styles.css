@@ -5168,6 +5168,42 @@ details.more[open] > .more-body {
   border-top: 1px solid var(--line, rgba(0, 0, 0, 0.08));
 }
 
+/* Learn on a wine page: why it tastes like this, and your bottles that share its place or grapes. */
+.learn-card > .eyebrow:first-child {
+  color: var(--wine);
+}
+.learn-try {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--tone);
+}
+.learn-links {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+}
+.learn-link {
+  display: grid;
+  gap: 6px;
+}
+.learn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.learn-chip {
+  padding: 6px 12px;
+  border-radius: var(--pill);
+  background: var(--tone);
+  color: var(--ink);
+  font-size: 13px;
+  text-decoration: none;
+}
+.learn-chip:hover {
+  background: var(--tone-hover);
+}
+
 /* ---------- Tonight ---------- */
 
 .tonight-card {
