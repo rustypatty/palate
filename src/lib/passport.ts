@@ -29,9 +29,10 @@ export interface NextStep {
   tryThese: string[];
   /** Bottles you already have (or want to try) that fit: start with these. */
   waiting: Wine[];
-  /** What fits: from this area (when set) and of this grape (when set). */
+  /** What fits: from this area (when set), of this grape (when set), in this colour (when known). */
   area?: string;
   grape?: string;
+  style?: WineStyle;
 }
 
 export interface Passport {
@@ -43,6 +44,8 @@ export interface Passport {
   /** Classic grapes you haven't tasted yet. */
   classicsNotYet: string[];
 }
+
+const WHITE_GRAPES = new Set(['Chardonnay', 'Riesling', 'Sauvignon Blanc', 'Chenin Blanc']);
 
 /** Grapes worth knowing, each with where it's at its most classic. */
 export const CLASSIC_GRAPES = [
@@ -145,6 +148,7 @@ export function buildPassport(wines: Wine[]): Passport {
       tryThese: picks,
       waiting: [],
       area: place.name,
+      style: place.wines.filter((w) => w.rating === 'loved').map((w) => w.style).find(Boolean) ?? undefined,
     });
     if (next.length >= 2) break;
   }
@@ -164,6 +168,7 @@ export function buildPassport(wines: Wine[]): Passport {
       waiting: [],
       area: home.area,
       grape: g.name,
+      style: style ?? undefined,
     });
     if (next.filter((n) => n.kind === 'grape').length >= 2) break;
   }
@@ -182,6 +187,8 @@ export function buildPassport(wines: Wine[]): Passport {
       tryThese: home.names.slice(0, 3),
       waiting: [],
       grape: g,
+      area: home.area,
+      style: WHITE_GRAPES.has(g) ? 'white' : 'red',
     });
   }
 
@@ -191,7 +198,8 @@ export function buildPassport(wines: Wine[]): Passport {
     step.waiting = waiting.filter((w) => {
       const app = appOf(w);
       if (app && step.tryThese.includes(app.name)) return true;
-      if (step.area && app?.area !== step.area) return false;
+      // Meeting a grape: any bottle of it counts, wherever it's from.
+      if (step.area && step.kind !== 'classic' && app?.area !== step.area) return false;
       // Next door means somewhere new: not another bottle from a place you've already tasted.
       if (step.kind === 'neighbour' && tastedHere.has(app!.name)) return false;
       return !step.grape || grapesOf(w).includes(step.grape);
