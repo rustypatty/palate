@@ -5296,6 +5296,50 @@ a.stamp:hover {
   border: 1px dashed var(--line-strong, rgba(0, 0, 0, 0.22));
   color: var(--ink-soft);
 }
+.path-open {
+  padding-top: 2px;
+}
+.path {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+}
+.path > .eyebrow {
+  color: var(--wine);
+}
+.path-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.path-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+}
+.path-item + .path-item {
+  border-top: 1px solid var(--line, rgba(0, 0, 0, 0.06));
+}
+.path-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.path-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.path-item .btn {
+  flex: none;
+}
+.path-note {
+  margin: 0;
+}
 .stamp-n {
   opacity: 0.75;
   font-size: 12px;

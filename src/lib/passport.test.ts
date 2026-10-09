@@ -65,6 +65,9 @@ describe('wine passport', () => {
     const crozes = wine({ producer: 'Domaine Probe', name: 'Crozes-Hermitage', region: 'Crozes-Hermitage', grapes: ['Syrah'], list: 'want' });
     const q = buildPassport([cdp, cdp2, rioja, pf, crozes]);
     expect(q.next.find((x) => x.title === 'Meet Chardonnay')?.waiting).toEqual([pf]);
+    // Any Chardonnay counts for meeting the grape, not only Burgundy.
+    const napa = wine({ producer: 'Valley Test', name: 'Chardonnay', region: 'Napa Valley', grapes: ['Chardonnay'], style: 'white', owned: 1 });
+    expect(buildPassport([cdp, rioja, napa]).next.find((x) => x.title === 'Meet Chardonnay')?.waiting).toEqual([napa]);
     expect(q.next.find((x) => x.title === 'Syrah from Northern Rhône')).toMatchObject({ tryThese: ['Crozes-Hermitage', 'Saint-Joseph', 'Cornas'], waiting: [crozes] });
   });
 

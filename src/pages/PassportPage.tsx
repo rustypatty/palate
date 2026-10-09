@@ -1,9 +1,13 @@
-import { ChevronLeft, Heart } from 'lucide-react';
-import { useMemo } from 'react';
+import { Check, ChevronLeft, Heart } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAllWines } from '../hooks';
 import { producerAndName } from '../lib/format';
+import { norm } from '../lib/catalogNorm';
+import { matchesWant } from '../lib/lists';
 import { buildPassport, type NextStep, type Stamp } from '../lib/passport';
+import { learningPath, savePathBottle, type LearningPath } from '../lib/paths';
+import type { Wine } from '../types';
 
 /** A place or grape you've tasted: loved ones marked, tapping opens the bottle (or the first one). */
 function StampChip({ stamp }: { stamp: Stamp }) {
@@ -20,7 +24,72 @@ function StampChip({ stamp }: { stamp: Stamp }) {
   );
 }
 
-function NextCard({ step }: { step: NextStep }) {
+/** About five bottles from the catalog to taste your way into a suggestion. Loaded when asked: free. */
+function PathList({ step, wines }: { step: NextStep; wines: Wine[] }) {
+  const [state, setState] = useState<{ status: 'idle' } | { status: 'busy' } | { status: 'done'; path: LearningPath } | { status: 'error' }>({ status: 'idle' });
+  const load = () => {
+    setState({ status: 'busy' });
+    learningPath(step, wines)
+      .then((path) => setState({ status: 'done', path }))
+      .catch(() => setState({ status: 'error' }));
+  };
+
+  if (state.status === 'idle' || state.status === 'error') {
+    return (
+      <div className="path-open">
+        <button type="button" className="btn btn-white btn-sm" onClick={load}>
+          {state.status === 'error' ? 'Couldn’t load bottles · try again' : 'Show 5 bottles to try'}
+        </button>
+      </div>
+    );
+  }
+  if (state.status === 'busy') return <p className="small muted path-note">Finding bottles…</p>;
+
+  const { bottles, budget } = state.path;
+  if (!bottles.length) return <p className="small muted path-note">Palate’s catalog has nothing for this under ${budget} yet.</p>;
+  return (
+    <div className="path">
+      <div className="eyebrow">A path to try · under ${budget}</div>
+      <ol className="path-list">
+        {bottles.map((b) => {
+          const saved = wines.some((w) => w.list === 'want' && matchesWant(w, `${b.producer} ${b.name}`));
+          // Don't repeat the place when the name already says it ("Saint-Joseph Rouge").
+          const place = norm(b.name).includes(norm(b.appellation)) ? '' : `${b.appellation} · `;
+          return (
+            <li key={b.wineId} className="path-item">
+              <span className="path-text">
+                <span className="pc-producer">{b.producer}</span>
+                <span className="path-name">{b.name}</span>
+                <span className="small muted">
+                  {place}about ${b.price}
+                </span>
+              </span>
+              <button
+                type="button"
+                className={`btn btn-sm ${saved ? 'btn-ghost is-saved' : 'btn-white'}`}
+                disabled={saved}
+                onClick={() => void savePathBottle(b, step)}
+              >
+                {saved ? (
+                  <>
+                    <Check size={15} /> Saved
+                  </>
+                ) : (
+                  'Want to try'
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="small muted path-note">
+        Taste them side by side or one after another and notice what they share. Prices are the lowest seen at US shops, so yours may differ.
+      </p>
+    </div>
+  );
+}
+
+function NextCard({ step, wines }: { step: NextStep; wines: Wine[] }) {
   return (
     <article className="next-card">
       <div className="eyebrow">{step.kind === 'neighbour' ? 'Next door' : step.kind === 'grape' ? 'Same grape, new place' : 'A classic to meet'}</div>
@@ -46,6 +115,7 @@ function NextCard({ step }: { step: NextStep }) {
           </span>
         ))}
       </div>
+      <PathList step={step} wines={wines} />
     </article>
   );
 }
@@ -89,7 +159,7 @@ export function PassportPage() {
               <h2 className="title-lg">Where to next</h2>
               <div className="next-list">
                 {p.next.map((step) => (
-                  <NextCard key={step.title} step={step} />
+                  <NextCard key={step.title} step={step} wines={all!} />
                 ))}
               </div>
             </section>
