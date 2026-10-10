@@ -9,6 +9,7 @@ import { adoptWant, draftFromItem, markNotForMe, saveToWant } from '../lib/lists
 import {
   checkShelfPrices,
   loadShelf,
+  LOOKING_FOR,
   MAX_SHELF_PHOTOS,
   readShelf,
   saveShelf,
@@ -27,6 +28,12 @@ import { useToast } from './Toast';
 import { isStaleApp, reloadForUpdate } from '../lib/appUpdate';
 import { STYLES } from '../lib/constants';
 import { BottleImage } from './BottleImage';
+
+/** "0:07", "1:12" */
+function clock(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
 
 const CALL_LABEL: Record<PriceCall, string> = { bargain: 'Bargain', fair: 'Fair price', pricey: 'A little pricey', unknown: '' };
 
@@ -81,6 +88,16 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shelf, setShelf] = useState<SavedShelf | null>(loadShelf);
+  const [lookingFor, setLookingFor] = useState('');
+  // While reading: when it started (for the timer) and the picks written so far.
+  const [started, setStarted] = useState<number | null>(null);
+  const [early, setEarly] = useState<ShelfBottle[]>([]);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (started === null) return;
+    const t = window.setInterval(() => tick((n) => n + 1), 1000);
+    return () => window.clearInterval(t);
+  }, [started]);
 
   const thumbs = useMemo(() => photos.map((p) => URL.createObjectURL(p)), [photos]);
   const idle = photos.length === 0 && !busy;
@@ -100,7 +117,7 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
     const at = shelf.at;
     const todo = shelf.report.bottles
       .map((b, i) => ({ b, i }))
-      .filter(({ b, i }) => b.catalog === undefined && b.verdict !== 'pass' && !looking.current.has(`${at}:${i}`));
+      .filter(({ b, i }) => b.catalog === undefined && !looking.current.has(`${at}:${i}`));
     if (!todo.length) return;
     todo.forEach(({ i }) => looking.current.add(`${at}:${i}`));
     let alive = true;
@@ -150,9 +167,11 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
     const ctl = new AbortController();
     abort.current = ctl;
     setError(null);
-    setBusy(`Reading ${photos.length === 1 ? 'the shelf' : `${photos.length} photos`}… about 30 seconds`);
+    setBusy(`Reading ${photos.length === 1 ? 'the shelf' : `${photos.length} photos`}`);
+    setStarted(Date.now());
+    setEarly([]);
     try {
-      const out = await readShelf(photos, shelfContext(wines ?? [], taste), store.name, ctl.signal);
+      const out = await readShelf(photos, shelfContext(wines ?? [], taste), store.name, lookingFor, (p) => !ctl.signal.aborted && setEarly(p.bottles), ctl.signal);
       if (ctl.signal.aborted) return;
       if (!out.ok) {
         setError(`Couldn’t read the shelf: ${out.reason}.`);
@@ -164,13 +183,17 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
       }
       // The photos were only for reading the labels: they're let go here, never saved.
       setPhotos([]);
-      update({ at: Date.now(), store: store.name, photos: photos.length, report: out.report, done: {} });
+      update({ at: Date.now(), store: store.name, photos: photos.length, lookingFor: lookingFor.trim() || undefined, report: out.report, done: {} });
     } catch (e) {
       if (ctl.signal.aborted) return;
       if (isStaleApp(e) && reloadForUpdate()) return;
       setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
     } finally {
-      if (abort.current === ctl) setBusy(null);
+      if (abort.current === ctl) {
+        setBusy(null);
+        setStarted(null);
+        setEarly([]);
+      }
     }
   };
 
@@ -178,7 +201,7 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
     if (!shelf || needKey()) return;
     const idx = shelf.report.bottles
       .map((b, i) => ({ b, i }))
-      .filter(({ b }) => b.verdict !== 'pass' && b.price_usd > 0)
+      .filter(({ b }) => b.verdict === 'top' && b.price_usd > 0)
       .slice(0, 5)
       .map(({ i }) => i);
     if (!idx.length) {
@@ -245,7 +268,8 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
   const report = shelf?.report;
   const top = report?.bottles.filter((b) => b.verdict === 'top') ?? [];
   const good = report?.bottles.filter((b) => b.verdict === 'good') ?? [];
-  const pass = report?.bottles.filter((b) => b.verdict === 'pass') ?? [];
+  const elapsed = started === null ? '' : clock(Date.now() - started);
+  const status = busy && started !== null ? `${busy}… ${elapsed}${early.length ? ` · ${early.length} ${early.length === 1 ? 'pick' : 'picks'} so far` : ''}` : busy;
 
   return (
     <section className="shelf-snap" aria-label="Snap a shelf">
@@ -268,9 +292,31 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
               </button>
             )}
           </div>
+          {!busy && (
+            <div className="looking-for">
+              <label className="eyebrow" htmlFor="shelf-looking-for">
+                Looking for <span className="muted">· optional</span>
+              </label>
+              <input
+                id="shelf-looking-for"
+                className="input white"
+                value={lookingFor}
+                onChange={(e) => setLookingFor(e.target.value)}
+                placeholder="e.g. Tuscany, a Super Tuscan"
+                enterKeyHint="done"
+              />
+              <div className="chips" role="group" aria-label="Quick choices">
+                {LOOKING_FOR.map((q) => (
+                  <button key={q} type="button" className="chip outline" aria-pressed={lookingFor === q} onClick={() => setLookingFor(lookingFor === q ? '' : q)}>
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {busy ? (
             <div className="picks-status busy">
-              <span role="status">{busy}</span>
+              <span role="status">{status}</span>
               <button type="button" className="btn btn-white btn-sm" onClick={() => (abort.current?.abort(), setBusy(null))}>
                 Cancel
               </button>
@@ -294,7 +340,7 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
 
       {busy && !photos.length && (
         <div className="picks-status busy">
-          <span role="status">{busy}</span>
+          <span role="status">{status}</span>
           <button type="button" className="btn btn-white btn-sm" onClick={() => (abort.current?.abort(), setBusy(null))}>
             Cancel
           </button>
@@ -307,18 +353,30 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
         </p>
       )}
 
-      {report && shelf && (
+      {busy && early.length > 0 && (
+        <div className="shelf-results" aria-live="polite">
+          <div className="pick-list">
+            {early.map((b, i) => (
+              <ShelfCard key={shelfTitle(b)} b={b} n={b.verdict === 'top' ? i + 1 : undefined} compact={b.verdict === 'good'} rated={rated(b)} act={act} preview />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {report && shelf && !busy && (
         <div className="shelf-results">
           <div className="shelf-results-head">
             <span className="footnote">
               {shelf.photos} {shelf.photos === 1 ? 'photo' : 'photos'} at {shelf.store} · {ago(shelf.at)}
+              {shelf.lookingFor ? ` · ${shelf.lookingFor}` : ''}
               {shelf.pricesChecked ? ' · prices checked online' : ''}
             </span>
             <button type="button" className="text-link" onClick={() => update(null)}>
               Clear
             </button>
           </div>
-          {report.summary && <p className="reason shelf-summary">{cleanReason(report.summary)}</p>}
+          {report.decision && <p className="reason shelf-summary">{cleanReason(report.decision)}</p>}
+          {report.lesson && <p className="shelf-lesson">{cleanReason(report.lesson)}</p>}
 
           {top.length > 0 && (
             <div className="pick-list">
@@ -337,46 +395,6 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
                 ))}
               </div>
             </>
-          )}
-
-          {report.comparisons.length > 0 && (
-            <div className="tone-card">
-              <h3>Head to head</h3>
-              <ul className="bullets">
-                {report.comparisons.map((c) => (
-                  <li key={c}>{cleanReason(c)}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {report.buy_three.picks.length >= 3 && (
-            <div className="tone-card buy-three">
-              <h3>
-                If you’re buying <em>three</em>
-              </h3>
-              <ol>
-                {report.buy_three.picks.slice(0, 3).map((p) => (
-                  <li key={p}>{p}</li>
-                ))}
-              </ol>
-              {report.buy_three.lesson && <p className="reason">{cleanReason(report.buy_three.lesson)}</p>}
-            </div>
-          )}
-
-          {pass.length > 0 && (
-            <div className="shelf-pass">
-              <h3 className="eyebrow list-title">I’d pass on</h3>
-              <ul>
-                {pass.map((b) => (
-                  <li key={shelfTitle(b)}>
-                    <strong>{shelfTitle(b)}</strong>
-                    {b.price_usd > 0 && <span className="muted"> · {formatPrice(b.price_usd)}</span>}
-                    <span className="muted"> — {cleanReason(b.why)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
           )}
 
           {report.unreadable && <p className="footnote">{report.unreadable}</p>}
@@ -402,6 +420,7 @@ function ShelfCard({
   b,
   n,
   compact = false,
+  preview = false,
   done,
   rated,
   act,
@@ -409,6 +428,8 @@ function ShelfCard({
   b: ShelfBottle;
   n?: number;
   compact?: boolean;
+  /** Still being read: shown without the buttons. */
+  preview?: boolean;
   done?: 'want' | 'bought' | 'passed';
   rated: { id: string; rating: string | null; vintage: number | 'NV' | null } | null;
   act: {
@@ -453,7 +474,9 @@ function ShelfCard({
           {b.price_usd > 0 ? <strong>{formatPrice(b.price_usd)}</strong> : <span className="muted">Price not read</span>}
           {call && <span className={`price-call ${b.price_call}`}>{call}</span>}
         </div>
+        {(b.deal || b.score) && <div className="sc-note">{[b.deal, b.score].filter(Boolean).join(' · ')}</div>}
         {b.price_note && <div className="sc-note">{cleanReason(b.price_note)}</div>}
+        {b.where && <div className="sc-where">{b.where}</div>}
         {ratedText && rated && (
           <Link to={`/wine/${rated.id}`} className="sc-rated">
             {ratedText} <ArrowUpRight size={13} strokeWidth={1.6} />
@@ -461,13 +484,21 @@ function ShelfCard({
         )}
       </div>
       <div className="pr-why">
-        <div className="why-label">Why you’ll like it</div>
+        {!compact && <div className="why-label">Why you’ll like it</div>}
         <p className="reason">{cleanReason(b.why)}</p>
-        {!compact && b.taste && <p className="sc-taste">{cleanReason(b.taste)}</p>}
+        {!compact && b.taste.length > 0 && (
+          <div className="taste-tags sc-tags">
+            {b.taste.map((t) => (
+              <span key={t} className="taste-tag">
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
         {b.tip && <p className="sc-tip">{cleanReason(b.tip)}</p>}
       </div>
-      <div className="pr-actions sc-actions">
-        <button type="button" className={`btn btn-dark btn-lg${done === 'want' ? ' is-saved' : ''}`} disabled={Boolean(done)} onClick={() => act.want(b)}>
+      {!preview && <div className={`pr-actions sc-actions${compact ? ' small' : ''}`}>
+        <button type="button" className={`btn btn-dark ${compact ? 'btn-sm' : 'btn-lg'}${done === 'want' ? ' is-saved' : ''}`} disabled={Boolean(done)} onClick={() => act.want(b)}>
           {done === 'want' ? (
             <>
               <Check size={17} /> Saved
@@ -480,25 +511,25 @@ function ShelfCard({
         </button>
         {done === 'bought' ? (
           boughtId ? (
-            <Link to={`/wine/${boughtId}`} className="btn btn-wine btn-lg is-saved">
+            <Link to={`/wine/${boughtId}`} className={`btn btn-wine ${compact ? 'btn-sm' : 'btn-lg'} is-saved`}>
               <Check size={17} /> Rate it
             </Link>
           ) : (
-            <span className="btn btn-wine btn-lg is-saved">
+            <span className={`btn btn-wine ${compact ? 'btn-sm' : 'btn-lg'} is-saved`}>
               <Check size={17} /> Bought
             </span>
           )
         ) : (
-          <button type="button" className="btn btn-tone btn-lg" disabled={Boolean(done)} onClick={async () => setBoughtId(await act.bought(b))}>
+          <button type="button" className={`btn btn-tone ${compact ? 'btn-sm' : 'btn-lg'}`} disabled={Boolean(done)} onClick={async () => setBoughtId(await act.bought(b))}>
             <ShoppingBag size={16} strokeWidth={1.7} /> Bought it
           </button>
         )}
-        {!done && (
+        {!done && !compact && (
           <button type="button" className="text-link" onClick={() => act.pass(b)}>
             Not for me
           </button>
         )}
-      </div>
+      </div>}
     </article>
   );
 }

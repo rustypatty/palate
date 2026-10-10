@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cleanReason } from '../components/Shelf';
 import { wine } from '../test/fixtures';
-import { shelfContext, shelfTitle } from './shelf';
+import { completeItems, loadShelf, saveShelf, shelfContext, shelfTitle, type SavedShelf } from './shelf';
 
 describe('Snap a shelf', () => {
   it('tells Claude your ratings and your own notes', () => {
@@ -17,6 +17,23 @@ describe('Snap a shelf', () => {
     expect(text).toContain('my notes: "Gripping tannin, lovely."');
     expect(text).toContain('Would not buy again: Château Puy d’Amour');
     expect(text).not.toContain('Unrated');
+  });
+
+  it('picks out each pick as soon as it has been written in full', () => {
+    const partial = '{"picks":[{"producer":"Caiarossa","why":"Has a } and a \\" inside"},{"producer":"Argi';
+    expect(completeItems(partial, 'picks')).toEqual([{ producer: 'Caiarossa', why: 'Has a } and a " inside' }]);
+    expect(completeItems('{"picks":[{"a":1}],"also_good":[{"b":2},{"b":', 'also_good')).toEqual([{ b: 2 }]);
+    expect(completeItems('{"picks":[{"a":1}],"also_good":[]', 'picks')).toEqual([{ a: 1 }]);
+    expect(completeItems('{"decision":"', 'picks')).toEqual([]);
+  });
+
+  it('forgets a shelf read before the shorter answers, instead of showing it half-empty', () => {
+    const lean: SavedShelf = { at: 1, store: 'Total Wine', photos: 2, report: { decision: 'If you get one: X.', lesson: '', bottles: [], unreadable: '' } };
+    saveShelf(lean);
+    expect(loadShelf()).toEqual(lean);
+    localStorage.setItem('palate.shelf', JSON.stringify({ at: 1, store: 'Total Wine', photos: 2, report: { summary: 'old', bottles: [], comparisons: [] } }));
+    expect(loadShelf()).toBeNull();
+    saveShelf(null);
   });
 
   it('names bottles plainly', () => {

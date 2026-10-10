@@ -4600,13 +4600,35 @@ details.more[open] > .more-body {
   transform: translateY(-50%);
 }
 
-.sc-taste {
-  margin: 10px 0 0;
-  font-size: 14.5px;
+
+.sc-where {
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.sc-tags {
+  margin-top: 4px;
+}
+.sc-tags .taste-tag {
+  height: 30px;
+  padding: 0 12px;
+  background: var(--tone);
+}
+.shelf-lesson {
+  margin: -6px 0 0;
+  padding: 0 var(--text-in);
+  font-size: 15px;
   line-height: 1.5;
   color: var(--ink-2);
 }
-
+.looking-for {
+  display: grid;
+  gap: 8px;
+}
+.looking-for .eyebrow .muted {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
 .sc-tip {
   margin: 8px 0 0;
   font-size: 13.5px;
@@ -4617,6 +4639,11 @@ details.more[open] > .more-body {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
+.sc-actions.small {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .sc-actions .text-link {
   grid-column: 1 / -1;
   justify-self: center;
@@ -4632,38 +4659,10 @@ details.more[open] > .more-body {
   }
 }
 
-.buy-three h3 em {
-  font-style: italic;
-}
 
-.buy-three ol {
-  margin: 0 0 12px;
-  padding-left: 22px;
-  display: grid;
-  gap: 6px;
-  font-family: var(--font-display);
-  font-size: 18px;
-}
 
-.buy-three .reason {
-  margin: 0;
-}
 
-.shelf-pass ul {
-  list-style: none;
-  margin: 0;
-  padding: 0 var(--text-in);
-  display: grid;
-  gap: 10px;
-  font-size: 14.5px;
-  line-height: 1.5;
-}
 
-.shelf-pass strong {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 16px;
-}
 
 /* A hero bottle sized from its measured outline */
 .hero-bottle-m {

@@ -26,15 +26,18 @@ describe.skipIf(!key || !photo)('Snap a shelf (live)', () => {
       undefined,
     );
     const t0 = Date.now();
-    const out = await readShelfImagesWithClaude(key!, [proc!.getBuiltinModule('node:fs').readFileSync(photo!, 'utf8').trim()], context, 'Total Wine');
-    console.log(`took ${Math.round((Date.now() - t0) / 1000)}s`);
+    let first = 0;
+    const out = await readShelfImagesWithClaude(key!, [proc!.getBuiltinModule('node:fs').readFileSync(photo!, 'utf8').trim()], context, 'Total Wine', '', () => {
+      first ||= Date.now() - t0;
+    });
+    console.log(`first pick after ${Math.round(first / 1000)}s, all done after ${Math.round((Date.now() - t0) / 1000)}s`);
     expect(out.ok, out.ok ? '' : out.reason).toBe(true);
     if (!out.ok) return;
     const r = out.report;
-    console.log('summary:', r.summary);
-    for (const b of r.bottles) console.log(`${b.rank}. [${b.verdict}] ${b.producer} | ${b.wine} ${b.vintage} | $${b.price_usd} ${b.price_call} (${b.price_note}) | ${b.why}`);
-    console.log('compare:', r.comparisons, 'three:', r.buy_three, 'unreadable:', r.unreadable);
-    expect(r.bottles.length).toBeGreaterThanOrEqual(3);
+    console.log('decision:', r.decision, '| lesson:', r.lesson);
+    for (const b of r.bottles) console.log(`[${b.verdict}] ${b.producer} | ${b.wine} ${b.vintage} | $${b.price_usd} ${b.deal} ${b.score} ${b.price_call} | ${b.where} | ${b.taste.join(', ')} | ${b.why}`);
+    console.log('unreadable:', r.unreadable);
+    expect(r.bottles.filter((b) => b.verdict === 'top').length).toBeGreaterThanOrEqual(3);
     expect(r.bottles.some((b) => b.price_usd > 50 && b.price_usd < 100)).toBe(true);
   });
 });
