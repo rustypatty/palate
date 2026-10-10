@@ -119,4 +119,24 @@ describe('store lists', () => {
     expect(listExpired({ id: 'totalwine', fetchedAt: now - 60_000, list: { picks: [], tips: [], budget: null } }, now)).toBe(false);
     expect(listExpired({ id: 'pogos', fetchedAt: now - 10 * LIST_TTL, items: [] }, now)).toBe(false);
   });
+
+  it('times a list next to a downloaded wine list by when the list was made, and clears only the list', async () => {
+    const { listExpired, clearStoreList, LIST_TTL } = await import('./stores');
+    const { PalateDB } = await import('../db');
+    const now = Date.now();
+    const list = { picks: [], tips: [], budget: null };
+    // Downloaded days ago, list made a minute ago: still fresh.
+    expect(listExpired({ id: 'pogos', fetchedAt: now - 3 * 86400e3, items: [], list: { ...list, madeAt: now - 60_000 } }, now)).toBe(false);
+    expect(listExpired({ id: 'pogos', fetchedAt: now, items: [], list: { ...list, madeAt: now - LIST_TTL - 1 } }, now)).toBe(true);
+    const database = new PalateDB(`stores-${Math.random()}`);
+    const item = { key: 'pogos:1', title: 'Barolo 2020', style: 'red' as const, price: 50, url: 'x', image: null, vintage: 2020, country: '', sizeMl: 750 };
+    await database.stores.put({ id: 'pogos', fetchedAt: now, items: [item], list: { ...list, madeAt: now } });
+    await clearStoreList('pogos', database);
+    const row = await database.stores.get('pogos');
+    expect(row?.items).toHaveLength(1);
+    expect(row?.list).toBeUndefined();
+    await database.stores.put({ id: 'totalwine', fetchedAt: now, list });
+    await clearStoreList('totalwine', database);
+    expect(await database.stores.get('totalwine')).toBeUndefined();
+  });
 });

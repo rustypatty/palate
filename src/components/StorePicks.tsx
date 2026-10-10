@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAllWines, useLists, useWines } from '../hooks';
 import { getApiKey } from '../lib/labelReader';
 import { markNotForMe, saveToWant } from '../lib/lists';
-import { clearStoreList, LIST_TTL, possessive, refreshPogos, requestStockList, requestStoreList, storeById, STORES, type StoreId } from '../lib/stores';
+import { asSuggestion, clearStoreList, LIST_TTL, possessive, refreshPogos, requestStockList, requestStoreList, storeById, STORES, type StoreId } from '../lib/stores';
 import { shortlist } from '../lib/twStock';
 import { StockRefresh } from './StockRefresh';
 import { MIN_RATED } from '../lib/taste';
@@ -148,12 +148,22 @@ export function StorePicksPanel() {
   const [storeId] = useStoreChoice();
   const [budget] = useBudget();
   const store = storeById(storeId);
-  const { fetchedAt, picks, tips, saved, fromStock } = useStorePicks(storeId, budget, 15);
+  const { fetchedAt, stockAt, stockItems, picks, tips, saved, fromStock } = useStorePicks(storeId, budget, 15);
   const taste = useTaste();
   const advisor = useAdvisor();
   // Total Wine: what your store had in stock when you last imported it with the Chrome extension.
   const stock = useTwStock(store.id === 'totalwine');
   const inStock = stock?.bottles.length ? stock : null;
+  // What Claude chooses from: Total Wine's imported stock, or Pogo's downloaded wine list.
+  const source = useMemo(
+    () =>
+      store.id === 'totalwine'
+        ? inStock
+        : store.kind === 'catalog' && stockAt && stockItems.length
+          ? { storeName: store.name, importedAt: stockAt, bottles: stockItems.map(asSuggestion) }
+          : null,
+    [store, inStock, stockAt, stockItems],
+  );
   const wines = useWines();
   const lists = useLists();
   const actions = usePickActions(store.name);
@@ -165,10 +175,26 @@ export function StorePicksPanel() {
 
   // A list Claude made clears itself after an hour, also while the app stays open.
   useEffect(() => {
-    if (!fetchedAt || store.kind === 'catalog') return;
+    if (!fetchedAt) return;
     const t = window.setTimeout(() => void clearStoreList(store.id), Math.max(0, fetchedAt + LIST_TTL - Date.now()));
     return () => window.clearTimeout(t);
-  }, [fetchedAt, store.id, store.kind]);
+  }, [fetchedAt, store.id]);
+
+  /** Download Pogo's wine list (free). */
+  const download = async () => {
+    abort.current?.abort();
+    const ctl = new AbortController();
+    abort.current = ctl;
+    setError(null);
+    setBusy(`Loading ${possessive(store.name)} wine list…`);
+    try {
+      await refreshPogos(ctl.signal);
+    } catch (e) {
+      if (!ctl.signal.aborted) setError({ store: store.id, text: e instanceof Error ? e.message : 'Something went wrong. Try again.' });
+    } finally {
+      if (abort.current === ctl) setBusy(null);
+    }
+  };
 
   const load = async () => {
     abort.current?.abort();
@@ -176,10 +202,7 @@ export function StorePicksPanel() {
     abort.current = ctl;
     setError(null);
     try {
-      if (store.kind === 'catalog') {
-        setBusy(`Loading ${possessive(store.name)} wine list…`);
-        await refreshPogos(ctl.signal);
-      } else {
+      {
         const rated = (wines ?? []).filter((w) => w.rating);
         const label = (w: { producer: string; name: string; region: string }) => [w.producer, w.name, w.region && `(${w.region})`].filter(Boolean).join(' ');
         const req = {
@@ -193,14 +216,14 @@ export function StorePicksPanel() {
           budget,
         };
         let out;
-        if (inStock && advisor) {
-          const short = shortlist(advisor, inStock.bottles, { passed: lists?.passed, budget, usual: taste?.price ?? null, have: wines ?? [] });
+        if (source && advisor) {
+          const short = shortlist(advisor, source.bottles, { passed: lists?.passed, budget, usual: taste?.price ?? null, have: wines ?? [] });
           if (!short.length) {
-            setError({ store: store.id, text: `Nothing in stock at ${inStock.storeName} fits that budget. Try a higher one.` });
+            setError({ store: store.id, text: `Nothing in stock at ${source.storeName} fits that budget. Try a higher one.` });
             return;
           }
-          setBusy(`Choosing from ${inStock.bottles.length} bottles in stock at ${inStock.storeName}…`);
-          out = await requestStockList(req, { storeName: inStock.storeName, importedAt: inStock.importedAt, count: inStock.bottles.length }, short, ctl.signal);
+          setBusy(`Choosing from ${source.bottles.length} bottles in stock at ${source.storeName}…`);
+          out = await requestStockList(req, { storeName: source.storeName, importedAt: source.importedAt, count: source.bottles.length }, short, ctl.signal);
         } else {
           setBusy(`Searching ${possessive(store.name)} website for bottles you’d like — about a minute…`);
           out = await requestStoreList(req, ctl.signal);
@@ -217,11 +240,11 @@ export function StorePicksPanel() {
   // Pogo's list is free to download: keep it current by itself (first visit, or older than 3 days).
   const autoLoaded = useRef(new Set<StoreId>());
   useEffect(() => {
-    if (store.kind !== 'catalog' || fetchedAt === undefined || busy || autoLoaded.current.has(store.id)) return;
-    if (fetchedAt !== null && Date.now() - fetchedAt < CATALOG_FRESH) return;
+    if (store.kind !== 'catalog' || stockAt === undefined || busy || autoLoaded.current.has(store.id)) return;
+    if (stockAt !== null && Date.now() - stockAt < CATALOG_FRESH) return;
     autoLoaded.current.add(store.id);
-    void load();
-  }, [store.id, store.kind, fetchedAt, busy]);
+    void download();
+  }, [store.id, store.kind, stockAt, busy]);
 
   if (taste && !taste.enough) return <RatePrompt rated={taste.rated} />;
   if (fetchedAt === undefined) return null;
@@ -231,9 +254,9 @@ export function StorePicksPanel() {
     <button type="button" className="btn btn-white btn-sm" onClick={() => (abort.current?.abort(), setBusy(null))}>
       Cancel
     </button>
-  ) : catalog ? (
-    <button type="button" className="btn btn-white btn-sm" onClick={load}>
-      <RefreshCw size={15} strokeWidth={1.8} /> {fetchedAt ? 'Refresh' : 'Load list'}
+  ) : catalog && !stockAt ? (
+    <button type="button" className="btn btn-white btn-sm" onClick={download}>
+      <RefreshCw size={15} strokeWidth={1.8} /> Load list
     </button>
   ) : hasKey ? (
     <button type="button" className="btn btn-white btn-sm" onClick={load}>
@@ -248,18 +271,16 @@ export function StorePicksPanel() {
   const status = busy
     ? busy
     : fetchedAt
-      ? catalog
-        ? `In stock at ${store.name} · updated ${ago(fetchedAt)}`
-        : fromStock
-          ? `List made ${ago(fetchedAt)} · from ${fromStock.count} bottles in stock at ${fromStock.storeName}`
-          : `List made ${ago(fetchedAt)} · ${picks.length} found on ${store.domain}`
-      : catalog
-        ? `Free. Downloads ${possessive(store.name)} current wine list (about 1 MB), then works without signal.`
-        : hasKey
-          ? inStock
-            ? `Claude picks from the ${inStock.bottles.length} bottles in stock at ${inStock.storeName}, imported ${ago(inStock.importedAt)}. A few seconds.`
-            : `Claude searches ${possessive(store.name)} website for bottles that fit your taste. About a minute.`
-          : `Needs your Anthropic API key (in My palate) to search ${possessive(store.name)} website.`;
+      ? fromStock
+        ? `List made ${ago(fetchedAt)} · from ${fromStock.count} bottles in stock at ${fromStock.storeName}`
+        : `List made ${ago(fetchedAt)} · ${picks.length} found on ${store.domain}`
+      : catalog && !stockAt
+        ? `Downloads ${possessive(store.name)} current wine list (free, about 1 MB), then Claude picks from it.`
+        : !hasKey
+          ? `Needs your Anthropic API key (in My palate) for Claude to make a list.`
+          : source
+            ? `Claude picks from the ${source.bottles.length} bottles in stock at ${source.storeName}, ${store.id === 'totalwine' ? 'imported' : 'updated'} ${ago(source.importedAt)}. A few seconds.`
+            : `Claude searches ${possessive(store.name)} website for bottles that fit your taste. About a minute.`;
 
   const shownError = error?.store === store.id ? error.text : null;
 
@@ -277,7 +298,7 @@ export function StorePicksPanel() {
         <div className={`picks-status${busy ? ' busy' : ''}`}>
           <span role="status">{status}</span>
           {button}
-          {!busy && !catalog && fetchedAt && (
+          {!busy && fetchedAt && (
             <button type="button" className="text-link" onClick={() => void clearStoreList(store.id)}>
               Clear
             </button>
@@ -285,6 +306,16 @@ export function StorePicksPanel() {
         </div>
       )}
       {store.id === 'totalwine' && stock !== undefined && <StockRefresh stock={inStock} />}
+      {catalog && stockAt && !busy && (
+        <div className="stock-refresh small">
+          <span>
+            {possessive(store.name)} list from {ago(stockAt)}
+          </span>
+          <button type="button" className="text-link" onClick={download}>
+            <RefreshCw size={13} strokeWidth={1.8} /> Refresh
+          </button>
+        </div>
+      )}
       {shownError && (
         <p className="small" role="alert" style={{ color: 'var(--danger)', margin: 0 }}>
           {shownError}
@@ -293,7 +324,7 @@ export function StorePicksPanel() {
 
       {fetchedAt && !busy && picks.length === 0 && (
         <p className="lede">
-          {store.kind === 'search' && tips.length
+          {!fromStock && tips.length
             ? `Claude couldn’t confirm specific bottles on ${possessive(store.name)} website this time — see what to look for below.`
             : budget
               ? 'Nothing on this list fits that budget. Try a higher one.'
@@ -332,10 +363,10 @@ export function StorePicksPanel() {
       )}
       {fetchedAt && (
         <p className="footnote">
-          {catalog
-            ? `Stock is what ${possessive(store.name)} website shows; it can lag behind the shelf.`
-            : fromStock
+          {fromStock
+            ? store.id === 'totalwine'
               ? `Every bottle above was in stock at ${fromStock.storeName} when you imported it ${ago(fromStock.importedAt)}.`
+              : `Every bottle above was in stock on ${possessive(store.name)} website ${ago(fromStock.importedAt)}; it can lag behind the shelf.`
               : `Every bottle above was found on ${possessive(store.name)} website. Stock can lag behind the shelf — tap a link to check your location.`}
         </p>
       )}

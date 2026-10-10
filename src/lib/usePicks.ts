@@ -3,8 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { db } from '../db';
 import { useLists, useWines } from '../hooks';
 import { makeAdvisor } from './insights';
-import { explainSuggestions, rankCandidates, type Pick } from './recommend';
-import { clearStoreList, listExpired, storeById, type StoreId, type StoreItem, type SuggestedItem } from './stores';
+import { explainSuggestions, type Pick } from './recommend';
+import { clearStoreList, listExpired, listMadeAt, type StoreId, type StoreItem, type SuggestedItem } from './stores';
 import { buildTaste } from './taste';
 import { loadTwStock, type TwStock } from './twStock';
 
@@ -57,8 +57,12 @@ export function useAdvisor() {
 }
 
 export interface StorePicks {
-  /** undefined while loading; null when nothing has been loaded for this store yet. */
+  /** When Claude made this store's list: undefined while loading; null when there's no list. */
   fetchedAt: number | null | undefined;
+  /** When the store's own wine list was downloaded (Pogo's); null when it hasn't been. */
+  stockAt: number | null | undefined;
+  /** That downloaded wine list. */
+  stockItems: StoreItem[];
   picks: Pick<StoreItem | SuggestedItem>[];
   tips: string[];
   /** Listing keys already on the Want to try list. */
@@ -70,10 +74,11 @@ export interface StorePicks {
 }
 
 export function useStorePicks(id: StoreId, budget: number | null, n = 12): StorePicks {
-  // Read only here: a live query can't write, so an expired list is hidden now and deleted just after.
+  // Read only here: a live query can't write, so an expired list is hidden now and cleared just after.
   const result = useLiveQuery(async () => {
-    const cache = (await db.stores.get(id)) ?? null;
-    return { id, cache: cache && listExpired(cache) ? null : cache, expired: Boolean(cache && listExpired(cache)) };
+    const row = (await db.stores.get(id)) ?? null;
+    const expired = Boolean(row && listExpired(row));
+    return { id, cache: row && expired ? { ...row, list: undefined } : row, expired };
   }, [id]);
   useEffect(() => {
     if (result?.expired) void clearStoreList(result.id);
@@ -85,24 +90,30 @@ export function useStorePicks(id: StoreId, budget: number | null, n = 12): Store
   const lists = useLists();
   return useMemo(() => {
     const saved = new Set((lists?.want ?? []).map((w) => w.suggestion?.key).filter((k): k is string => Boolean(k)));
-    if (cache === undefined || !advisor || !lists) return { fetchedAt: undefined, picks: [], tips: [], saved, items: [] };
-    if (cache === null) return { fetchedAt: null, picks: [], tips: [], saved, items: [] };
+    const empty = { picks: [], tips: [], saved, items: [], stockItems: [] };
+    if (cache === undefined || !advisor || !lists) return { ...empty, fetchedAt: undefined, stockAt: undefined };
+    if (cache === null) return { ...empty, fetchedAt: null, stockAt: null };
     const opts = { passed: lists.passed, budget, usual: taste?.price ?? null };
-    const store = storeById(id);
-    if (store.kind === 'catalog') {
-      const items = cache.items ?? [];
-      return { fetchedAt: cache.fetchedAt, picks: rankCandidates(advisor, items, opts, n), tips: [], saved, items };
-    }
-    const items = cache.list?.picks ?? [];
-    return { fetchedAt: cache.fetchedAt, picks: explainSuggestions(advisor, items, opts).slice(0, n), tips: cache.list?.tips ?? [], saved, items, fromStock: cache.list?.fromStock };
-  }, [cache, advisor, lists, taste, budget, id, n]);
+    const list = cache.list;
+    const stockItems = cache.items ?? [];
+    return {
+      fetchedAt: listMadeAt(cache),
+      stockAt: cache.items ? cache.fetchedAt : null,
+      stockItems,
+      picks: list ? explainSuggestions(advisor, list.picks, opts).slice(0, n) : [],
+      tips: list?.tips ?? [],
+      saved,
+      items: [...stockItems, ...(list?.picks ?? [])],
+      fromStock: list?.fromStock,
+    };
+  }, [cache, advisor, lists, taste, budget, n]);
 }
 
 /** Every store bottle saved on this device (Pogo's list and any Claude lists), with its store. */
 export function useAllStoreItems(): { storeId: StoreId; item: StoreItem | SuggestedItem }[] | undefined {
   const caches = useLiveQuery(() => db.stores.toArray(), []);
   return useMemo(
-    () => caches?.filter((c) => !listExpired(c)).flatMap((c) => [...(c.items ?? []), ...(c.list?.picks ?? [])].map((item) => ({ storeId: c.id, item }))),
+    () => caches?.flatMap((c) => [...(c.items ?? []), ...(listExpired(c) ? [] : (c.list?.picks ?? []))].map((item) => ({ storeId: c.id, item }))),
     [caches],
   );
 }

@@ -242,7 +242,7 @@ const { type: STOCK_FORMAT, schema: STOCK_SCHEMA } = betaZodOutputFormat(StockSc
 export function stockLine(b: SuggestedItem, i: number): string {
   return [
     `${i + 1}. ${b.title}`,
-    [b.region, b.grapes.join(', ')].filter(Boolean).join(', '),
+    [b.region || b.country, b.grapes.join(', ')].filter(Boolean).join(', '),
     b.price !== null ? `$${b.price.toFixed(2)}` : 'price not shown',
     b.deal,
     b.score,
@@ -266,7 +266,7 @@ export async function pickFromStockWithClaude(
 ): Promise<StoreListOutcome> {
   const client = claudeClient(apiKey, { maxRetries: 0, timeout: 300_000 });
   const text =
-    `Help me choose wine at ${req.store.name} ${stock.storeName}. These bottles are in stock there now:\n\n` +
+    `Help me choose wine at ${stock.storeName === req.store.name ? req.store.name : `${req.store.name} ${stock.storeName}`}. These bottles are in stock there now:\n\n` +
     bottles.map(stockLine).join('\n') +
     '\n\n' +
     aboutMe(req) +
