@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cleanReason } from '../components/Shelf';
 import { wine } from '../test/fixtures';
-import { completeItems, loadShelf, saveShelf, shelfContext, shelfTitle, type SavedShelf } from './shelf';
+import { completeItems, loadShelf, saveShelf, shelfBudget, shelfContext, shelfTitle, withinBudget, type SavedShelf, type ShelfBottle } from './shelf';
 
 describe('Snap a shelf', () => {
   it('tells Claude your ratings and your own notes', () => {
@@ -34,6 +34,32 @@ describe('Snap a shelf', () => {
     localStorage.setItem('palate.shelf', JSON.stringify({ at: 1, store: 'Total Wine', photos: 2, report: { summary: 'old', bottles: [], comparisons: [] } }));
     expect(loadShelf()).toBeNull();
     saveShelf(null);
+  });
+
+  it('reads a budget from "Looking for", else uses the profile one', () => {
+    expect(shelfBudget('under $100', null)).toBe(100);
+    expect(shelfBudget('Tuscany, below 60', 100)).toBe(60);
+    expect(shelfBudget('Super Tuscan $80 max', null)).toBe(80);
+    expect(shelfBudget('For tonight', 100)).toBe(100);
+    expect(shelfBudget('', null)).toBeNull();
+  });
+
+  it('keeps over-budget bottles out of the picks, with at most one near it among "also good"', () => {
+    const b = (wine: string, price: number, verdict: 'top' | 'good', deal = ''): ShelfBottle => ({
+      producer: 'P', wine, vintage: '', region: '', country: '', grapes: [], style: 'red', price_usd: price, deal, score: '', where: '', verdict, taste: [], why: '', price_call: 'unknown', tip: '',
+    });
+    // As in a real read: a $154.99 Brunello as No. 1 with its price left unread, and three more over $100 below.
+    const out = withinBudget(
+      [b('Tenuta Nuova', 0, 'top'), b('Paganico', 59.99, 'top'), b('Rosso', 27.99, 'top'), b('Argiano', 109.99, 'good', '$98.99 in a mix of 6'), b('I Sodi', 119.99, 'good', '$107.99 in a mix of 6'), b('Saffredi', 149.99, 'good'), b('Casalino', 49.99, 'good')],
+      100,
+    );
+    expect(out.map((x) => [x.wine, x.verdict])).toEqual([
+      ['Paganico', 'top'],
+      ['Rosso', 'top'],
+      ['Casalino', 'good'],
+      ['Argiano', 'good'],
+    ]);
+    expect(withinBudget([b('X', 150, 'top')], null)).toHaveLength(1);
   });
 
   it('names bottles plainly', () => {

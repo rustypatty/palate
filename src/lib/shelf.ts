@@ -140,6 +140,34 @@ export function shelfContext(wines: Wine[], taste: TasteProfile | undefined): st
     .join('\n\n');
 }
 
+/** The most per bottle: from "Looking for" ("under $100", "$60 max"), else your profile's budget. */
+export function shelfBudget(lookingFor: string, profileBudget: number | null): number | null {
+  const m = /(?:under|below|less than|up to|max(?:imum)?|<|≤)\s*\$?\s*(\d{2,4})/i.exec(lookingFor) ?? /\$\s*(\d{2,4})/.exec(lookingFor);
+  return m ? Number(m[1]) : profileBudget;
+}
+
+/** The first price in a tag's deal text, e.g. "$98.99 in a mix of 6" → 98.99. */
+const dealPrice = (deal: string): number | null => {
+  const m = /\$\s*(\d+(?:\.\d+)?)/.exec(deal);
+  return m ? Number(m[1]) : null;
+};
+
+/**
+ * Only bottles within budget, whatever Claude wrote: none over it and none whose price wasn't
+ * read, except at most one over-budget bottle among "also good", and only if its sale or mix-6
+ * price fits.
+ */
+export function withinBudget(bottles: ShelfBottle[], budget: number | null): ShelfBottle[] {
+  if (budget === null) return bottles;
+  // A price that wasn't read can't be shown to fit, so it's left out too.
+  const fits = (b: ShelfBottle) => b.price_usd > 0 && b.price_usd <= budget;
+  const over = (b: ShelfBottle) => b.price_usd > budget;
+  const top = bottles.filter((b) => b.verdict === 'top' && fits(b));
+  const good = bottles.filter((b) => b.verdict === 'good' && fits(b));
+  const stretch = bottles.find((b) => over(b) && (dealPrice(b.deal) ?? Infinity) <= budget);
+  return [...top, ...good, ...(stretch ? [{ ...stretch, verdict: 'good' as const }] : [])];
+}
+
 /** Quick answers for "Looking for…", sent with the photos. */
 export const LOOKING_FOR = ['Under $50', 'For tonight', 'To age', 'Something new'] as const;
 

@@ -3,7 +3,8 @@ import { claudeClient } from './claude';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
 import { resizeImage } from './image';
-import { completeItems, type PriceCheckOutcome, type ShelfBottle, type ShelfOutcome, type ShelfProgress, type ShelfReport } from './shelf';
+import { loadProfile } from './profile';
+import { completeItems, shelfBudget, withinBudget, type PriceCheckOutcome, type ShelfBottle, type ShelfOutcome, type ShelfProgress, type ShelfReport } from './shelf';
 
 const MODEL = 'claude-opus-5-5';
 
@@ -62,11 +63,12 @@ const { type: FORMAT_TYPE, schema: FORMAT_SCHEMA } = betaZodOutputFormat(ShelfSc
 const pickToBottle = (p: z.infer<typeof PickSchema>): ShelfBottle => ({ ...p, verdict: 'top' });
 const alsoToBottle = ({ line, ...a }: z.infer<typeof AlsoSchema>): ShelfBottle => ({ ...a, grapes: [], verdict: 'good', taste: [], why: line, price_call: 'unknown', tip: '' });
 
-function prompt(context: string, store: string, photos: number, lookingFor: string): string {
+function prompt(context: string, store: string, photos: number, lookingFor: string, budget: number | null): string {
   return (
     `I'm in ${store || 'a wine store'} and took ${photos === 1 ? 'a photo' : `${photos} photos`} of the shelf. Help me choose what to buy.\n\n` +
     `${context}\n\n` +
     (lookingFor.trim() ? `What I'm looking for: ${lookingFor.trim()}\n\n` : '') +
+    (budget ? `My budget: up to $${budget} a bottle. Only suggest bottles whose single-bottle tag price is at or under that. Always copy the tag price exactly, even when it is over.\n\n` : '') +
     'Read the bottles and match each to the price tag directly below or beside it. Only consider bottles you can identify, and skip any marked out of stock. ' +
     'If the same wine is in several photos, list it once. Never invent a bottle, vintage, price or score — use scores only as printed on tags. ' +
     'Pick the 3–5 best buys for me, then up to 6 more worth a look. Do not mention bottles I should skip. ' +
@@ -119,13 +121,14 @@ export async function readShelfImagesWithClaude(
   // Browser use is intentional: the key is the user's own and only ever sent to Anthropic.
   // No automatic retries: a retry would be billed twice.
   const client = claudeClient(apiKey, { maxRetries: 0, timeout: 300_000 });
+  const budget = shelfBudget(lookingFor, loadProfile()?.budget ?? null);
   try {
     const content: Anthropic.Beta.BetaContentBlockParam[] = [
       ...images.map((data, i) => [
         { type: 'text' as const, text: `Photo ${i + 1}:` },
         { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data } },
       ]).flat(),
-      { type: 'text', text: prompt(context, store, images.length, lookingFor) },
+      { type: 'text', text: prompt(context, store, images.length, lookingFor, budget) },
     ];
     const stream = client.beta.messages.stream(
       {
@@ -152,7 +155,7 @@ export async function readShelfImagesWithClaude(
         const p = AlsoSchema.safeParse(x);
         return p.success ? [alsoToBottle(p.data)] : [];
       });
-      const bottles = [...picks, ...also];
+      const bottles = withinBudget([...picks, ...also], budget);
       if (bottles.length > shown) {
         shown = bottles.length;
         onProgress({ bottles });
@@ -173,7 +176,12 @@ export async function readShelfImagesWithClaude(
     const r = parsed.data;
     return {
       ok: true,
-      report: { decision: r.decision, lesson: r.lesson, bottles: [...r.picks.map(pickToBottle), ...r.also_good.map(alsoToBottle)], unreadable: r.unreadable },
+      report: {
+        decision: r.decision,
+        lesson: r.lesson,
+        bottles: withinBudget([...r.picks.map(pickToBottle), ...r.also_good.map(alsoToBottle)], budget),
+        unreadable: r.unreadable,
+      },
     };
   } catch (e) {
     if (signal?.aborted) return { ok: false, reason: 'cancelled' };
