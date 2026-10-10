@@ -69,8 +69,8 @@ export function TotalWineImport({ stock, online }: { stock: TwStock | null | und
         </li>
         <li>Make a connect key below and paste it into the extension (click its icon; pin it from the puzzle-piece menu).</li>
         <li>
-          On totalwine.com, pick your store, open a wine category (e.g. Red Wine → Italy), choose <em>Pick Up</em> only and 120 per page, then click{' '}
-          <em>Import this page</em> on each page. Import again before a trip: stock moves.
+          On totalwine.com, pick your store, open a wine category (e.g. Red Wine), choose <em>Pick Up</em> only and 120 per page, then click{' '}
+          <em>Import all pages</em>. It goes through every page on its own (a few minutes for a big list). Import again before a trip: stock moves.
         </li>
       </ol>
       {key ? (

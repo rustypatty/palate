@@ -50,6 +50,8 @@ async function start() {
   }
   $('where').textContent = 'Saves the bottles on this page and what your store has of them.';
   tips(tab.url);
+  const { run } = await chrome.storage.session.get('run');
+  if (!(run && run.running)) $('all').hidden = false;
 }
 
 $('save').addEventListener('click', async () => {
@@ -121,6 +123,7 @@ $('import').addEventListener('click', async () => {
       u.searchParams.set('page', String(out.page + 1));
       nextUrl = u.toString();
       $('next').hidden = false;
+      $('all').textContent = `Import all ${out.totalPages} pages`;
     }
   } catch (e) {
     say(e instanceof Error ? e.message : 'Something went wrong. Try again.', 'error');
@@ -130,3 +133,41 @@ $('import').addEventListener('click', async () => {
 });
 
 start();
+
+// ---------- Import all pages (runs in background.js, so the popup can be closed) ----------
+
+function showRun(run) {
+  const busy = Boolean(run && run.running);
+  $('stop').hidden = !busy;
+  $('import').disabled = busy;
+  if (busy) $('all').hidden = true;
+  if (!run) return;
+  const of = run.totalPages ? ` of ${run.totalPages}` : '';
+  const counts = run.saved ? ` · ${run.saved} bottles saved, ${run.inStock} in stock` : '';
+  let text = '';
+  let kind = '';
+  if (busy) text = `Importing page ${run.page}${of}${counts}. You can close this and keep browsing in another tab.`;
+  else if (run.done) {
+    text = `Done: all ${run.totalPages} pages${counts}${run.store ? ` at ${run.store}` : ''}.`;
+    kind = 'ok';
+  } else if (run.error) {
+    text = `${run.error}${counts}`;
+    kind = 'error';
+  }
+  $('run').textContent = text;
+  $('run').className = `msg ${kind}`;
+}
+
+chrome.storage.session.get('run').then(({ run }) => showRun(run));
+chrome.storage.onChanged.addListener((changes, area) => area === 'session' && changes.run && showRun(changes.run.newValue));
+
+$('all').addEventListener('click', async () => {
+  const tab = await activeTab();
+  const { key } = await chrome.storage.local.get('key');
+  $('all').hidden = true;
+  $('next').hidden = true;
+  say('');
+  await chrome.runtime.sendMessage({ type: 'importAll', tabId: tab.id, url: tab.url, key });
+});
+
+$('stop').addEventListener('click', () => chrome.runtime.sendMessage({ type: 'stop' }));
