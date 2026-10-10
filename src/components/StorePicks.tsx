@@ -6,6 +6,7 @@ import { getApiKey } from '../lib/labelReader';
 import { markNotForMe, saveToWant } from '../lib/lists';
 import { clearStoreList, LIST_TTL, possessive, refreshPogos, requestStockList, requestStoreList, storeById, STORES, type StoreId } from '../lib/stores';
 import { shortlist } from '../lib/twStock';
+import { StockRefresh } from './StockRefresh';
 import { MIN_RATED } from '../lib/taste';
 import { formatPrice, producerAndName } from '../lib/format';
 import { dropReason, priceDrops, type Drop } from '../lib/priceWatch';
@@ -271,6 +272,7 @@ export function StorePicksPanel() {
           )}
         </div>
       )}
+      {store.id === 'totalwine' && stock !== undefined && <StockRefresh stock={inStock} />}
       {shownError && (
         <p className="small" role="alert" style={{ color: 'var(--danger)', margin: 0 }}>
           {shownError}

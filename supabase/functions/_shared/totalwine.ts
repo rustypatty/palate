@@ -171,3 +171,13 @@ export function checkImport(body: unknown): { ok: true; payload: ImportPayload; 
   }
   return { ok: true, payload: b as ImportPayload, origin: url.searchParams.get('countrystate') ?? '' };
 }
+
+/** A list's address for refreshing it: no page number, 120 a page (fewest page loads), filters in a fixed order. */
+export function sourceUrl(pageUrl: string): string {
+  const u = new URL(pageUrl);
+  u.searchParams.delete('page');
+  u.searchParams.set('pageSize', '120');
+  u.searchParams.sort();
+  u.hash = '';
+  return u.toString();
+}
