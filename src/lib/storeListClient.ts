@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { claudeClient } from './claude';
+import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
 import { withProfile } from './profile';
 import type { Store, StoreList, SuggestedItem } from './stores';
@@ -124,22 +125,43 @@ export function verifyReport(report: z.infer<typeof ReportSchema>, store: Store,
   return { picks, tips: [...new Set(tips)].slice(0, 6), budget };
 }
 
-function prompt(r: StoreListRequest): string {
+/** Who I am as a drinker: taste, ratings, what to skip, budget. */
+function aboutMe(r: StoreListRequest): string {
   const list = (label: string, xs: string[], max = 15) => (xs.length ? `${label}: ${xs.slice(0, max).join('; ')}\n` : '');
   return (
-    `Help me choose wine at ${r.store.name} (${r.store.domain}).\n\n` +
     withProfile(`My taste, worked out from my own ratings:\n${r.taste.join(' ') || '(not much rated yet)'}\n`) +
     list('Wines I loved', r.loved) +
     list('Wines I liked', r.liked) +
     list('Wines I would not buy again', r.disliked) +
     list('Already had, saved or not interested — do not suggest', r.skip, 40) +
-    (r.budget ? `Only suggest bottles at or under $${r.budget}.\n` : '') +
+    (r.budget ? `Only suggest bottles at or under $${r.budget}.\n` : '')
+  );
+}
+
+function prompt(r: StoreListRequest): string {
+  return (
+    `Help me choose wine at ${r.store.name} (${r.store.domain}).\n\n` +
+    aboutMe(r) +
     `\nSearch ${r.store.domain} for 8–10 specific bottles this store sells that I am likely to enjoy and have not had. ` +
     'Only list a bottle as a pick if one of your search results is its product page on that site, and copy that exact URL. ' +
     'Never invent a bottle, cuvée or URL. If you think a producer or style would suit me but did not find its page, put it in tips instead. ' +
     'Give each pick one short reason tied to a wine I rated. Also add 2–4 tips on which sections, appellations or producers to look for there. ' +
     'Then call report_store_list once.'
   );
+}
+
+/** A failed Claude call, in words. Anything unexpected is thrown on. */
+function failure(e: unknown): string {
+  if (e instanceof Anthropic.BadRequestError && /web search.*not enabled|not enabled.*web search/i.test(e.message)) {
+    return 'web search is switched off for your Anthropic account (Settings → Capabilities at console.anthropic.com)';
+  }
+  if (e instanceof Anthropic.AuthenticationError) return 'your Anthropic key was rejected — check it in My palate';
+  if (e instanceof Anthropic.APIConnectionTimeoutError) return 'it took too long';
+  if (e instanceof Anthropic.APIUserAbortError) return 'cancelled';
+  if (e instanceof Anthropic.APIConnectionError) return 'lost connection (check your signal)';
+  if (e instanceof Anthropic.RateLimitError || (e instanceof Anthropic.APIError && e.status === 529)) return 'Anthropic is busy right now — try again in a minute';
+  if (e instanceof Anthropic.APIError) return `Anthropic error ${e.status ?? ''}: ${e.message}`.slice(0, 300);
+  throw e;
 }
 
 export async function findStoreListWithClaude(apiKey: string, req: StoreListRequest, signal?: AbortSignal): Promise<StoreListOutcome> {
@@ -195,19 +217,103 @@ export async function findStoreListWithClaude(apiKey: string, req: StoreListRequ
       break;
     }
   } catch (e) {
-    if (e instanceof Anthropic.BadRequestError && /web search.*not enabled|not enabled.*web search/i.test(e.message)) {
-      return { ok: false, reason: 'web search is switched off for your Anthropic account (Settings → Capabilities at console.anthropic.com)' };
-    }
-    if (e instanceof Anthropic.AuthenticationError) return { ok: false, reason: 'your Anthropic key was rejected — check it in My palate' };
-    if (e instanceof Anthropic.APIConnectionTimeoutError) return { ok: false, reason: 'it took too long' };
-    if (e instanceof Anthropic.APIUserAbortError) return { ok: false, reason: 'cancelled' };
-    if (e instanceof Anthropic.APIConnectionError) return { ok: false, reason: 'lost connection (check your signal)' };
-    if (e instanceof Anthropic.RateLimitError || (e instanceof Anthropic.APIError && e.status === 529)) {
-      return { ok: false, reason: 'Anthropic is busy right now — try again in a minute' };
-    }
-    if (e instanceof Anthropic.APIError) return { ok: false, reason: `Anthropic error ${e.status ?? ''}: ${e.message}`.slice(0, 300) };
-    throw e;
+    return { ok: false, reason: failure(e) };
   }
   if (!report) return { ok: false, reason: stopNote || 'Claude didn’t report a result' };
   return { ok: true, list: verifyReport(report, req.store, seen, req.budget) };
+}
+
+// ---------- From imported stock (Total Wine via the Chrome extension) ----------
+
+const StockSchema = z.object({
+  picks: z
+    .array(
+      z.object({
+        n: z.number().int().describe('The bottle’s number in the list.'),
+        reason: z.string().describe('One short line tying it to a wine I rated, e.g. "Like the Clos Saint Michel you loved: Grenache-based, similar price".'),
+      }),
+    )
+    .describe('8–10 bottles from the list, best first.'),
+  tips: z.array(z.string()).describe('2–3 short tips for this trip, e.g. which aisle or region to browse. Empty if nothing useful.'),
+});
+const { type: STOCK_FORMAT, schema: STOCK_SCHEMA } = betaZodOutputFormat(StockSchema);
+
+/** One numbered line per bottle for the prompt. */
+export function stockLine(b: SuggestedItem, i: number): string {
+  return [
+    `${i + 1}. ${b.title}`,
+    [b.region, b.grapes.join(', ')].filter(Boolean).join(', '),
+    b.price !== null ? `$${b.price.toFixed(2)}` : 'price not shown',
+    b.deal,
+    b.score,
+    b.stock === 'Limited quantity' ? 'limited' : '',
+  ]
+    .filter(Boolean)
+    .join(' — ');
+}
+
+/**
+ * Claude chooses from bottles that were in stock at the store when imported: no web search, so
+ * it's quick, and every pick is a real bottle on the shelf. Picks are taken by number from the
+ * list, so nothing can be invented.
+ */
+export async function pickFromStockWithClaude(
+  apiKey: string,
+  req: StoreListRequest,
+  stock: { storeName: string; importedAt: number; count: number },
+  bottles: SuggestedItem[],
+  signal?: AbortSignal,
+): Promise<StoreListOutcome> {
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 300_000 });
+  const text =
+    `Help me choose wine at ${req.store.name} ${stock.storeName}. These bottles are in stock there now:\n\n` +
+    bottles.map(stockLine).join('\n') +
+    '\n\n' +
+    aboutMe(req) +
+    '\nChoose the 8–10 bottles from the list above I am most likely to enjoy, best first, by their number. ' +
+    'Mostly ones like wines I loved, plus one or two good-value bottles that would teach me something new. ' +
+    'Give each one short reason tied to a wine I rated (name wines, never list numbers). Only choose from the list.';
+  try {
+    const res = await client.beta.messages.create(
+      {
+        model: MODEL,
+        max_tokens: 4000,
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        output_config: { effort: 'low', format: { type: STOCK_FORMAT, schema: STOCK_SCHEMA } },
+        messages: [{ role: 'user', content: text }],
+      },
+      { signal },
+    );
+    if (res.stop_reason === 'refusal') return { ok: false, reason: 'Claude couldn’t help with this list' };
+    const body = res.content.find((b) => b.type === 'text');
+    let json: unknown = null;
+    try {
+      json = JSON.parse(body?.type === 'text' ? body.text : '');
+    } catch {
+      /* handled below */
+    }
+    const parsed = StockSchema.safeParse(json);
+    if (!parsed.success) return { ok: false, reason: res.stop_reason === 'max_tokens' ? 'the answer was cut short' : 'Claude’s answer was incomplete' };
+    return { ok: true, list: stockList(parsed.data, bottles, req.budget, stock) };
+  } catch (e) {
+    return { ok: false, reason: failure(e) };
+  }
+}
+
+/** Claude's numbered choices → the list the app shows (unknown numbers and repeats dropped, budget kept). */
+export function stockList(
+  out: z.infer<typeof StockSchema>,
+  bottles: SuggestedItem[],
+  budget: number | null,
+  stock: { storeName: string; importedAt: number; count: number },
+): StoreList {
+  const picks: SuggestedItem[] = [];
+  for (const { n, reason } of out.picks) {
+    const b = bottles[n - 1];
+    if (!b || picks.includes(b)) continue;
+    if (budget !== null && (b.price === null || b.price > budget)) continue;
+    picks.push({ ...b, claudeReason: reason });
+  }
+  return { picks, tips: out.tips.slice(0, 3), budget, fromStock: stock };
 }

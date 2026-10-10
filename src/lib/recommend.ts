@@ -150,8 +150,7 @@ export function rankCandidates<C extends Candidate>(advisor: Advisor, items: C[]
 
 /**
  * Claude's picks for a store, checked against your history: anything you'd skip or said
- * "Not for me" to is dropped; your own evidence gives the reason when there is some,
- * otherwise Claude's one-liner does.
+ * "Not for me" to is dropped; Claude's one-liner is the reason, your own evidence when it has none.
  */
 export function explainSuggestions<C extends Candidate & { claudeReason: string }>(advisor: Advisor, items: C[], opts: RankOptions = {}): Pick<C>[] {
   const out: Pick<C>[] = [];
@@ -159,7 +158,8 @@ export function explainSuggestions<C extends Candidate & { claudeReason: string 
     if (opts.passed?.some((w) => w.suggestion?.key === item.key)) continue;
     const scored = scoreCandidate(advisor, item, opts);
     if (scored) {
-      out.push(scored);
+      // Claude's sentence names the wine it's like; your own evidence still sets the order.
+      out.push({ ...scored, reason: item.claudeReason || scored.reason });
       continue;
     }
     const advice = advisor.advise({ query: `${item.title} ${item.context ?? ''}`, style: item.style, price: item.price, partial: false });

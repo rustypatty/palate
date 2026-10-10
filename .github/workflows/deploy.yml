@@ -33,6 +33,8 @@ jobs:
           # protected by the row-level security in supabase/setup.sql).
           VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+      # The Total Wine import extension, downloadable from My palate → Total Wine import.
+      - run: cd extension && zip -qr ../dist/palate-extension.zip .
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

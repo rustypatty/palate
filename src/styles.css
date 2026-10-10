@@ -2399,6 +2399,19 @@ details.more[open] > .more-body {
   color: var(--ink-3);
 }
 
+.pr-stock {
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--good);
+}
+
+.pr-deal {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
 .pr-link {
   display: inline-flex;
   align-items: center;

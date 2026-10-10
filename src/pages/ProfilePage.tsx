@@ -6,6 +6,7 @@ import { TasteHeader, TasteQuote } from '../components/TasteCard';
 import { ProfileImport, ProfileSummary, useProfile } from '../components/ProfileImport';
 import { useToast } from '../components/Toast';
 import { BellIcon } from '../components/PriceWatch';
+import { TotalWineImport, twImportSummary } from '../components/TotalWineImport';
 import { useAllWines, useWines } from '../hooks';
 import { downloadBlob, exportBackup, importBackup } from '../lib/backup';
 import { STYLE_LABEL } from '../lib/constants';
@@ -19,7 +20,7 @@ import { disablePush, enablePush, pushEnabled, pushSupport, sendTestPush } from 
 import { favouriteRed, profileFavourites } from '../lib/profile';
 import { buildTaste } from '../lib/taste';
 import { lastCheckedAt, priceDrops, watchedWines } from '../lib/priceWatch';
-import { usePriceAuto, usePriceCheckedAt } from '../lib/usePicks';
+import { usePriceAuto, usePriceCheckedAt, useTwStock } from '../lib/usePicks';
 import { ago } from '../components/StorePicks';
 import type { Wine } from '../types';
 
@@ -226,6 +227,7 @@ export function ProfilePage() {
   const [usage, setUsage] = useState<string | null>(null);
   const cloud = useCloudStatus();
   const online = cloud.state === 'syncing' || cloud.state === 'synced' || cloud.state === 'error';
+  const twStock = useTwStock(online);
   const [open, setOpen] = useState<string | null>(null);
   const [, setKeyTick] = useState(0);
   const keySaved = Boolean(getDeviceKey());
@@ -451,6 +453,9 @@ export function ProfilePage() {
               </label>
               {onServer && <PriceAlerts />}
             </div>
+          </Fold>
+          <Fold title="Total Wine import" status={twImportSummary(twStock, online)} open={open === 'tw'} onToggle={() => toggle('tw')}>
+            <TotalWineImport stock={twStock} online={online} />
           </Fold>
           <Fold title="Your data" status={usage ? `${usage} on this device` : 'On this device'} open={open === 'data'} onToggle={() => toggle('data')}>
             <div className="fold-content">

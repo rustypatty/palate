@@ -4,11 +4,12 @@ import { Link } from 'react-router-dom';
 import { useAllWines, useLists, useWines } from '../hooks';
 import { getApiKey } from '../lib/labelReader';
 import { markNotForMe, saveToWant } from '../lib/lists';
-import { clearStoreList, LIST_TTL, possessive, refreshPogos, requestStoreList, storeById, STORES, type StoreId } from '../lib/stores';
+import { clearStoreList, LIST_TTL, possessive, refreshPogos, requestStockList, requestStoreList, storeById, STORES, type StoreId } from '../lib/stores';
+import { shortlist } from '../lib/twStock';
 import { MIN_RATED } from '../lib/taste';
 import { formatPrice, producerAndName } from '../lib/format';
 import { dropReason, priceDrops, type Drop } from '../lib/priceWatch';
-import { useAllStoreItems, useBudget, useRestaurantBudget, useStoreChoice, useStoreMode, useStorePicks, useTaste } from '../lib/usePicks';
+import { useAdvisor, useAllStoreItems, useBudget, useRestaurantBudget, useStoreChoice, useStoreMode, useStorePicks, useTaste, useTwStock } from '../lib/usePicks';
 
 /** Rough cost of one Claude store list, shown on the button. */
 import { HiddenRow, PickCard, PickRow, pickNames, ShelfRow, type PickLike } from './Shelf';
@@ -143,8 +144,12 @@ export function StorePicksPanel() {
   const [storeId] = useStoreChoice();
   const [budget] = useBudget();
   const store = storeById(storeId);
-  const { fetchedAt, picks, tips, saved } = useStorePicks(storeId, budget, 15);
+  const { fetchedAt, picks, tips, saved, fromStock } = useStorePicks(storeId, budget, 15);
   const taste = useTaste();
+  const advisor = useAdvisor();
+  // Total Wine: what your store had in stock when you last imported it with the Chrome extension.
+  const stock = useTwStock(store.id === 'totalwine');
+  const inStock = stock?.bottles.length ? stock : null;
   const wines = useWines();
   const lists = useLists();
   const actions = usePickActions(store.name);
@@ -171,22 +176,31 @@ export function StorePicksPanel() {
         setBusy(`Loading ${possessive(store.name)} wine list…`);
         await refreshPogos(ctl.signal);
       } else {
-        setBusy(`Searching ${possessive(store.name)} website for bottles you’d like — about a minute…`);
         const rated = (wines ?? []).filter((w) => w.rating);
         const label = (w: { producer: string; name: string; region: string }) => [w.producer, w.name, w.region && `(${w.region})`].filter(Boolean).join(' ');
-        const out = await requestStoreList(
-          {
-            store,
-            taste: taste?.summary ?? [],
-            loved: rated.filter((w) => w.rating === 'loved').map(label),
-            liked: rated.filter((w) => w.rating === 'liked').map(label),
-            disliked: rated.filter((w) => w.rating === 'wouldnt').map(label),
-            // Saved and dismissed first: those are the ones Claude can't know about otherwise.
-            skip: [...(lists?.want ?? []), ...(lists?.passed ?? []), ...(wines ?? [])].map(label).slice(0, 40),
-            budget,
-          },
-          ctl.signal,
-        );
+        const req = {
+          store,
+          taste: taste?.summary ?? [],
+          loved: rated.filter((w) => w.rating === 'loved').map(label),
+          liked: rated.filter((w) => w.rating === 'liked').map(label),
+          disliked: rated.filter((w) => w.rating === 'wouldnt').map(label),
+          // Saved and dismissed first: those are the ones Claude can't know about otherwise.
+          skip: [...(lists?.want ?? []), ...(lists?.passed ?? []), ...(wines ?? [])].map(label).slice(0, 40),
+          budget,
+        };
+        let out;
+        if (inStock && advisor) {
+          const short = shortlist(advisor, inStock.bottles, { passed: lists?.passed, budget, usual: taste?.price ?? null });
+          if (!short.length) {
+            setError({ store: store.id, text: `Nothing in stock at ${inStock.storeName} fits that budget. Try a higher one.` });
+            return;
+          }
+          setBusy(`Choosing from ${inStock.bottles.length} bottles in stock at ${inStock.storeName}…`);
+          out = await requestStockList(req, { storeName: inStock.storeName, importedAt: inStock.importedAt, count: inStock.bottles.length }, short, ctl.signal);
+        } else {
+          setBusy(`Searching ${possessive(store.name)} website for bottles you’d like — about a minute…`);
+          out = await requestStoreList(req, ctl.signal);
+        }
         if (!out.ok) setError({ store: store.id, text: `Couldn’t make a list: ${out.reason}.` });
       }
     } catch (e) {
@@ -223,11 +237,15 @@ export function StorePicksPanel() {
     : fetchedAt
       ? catalog
         ? `In stock at ${store.name} · updated ${ago(fetchedAt)}`
-        : `List made ${ago(fetchedAt)} · ${picks.length} found on ${store.domain}`
+        : fromStock
+          ? `List made ${ago(fetchedAt)} · from ${fromStock.count} bottles in stock at ${fromStock.storeName}`
+          : `List made ${ago(fetchedAt)} · ${picks.length} found on ${store.domain}`
       : catalog
         ? `Free. Downloads ${possessive(store.name)} current wine list (about 1 MB), then works without signal.`
         : hasKey
-          ? `Claude searches ${possessive(store.name)} website for bottles that fit your taste. About a minute.`
+          ? inStock
+            ? `Claude picks from the ${inStock.bottles.length} bottles in stock at ${inStock.storeName}, imported ${ago(inStock.importedAt)}. A few seconds.`
+            : `Claude searches ${possessive(store.name)} website for bottles that fit your taste. About a minute.`
           : `Needs your Anthropic API key (in My palate) to search ${possessive(store.name)} website.`;
 
   const shownError = error?.store === store.id ? error.text : null;
@@ -302,7 +320,9 @@ export function StorePicksPanel() {
         <p className="footnote">
           {catalog
             ? `Stock is what ${possessive(store.name)} website shows; it can lag behind the shelf.`
-            : `Every bottle above was found on ${possessive(store.name)} website. Stock can lag behind the shelf — tap a link to check your location.`}
+            : fromStock
+              ? `Every bottle above was in stock at ${fromStock.storeName} when you imported it ${ago(fromStock.importedAt)}.`
+              : `Every bottle above was found on ${possessive(store.name)} website. Stock can lag behind the shelf — tap a link to check your location.`}
         </p>
       )}
     </section>

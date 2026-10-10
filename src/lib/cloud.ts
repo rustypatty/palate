@@ -89,6 +89,14 @@ export async function accessToken(): Promise<string | null> {
   return data.session?.access_token ?? null;
 }
 
+/** The online database as the signed-in user (null when signed out or not set up). */
+export async function signedInClient(): Promise<SupabaseClient | null> {
+  if (!cloudConfigured) return null;
+  const sb = await client();
+  const { data } = await sb.auth.getSession();
+  return data.session ? sb : null;
+}
+
 /** Address of one of Palate's server functions, e.g. "claude". */
 export const functionsUrl = (name: string) => `${URL_}/functions/v1/${name}`;
 
