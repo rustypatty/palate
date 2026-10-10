@@ -146,7 +146,7 @@ function showRun(run) {
   const counts = run.saved ? ` · ${run.saved} bottles saved, ${run.inStock} in stock` : '';
   let text = '';
   let kind = '';
-  if (busy) text = `Importing page ${run.page}${of}${counts}. You can close this and keep browsing in another tab.`;
+  if (busy) text = `${run.label || 'Importing'}: page ${run.page}${of}${counts}. You can close this and keep browsing in another tab.`;
   else if (run.done) {
     text = `Done: all ${run.totalPages} pages${counts}${run.store ? ` at ${run.store}` : ''}.`;
     kind = 'ok';

@@ -19,6 +19,9 @@ header .muted {
 .muted {
   color: #8f877f;
 }
+.small {
+  font-size: 12px;
+}
 p {
   margin: 0 0 10px;
 }
