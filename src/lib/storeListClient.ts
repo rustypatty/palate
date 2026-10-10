@@ -133,7 +133,7 @@ function aboutMe(r: StoreListRequest): string {
     list('Wines I loved', r.loved) +
     list('Wines I liked', r.liked) +
     list('Wines I would not buy again', r.disliked) +
-    list('Already had, saved or not interested — do not suggest', r.skip, 40) +
+    list('Already had, saved or not interested — do not suggest', r.skip, 150) +
     (r.budget ? `Only suggest bottles at or under $${r.budget}.\n` : '')
   );
 }
