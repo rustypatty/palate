@@ -113,21 +113,32 @@ export function alreadyHave(b: Pick<SuggestedItem, 'producer' | 'wine' | 'title'
   while (nameWords.length && brand.has(nameWords[0])) nameWords.shift();
   const name = new Set(nameWords);
   for (const w of collection) {
-    // The producer's own name, not words many producers share ("Clos Saint Jean" is not "Clos St Michel").
-    const producer = words(w.producer).filter((t) => t.length > 3 && !COMMON.has(t));
+    const { producer, mine, known } = prepared(w);
     if (!producer.length || producer.filter((t) => listing.has(t)).length < (producer.length * 2) / 3) continue;
-    // Your wine's own name, without the producer's words unless that's all it is (Marchesi di Barolo "Barolo").
-    const all = words(w.name);
-    const mine = all.some((t) => !producer.includes(t)) ? all.filter((t) => !producer.includes(t)) : all;
     if (!mine.length) continue;
     const found = mine.filter((t) => name.has(t)).length;
     if (found / mine.length < 0.75) continue;
     // Words the listing has beyond yours: a place or a year is fine, a tier ("Grand Vin", "Riserva") is another cuvée.
-    const known = new Set([...mine, ...words(w.producer), ...brand, ...words(w.region)]);
-    const extra = [...name].filter((t) => !known.has(t) && !/^\d+$/.test(t));
+    const extra = [...name].filter((t) => !known.has(t) && !brand.has(t) && !/^\d+$/.test(t));
     if (extra.length === 0 || (extra.length === 1 && !TIER.has(extra[0]))) return w;
   }
   return null;
+}
+
+// Each of your wines' words, worked out once rather than for every bottle in the store.
+const cache = new WeakMap<Wine, { producer: string[]; mine: string[]; known: Set<string> }>();
+function prepared(w: Wine) {
+  let p = cache.get(w);
+  if (!p) {
+    // The producer's own name, not words many producers share ("Clos Saint Jean" is not "Clos St Michel").
+    const producer = words(w.producer).filter((t) => t.length > 3 && !COMMON.has(t));
+    // Your wine's own name, without the producer's words unless that's all it is (Marchesi di Barolo "Barolo").
+    const all = words(w.name);
+    const mine = all.some((t) => !producer.includes(t)) ? all.filter((t) => !producer.includes(t)) : all;
+    p = { producer, mine, known: new Set([...mine, ...words(w.producer), ...words(w.region)]) };
+    cache.set(w, p);
+  }
+  return p;
 }
 
 /**
