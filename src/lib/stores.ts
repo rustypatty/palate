@@ -61,8 +61,10 @@ export interface StoreList {
   /** Section-level advice, and bottles that couldn't be confirmed, as producer/style tips. */
   tips: string[];
   budget: number | null;
-  /** Picked from the store's imported stock (the Chrome extension) rather than its website. */
+  /** Picked from the store's stock (Total Wine's import, Pogo's downloaded list) rather than its website. */
   fromStock?: { storeName: string; importedAt: number; count: number };
+  /** When Claude made the list (a store's row can also hold its downloaded stock, with its own date). */
+  madeAt?: number;
 }
 
 export interface StoreCache {
@@ -75,12 +77,32 @@ export interface StoreCache {
 /** How long a list Claude made for a store is kept: an hour, for one trip to the shop. */
 export const LIST_TTL = 60 * 60 * 1000;
 
-/** A Claude-made list that has passed its hour (Pogo's downloaded wine list doesn't expire). */
-export const listExpired = (c: StoreCache, now = Date.now()) => Boolean(c.list) && now - c.fetchedAt >= LIST_TTL;
+/** When a store's Claude-made list was made, or null if there's none. */
+export const listMadeAt = (c: StoreCache) => (c.list ? (c.list.madeAt ?? c.fetchedAt) : null);
 
-/** Clear a store's list (the Clear button, or after its hour). */
-export function clearStoreList(id: StoreId, database: PalateDB = db) {
-  return database.stores.delete(id);
+/** A Claude-made list that has passed its hour (Pogo's downloaded wine list doesn't expire). */
+export const listExpired = (c: StoreCache, now = Date.now()) => {
+  const at = listMadeAt(c);
+  return at !== null && now - at >= LIST_TTL;
+};
+
+/** Clear a store's list (the Clear button, or after its hour), keeping a downloaded wine list. */
+export async function clearStoreList(id: StoreId, database: PalateDB = db) {
+  const row = await database.stores.get(id);
+  if (row?.items) await database.stores.put({ id, fetchedAt: row.fetchedAt, items: row.items });
+  else await database.stores.delete(id);
+}
+
+/** A downloaded store listing, as a bottle Claude can choose from. */
+export function asSuggestion(item: StoreItem): SuggestedItem {
+  return { ...item, producer: '', wine: item.title, region: '', grapes: [], claudeReason: '' };
+}
+
+/** Save a list Claude made, next to the store's downloaded wine list if it has one. */
+async function saveList(id: StoreId, list: StoreList, database: PalateDB) {
+  const now = Date.now();
+  const row = await database.stores.get(id);
+  await database.stores.put(row?.items ? { ...row, list: { ...list, madeAt: now } } : { id, fetchedAt: now, list: { ...list, madeAt: now } });
 }
 
 export function cacheFor(id: StoreId, database: PalateDB = db) {
@@ -205,7 +227,9 @@ export async function refreshPogos(signal?: AbortSignal, database: PalateDB = db
     if (products.length < 250) break;
     await wait(250, signal); // gentle on their site
   }
-  await database.stores.put({ id: 'pogos', fetchedAt: Date.now(), items });
+  // Keep a list Claude made from the previous download.
+  const prev = await database.stores.get('pogos');
+  await database.stores.put({ id: 'pogos', fetchedAt: Date.now(), items, ...(prev?.list ? { list: prev.list } : {}) });
   return items;
 }
 
@@ -223,7 +247,7 @@ export async function requestStoreList(
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false, reason: 'add your Anthropic API key in My palate first' };
   const out = await (await import('./storeListClient')).findStoreListWithClaude(apiKey, req, signal);
-  if (out.ok) await database.stores.put({ id: req.store.id, fetchedAt: Date.now(), list: out.list });
+  if (out.ok) await saveList(req.store.id, out.list, database);
   return out;
 }
 
@@ -239,7 +263,7 @@ export async function requestStockList(
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false, reason: 'add your Anthropic API key in My palate first' };
   const out = await (await import('./storeListClient')).pickFromStockWithClaude(apiKey, req, stock, bottles, signal);
-  if (out.ok) await database.stores.put({ id: req.store.id, fetchedAt: Date.now(), list: out.list });
+  if (out.ok) await saveList(req.store.id, out.list, database);
   return out;
 }
 
