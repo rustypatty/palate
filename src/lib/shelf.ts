@@ -7,7 +7,8 @@ import { loadProfile, profileContext } from './profile';
  * ratings, with a price call on each bottle. The photos are only read, never kept.
  */
 
-export type ShelfVerdict = 'top' | 'good' | 'pass';
+/** "top": one of the 3–5 best buys for you here; "good": also worth a look. Bottles to skip aren't listed. */
+export type ShelfVerdict = 'top' | 'good';
 export type PriceCall = 'bargain' | 'fair' | 'pricey' | 'unknown';
 
 export interface ShelfBottle {
@@ -20,13 +21,20 @@ export interface ShelfBottle {
   style: WineStyle | 'unknown';
   /** From the shelf tag; 0 when it couldn't be read. */
   price_usd: number;
+  /** A sale or mix-6 price as printed on the tag, e.g. "$40.49 in a mix of 6"; empty if none. */
+  deal: string;
+  /** A critic score as printed on the tag, e.g. "95 James Suckling"; empty if none. */
+  score: string;
+  /** Where it is in the photos, e.g. "Photo 1, blue label". */
+  where: string;
   verdict: ShelfVerdict;
-  /** 1 = best match for you. */
-  rank: number;
-  taste: string;
+  /** Short tasting tags (top picks only). */
+  taste: string[];
+  /** Why it suits you; one line for "also good" bottles. */
   why: string;
   price_call: PriceCall;
-  price_note: string;
+  /** Filled in by "Check prices online". */
+  price_note?: string;
   tip: string;
   /** What Palate's wine catalog adds (free, after the read): null when it doesn't know this bottle for sure. */
   catalog?: ShelfCatalog | null;
@@ -48,10 +56,12 @@ export function shelfDetails(b: ShelfBottle): { style: WineStyle | null; region:
 }
 
 export interface ShelfReport {
-  summary: string;
+  /** "If you get one: … On a budget: …" */
+  decision: string;
+  /** What trying the picks side by side would teach you; may be empty. */
+  lesson: string;
+  /** Top picks first, best first, then the "also good" ones. */
   bottles: ShelfBottle[];
-  comparisons: string[];
-  buy_three: { picks: string[]; lesson: string };
   unreadable: string;
 }
 
@@ -67,6 +77,8 @@ export interface SavedShelf {
   at: number;
   store: string;
   photos: number;
+  /** What you said you were looking for, if anything. */
+  lookingFor?: string;
   report: ShelfReport;
   pricesChecked?: number;
   /** What you did with each bottle here, by title. */
@@ -83,7 +95,9 @@ const KEY = 'palate.shelf';
 export function loadShelf(): SavedShelf | null {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as SavedShelf) : null;
+    const saved = raw ? (JSON.parse(raw) as SavedShelf) : null;
+    // Shelves read before the shorter answers (no decision line) are dropped rather than shown half-empty.
+    return saved && typeof saved.report?.decision === 'string' ? saved : null;
   } catch {
     return null;
   }
@@ -126,12 +140,64 @@ export function shelfContext(wines: Wine[], taste: TasteProfile | undefined): st
     .join('\n\n');
 }
 
+/** Quick answers for "Looking for…", sent with the photos. */
+export const LOOKING_FOR = ['Under $50', 'For tonight', 'To age', 'Something new'] as const;
+
+/** Progress while a shelf is read: how long so far, and the picks written so far (shown as they arrive). */
+export interface ShelfProgress {
+  bottles: ShelfBottle[];
+}
+
 // The Anthropic SDK is loaded on first use so it doesn't slow down opening the app.
-export async function readShelf(photos: Blob[], context: string, store: string, signal?: AbortSignal): Promise<ShelfOutcome> {
+export async function readShelf(
+  photos: Blob[],
+  context: string,
+  store: string,
+  lookingFor: string,
+  onProgress?: (p: ShelfProgress) => void,
+  signal?: AbortSignal,
+): Promise<ShelfOutcome> {
   const { getApiKey } = await import('./labelReader');
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false, reason: 'add your Anthropic API key in My palate first' };
-  return (await import('./shelfClient')).readShelfWithClaude(apiKey, photos, context, store, signal);
+  return (await import('./shelfClient')).readShelfWithClaude(apiKey, photos, context, store, lookingFor, onProgress, signal);
+}
+
+/**
+ * The complete objects so far in the array `key` of a JSON answer that is still being written,
+ * e.g. completeItems('{"picks":[{"a":1},{"a":', 'picks') → [{a: 1}]. Lets picks appear as they arrive.
+ */
+export function completeItems(text: string, key: string): unknown[] {
+  const m = new RegExp(`"${key}"\\s*:\\s*\\[`).exec(text);
+  if (!m) return [];
+  const out: unknown[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  for (let i = m.index + m[0].length; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (c === '\\') i++;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === '{') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (c === '}') {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        try {
+          out.push(JSON.parse(text.slice(start, i + 1)));
+        } catch {
+          /* not a whole object after all */
+        }
+        start = -1;
+      }
+    } else if (c === ']' && depth === 0) break;
+  }
+  return out;
 }
 
 export async function checkShelfPrices(report: ShelfReport, indexes: number[], signal?: AbortSignal): Promise<PriceCheckOutcome> {

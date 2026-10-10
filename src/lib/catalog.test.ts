@@ -82,7 +82,7 @@ describe('catalog lookup after a label snap', () => {
   });
 
   it('adds details and a photo to a bottle read off a shelf, and nothing when unsure', async () => {
-    const b = { producer: 'Bodegas Muga', wine: 'Reserva', vintage: '2021', region: '', country: '', grapes: [], style: 'red' as const, price_usd: 24, verdict: 'top' as const, rank: 1, taste: '', why: '', price_call: 'unknown' as const, price_note: '', tip: '' };
+    const b = { producer: 'Bodegas Muga', wine: 'Reserva', vintage: '2021', region: '', country: '', grapes: [], style: 'red' as const, price_usd: 24, deal: '', score: '', where: '', verdict: 'top' as const, taste: [], why: '', price_call: 'unknown' as const, tip: '' };
     expect(await catalogForShelfBottle(b, undefined, deps([muga]))).toMatchObject({ style: 'red', grapes: ['Tempranillo'], region: 'Rioja', photo: { siteName: 'willowpark.net' } });
     expect(await catalogForShelfBottle({ ...b, producer: 'Bodega Inventada', wine: 'Tinto' }, undefined, deps([muga]))).toBeNull();
   });
