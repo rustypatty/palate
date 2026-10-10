@@ -203,6 +203,9 @@ const ReportSchema = z.object({
 });
 
 const PhotoCheckSchema = z.object({
+  real_bottle_photo: z
+    .boolean()
+    .describe('True only if image 2 is a photograph of an actual wine bottle with its label visible. False for placeholders ("no image", "coming soon", "camera shy"), logos, illustrations, labels on their own or blank bottles.'),
   same_wine: z.boolean().describe('True only if image 2 shows the same producer and the same cuvée/appellation as image 1, with the same label design.'),
   whole_bottle: z.boolean().describe('True if image 2 shows the entire bottle, neck to base, not cropped.'),
   clean: z.boolean().describe('True if image 2 is a product shot on a plain background (not a hand, shelf or table).'),
@@ -218,7 +221,11 @@ function describeReading(r: LabelReading): string {
   ].join('\n');
 }
 
-async function checkPhoto(client: Anthropic, userPhoto: string, candidate: string, signal?: AbortSignal): Promise<boolean> {
+/**
+ * Claude's look at a photo found online: is it a real photo of a bottle (not a shop's "no image"
+ * placeholder or a logo), and, when you snapped the bottle, is it the same wine?
+ */
+export async function checkPhoto(client: Anthropic, userPhoto: string | null, candidate: string, signal?: AbortSignal): Promise<{ real: boolean; match: boolean }> {
   try {
     const res = await client.beta.messages.parse(
       {
@@ -229,13 +236,21 @@ async function checkPhoto(client: Anthropic, userPhoto: string, candidate: strin
           {
             role: 'user',
             content: [
-              { type: 'text', text: 'Image 1 — the bottle the user photographed:' },
-              { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: userPhoto } },
+              ...(userPhoto
+                ? [
+                    { type: 'text' as const, text: 'Image 1 — the bottle the user photographed:' },
+                    { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: userPhoto } },
+                  ]
+                : []),
               { type: 'text', text: 'Image 2 — a product photo found online:' },
               { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: candidate } },
               {
                 type: 'text',
-                text: 'Is image 2 the same wine as image 1? Compare producer, cuvée and appellation on the labels. A different vintage is fine if the label is otherwise the same design; a different cuvée, colour or older label design is not.',
+                text:
+                  'First, is image 2 a real photograph of a wine bottle with its label showing? Shops often use a placeholder graphic, a logo or an illustration when they have no photo: those are never a match. ' +
+                  (userPhoto
+                    ? 'Then, is it the same wine as image 1? Compare producer, cuvée and appellation on the labels. A different vintage is fine if the label is otherwise the same design; a different cuvée, colour or older label design is not.'
+                    : 'There is no image 1, so answer same_wine false.'),
               },
             ],
           },
@@ -244,10 +259,11 @@ async function checkPhoto(client: Anthropic, userPhoto: string, candidate: strin
       { signal },
     );
     const out = res.parsed_output;
-    return Boolean(out && out.same_wine && out.whole_bottle);
+    const real = Boolean(out?.real_bottle_photo);
+    return { real, match: Boolean(real && userPhoto && out?.same_wine && out.whole_bottle) };
   } catch {
     // Unreachable or unsupported image: just skip this candidate.
-    return false;
+    return { real: false, match: false };
   }
 }
 
@@ -258,7 +274,7 @@ async function checkPhoto(client: Anthropic, userPhoto: string, candidate: strin
  */
 export type LookupOutcome = { ok: true; lookup: WineLookup } | { ok: false; reason: string };
 
-export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading, photo: Blob | null, signal?: AbortSignal): Promise<LookupOutcome> {
+export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading, photo: Blob | null, signal?: AbortSignal, needPhoto = true): Promise<LookupOutcome> {
   // No automatic retries: a retried lookup is billed twice. Generous timeout: searching and
   // reading pages can take a few minutes, and the response streams so the connection stays alive.
   const client = claudeClient(apiKey, { maxRetries: 0, timeout: 600_000 });
@@ -342,7 +358,7 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
   let match: WineLookup['photo'] = null;
   const candidates: WineLookup['candidates'] = [];
   let previews = 0;
-  for (const p of report.product_pages.slice(0, 4)) {
+  for (const p of needPhoto ? report.product_pages.slice(0, 4) : []) {
     if (!/^https:\/\//.test(p.page_url)) continue;
     const img = await pagePreviewImage(p.page_url, signal);
     if (!img) continue;
@@ -353,11 +369,13 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
     if (!data) continue;
     previews++;
     const found = { url, pageUrl: p.page_url, siteName: p.site_name, title: img.title };
-    if (userPhoto && (await checkPhoto(client, userPhoto, data, signal))) {
+    const check = await checkPhoto(client, userPhoto, data, signal);
+    if (check.match) {
       match = found;
       break;
     }
-    candidates.push(found);
+    // Only real bottle photos are offered to pick from: never a shop's placeholder or a logo.
+    if (check.real) candidates.push(found);
   }
 
   const notes = report.tasting_notes.trim();
@@ -371,7 +389,7 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
       : null,
     photo: match,
     candidates: match ? [] : candidates,
-    photoNote: match || (!userPhoto && candidates.length)
+    photoNote: !needPhoto || match || (!userPhoto && candidates.length)
       ? ''
       : report.product_pages.length === 0
         ? 'No shop pages for this wine were found.'

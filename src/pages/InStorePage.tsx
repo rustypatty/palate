@@ -16,7 +16,7 @@ import { useDebounced, useLists, useWines } from '../hooks';
 import { STYLES } from '../lib/constants';
 import { formatPrice } from '../lib/format';
 import { lookupBarcode } from '../lib/imageSearch';
-import { photoFromUrl } from '../lib/image';
+import { photoFromUrl, shownPhoto } from '../lib/image';
 import { advise, describeCounts, detectStyle, type Signal } from '../lib/insights';
 import { LabelReadError, lookUpLabel, readingToDraft, readingToQuery, withLookup, type LabelReading, type WineLookup } from '../lib/labelReader';
 import { matchesWant } from '../lib/lists';
@@ -26,7 +26,7 @@ import { coachBottle, VERDICT_LABEL, type BottleCoach } from '../lib/coach';
 import { shelfContext } from '../lib/shelf';
 import { tokens } from '../lib/text';
 import { isStaleApp, reloadForUpdate } from '../lib/appUpdate';
-import type { WineDraft, WineStyle } from '../types';
+import type { Photo, WineDraft, WineStyle } from '../types';
 import type { AddPrefill } from './WineFormPage';
 
 const KIND_LABEL: Record<Signal['kind'], string> = {
@@ -181,6 +181,8 @@ export function InStorePage() {
     photo: File;
     lookup?: 'pending' | 'done' | 'none';
     found?: WineLookup | null;
+    /** The photo of this wine already in your collection: used as is, nothing looked up. */
+    known?: Photo;
     failReason?: string;
     coach?: { status: 'pending' } | { status: 'done'; answer: BottleCoach } | { status: 'error'; reason: string };
   } | null>(null);
@@ -244,7 +246,7 @@ export function InStorePage() {
     if (label?.reading) {
       // Only a photo found on the web is kept; your snap was just for reading the label.
       const clean = label.found?.photo;
-      const photo = clean ? await photoFromUrl(clean.url, { name: clean.siteName, pageUrl: clean.pageUrl, title: clean.title }) : null;
+      const photo = label.known ?? (clean ? await photoFromUrl(clean.url, { name: clean.siteName, pageUrl: clean.pageUrl, title: clean.title }) : null);
       const coached = label.coach?.status === 'done' ? label.coach.answer : null;
       const about = label.found?.about ?? (coached ? { text: coached.taste, sourceName: 'Palate’s coach (expected style)', sourceUrl: '' } : null);
       const draft: Partial<WineDraft> = { ...readingToDraft(label.reading), price, barcode, owned: 0, photo, about };
@@ -297,10 +299,14 @@ export function InStorePage() {
       bare
       onStart={(photo) => setLabel({ reading: null, photo })}
       onRead={(reading, photo) => {
-        setLabel({ reading, photo, lookup: 'pending', coach: reading.is_wine_label ? { status: 'pending' } : undefined });
+        // Already in your collection with a photo: reuse it, and don't look for another.
+        const known = reading.is_wine_label
+          ? advise(wines ?? [], { query: readingToQuery(reading), style: null, price: null }, formatPrice).exact.map((w) => shownPhoto(w.photo)).find((x): x is Photo => Boolean(x))
+          : undefined;
+        setLabel({ reading, photo, known, lookup: 'pending', coach: reading.is_wine_label ? { status: 'pending' } : undefined });
         if (!reading.is_wine_label) return;
         // Confirm style/grapes (Palate's catalog, else online) and find a clean photo, without holding up the verdict.
-        const lookup = lookUpLabel(reading, photo).catch((e: unknown) => ({ ok: false as const, reason: e instanceof LabelReadError ? e.message : 'unexpected error' }));
+        const lookup = lookUpLabel(reading, photo, !known).catch((e: unknown) => ({ ok: false as const, reason: e instanceof LabelReadError ? e.message : 'unexpected error' }));
         // The coach's answer: with the catalog's facts when they come quickly (they usually do), else from the label alone.
         void Promise.race([lookup, new Promise<null>((r) => window.setTimeout(() => r(null), 5000))]).then(async (first) => {
           const f = first && first.ok ? first.lookup : null;
@@ -393,9 +399,9 @@ export function InStorePage() {
                         </a>
                       </>
                     )}
-                    {label.found.photo ? ' · photo found' : ''}
-                    {!label.found.photo && label.found.photoNote && <div className="muted">{label.found.photoNote} Pick one below, or add it from the web later.</div>}
-                    {!label.found.photo && (
+                    {label.known ? ' · photo from your collection' : label.found.photo ? ' · photo found' : ''}
+                    {!label.known && !label.found.photo && label.found.photoNote && <div className="muted">{label.found.photoNote} Pick one below, or add it from the web later.</div>}
+                    {!label.known && !label.found.photo && (
                       <PhotoChoices
                         candidates={label.found.candidates}
                         onPick={(c) => setLabel((cur) => (cur?.found ? { ...cur, found: { ...cur.found, photo: c, candidates: [] } } : cur))}

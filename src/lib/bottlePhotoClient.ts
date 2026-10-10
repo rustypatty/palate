@@ -55,7 +55,7 @@ const PickSchema = z.object({
   matches: z.array(z.number()).describe('Numbers of the images that show this wine as a whole bottle, best photo first. Empty if none.'),
 });
 
-const JUNK = /logo|icon|sprite|flag|banner|avatar|badge|payment|cookie|placeholder|loading|pixel|social|facebook|instagram|twitter|map|award|medal/i;
+const JUNK = /logo|icon|sprite|flag|banner|avatar|badge|payment|cookie|placeholder|no[-_]?image|coming[-_]?soon|camera[-_]?shy|loading|pixel|social|facebook|instagram|twitter|map|award|medal/i;
 
 export function siteOf(url: string): string {
   try {
@@ -166,6 +166,7 @@ async function pickPhotos(client: Anthropic, wine: string, bottles: BottlePhoto[
       text:
         `Which of these images show a whole bottle of ${wine}? Same producer and cuvée on the label; a different vintage is fine. ` +
         (snapData ? 'Prefer the one whose label matches my photo. ' : '') +
+        'Only real photographs of a bottle count: leave out shop placeholders ("no image", "coming soon", "camera shy"), logos, illustrations and blank bottles, even on the right page. ' +
         'Rank the matches, the cleanest product shot (plain background, whole bottle, upright) first. Leave out anything else.',
     },
   ];
