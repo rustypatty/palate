@@ -274,7 +274,7 @@ export async function checkPhoto(client: Anthropic, userPhoto: string | null, ca
  */
 export type LookupOutcome = { ok: true; lookup: WineLookup } | { ok: false; reason: string };
 
-export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading, photo: Blob | null, signal?: AbortSignal): Promise<LookupOutcome> {
+export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading, photo: Blob | null, signal?: AbortSignal, needPhoto = true): Promise<LookupOutcome> {
   // No automatic retries: a retried lookup is billed twice. Generous timeout: searching and
   // reading pages can take a few minutes, and the response streams so the connection stays alive.
   const client = claudeClient(apiKey, { maxRetries: 0, timeout: 600_000 });
@@ -358,7 +358,7 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
   let match: WineLookup['photo'] = null;
   const candidates: WineLookup['candidates'] = [];
   let previews = 0;
-  for (const p of report.product_pages.slice(0, 4)) {
+  for (const p of needPhoto ? report.product_pages.slice(0, 4) : []) {
     if (!/^https:\/\//.test(p.page_url)) continue;
     const img = await pagePreviewImage(p.page_url, signal);
     if (!img) continue;
@@ -389,7 +389,7 @@ export async function lookUpWineWithClaude(apiKey: string, reading: LabelReading
       : null,
     photo: match,
     candidates: match ? [] : candidates,
-    photoNote: match || (!userPhoto && candidates.length)
+    photoNote: !needPhoto || match || (!userPhoto && candidates.length)
       ? ''
       : report.product_pages.length === 0
         ? 'No shop pages for this wine were found.'

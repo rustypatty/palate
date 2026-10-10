@@ -75,23 +75,24 @@ export async function readLabel(photo: Blob, signal?: AbortSignal): Promise<Labe
 export type { LookupOutcome, WineLookup } from './labelClient';
 
 /** Confirms style and grapes online and finds a matching clean bottle photo. Says why when it can't. */
-export async function lookUpWine(reading: LabelReading, photo: Blob | null, signal?: AbortSignal) {
+export async function lookUpWine(reading: LabelReading, photo: Blob | null, signal?: AbortSignal, needPhoto = true) {
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false as const, reason: 'no Anthropic API key saved' };
   if (!reading.is_wine_label || !(reading.producer || reading.wine_name)) return { ok: false as const, reason: 'the producer or wine name couldn’t be read' };
-  return (await import('./labelClient')).lookUpWineWithClaude(apiKey, reading, photo, signal);
+  return (await import('./labelClient')).lookUpWineWithClaude(apiKey, reading, photo, signal, needPhoto);
 }
 
 /**
  * After a label snap: Palate's wine catalog first (free, a second or two), and only when it isn't
- * sure, the web lookup (about a minute). needPhoto: a catalog match counts only with a bottle photo.
+ * sure, the web lookup (about a minute). needPhoto: false when the bottle already has a photo (one
+ * of yours), so no photo is looked for at all.
  */
 export async function lookUpLabel(reading: LabelReading, photo: Blob | null, needPhoto = true, signal?: AbortSignal) {
   const fromCatalog = await import('./catalog')
     .then((c) => c.catalogLookup(reading, needPhoto, signal))
     .catch(() => null);
   if (fromCatalog) return { ok: true as const, lookup: fromCatalog };
-  return lookUpWine(reading, photo, signal);
+  return lookUpWine(reading, needPhoto ? photo : null, signal, needPhoto);
 }
 
 /** The reading with style and grapes replaced by what was confirmed online. */
