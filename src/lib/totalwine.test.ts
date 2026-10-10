@@ -166,3 +166,13 @@ describe('imported stock in the app', () => {
     expect(list.fromStock).toEqual(stock);
   });
 });
+
+describe('the reason shown on a list pick', () => {
+  it('is Claude’s sentence, with your own evidence still ordering the list', async () => {
+    const { explainSuggestions } = await import('./recommend');
+    const advisor = makeAdvisor([wine({ producer: 'Fèlsina', name: 'Chianti Classico', region: 'Chianti Classico', grapes: ['Sangiovese'], rating: 'loved', country: 'Italy' })]);
+    const b = { ...stockBottle(row(renieri))!, claudeReason: 'Like the Fèlsina you loved, at half the price' };
+    expect(explainSuggestions(advisor, [b])[0].reason).toBe('Like the Fèlsina you loved, at half the price');
+    expect(explainSuggestions(advisor, [{ ...b, claudeReason: '' }])[0].reason).not.toBe('');
+  });
+});
