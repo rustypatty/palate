@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Palate</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <img src="icon-32.png" alt="" width="22" height="22" />
+      <strong>Palate</strong>
+      <span class="muted">Total Wine import</span>
+    </header>
+
+    <section id="setup" hidden>
+      <p>Paste your connect key from Palate: <em>My palate → Total Wine import → Make a connect key</em>.</p>
+      <input id="key" type="password" placeholder="pk_…" autocomplete="off" spellcheck="false" />
+      <button id="save" class="primary">Save key</button>
+      <p id="setup-msg" class="msg" role="alert"></p>
+    </section>
+
+    <section id="main" hidden>
+      <p id="where" class="muted"></p>
+      <button id="import" class="primary">Import this page</button>
+      <button id="reload" hidden>Reload page</button>
+      <button id="next" hidden>Next page →</button>
+      <p id="msg" class="msg" role="status"></p>
+      <ul id="tips" class="tips"></ul>
+      <button id="change" class="link">Change connect key</button>
+    </section>
+
+    <script src="read.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

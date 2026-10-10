@@ -6,6 +6,7 @@ import { makeAdvisor } from './insights';
 import { explainSuggestions, rankCandidates, type Pick } from './recommend';
 import { clearStoreList, listExpired, storeById, type StoreId, type StoreItem, type SuggestedItem } from './stores';
 import { buildTaste } from './taste';
+import { loadTwStock, type TwStock } from './twStock';
 
 // Per-device conveniences: which store and budget you last picked.
 export function usePref<T>(key: string, fallback: T): [T, (v: T) => void] {
@@ -64,6 +65,8 @@ export interface StorePicks {
   saved: Set<string>;
   /** Everything loaded for this store (for "More like this"). */
   items: (StoreItem | SuggestedItem)[];
+  /** The list was picked from imported stock. */
+  fromStock?: { storeName: string; importedAt: number; count: number };
 }
 
 export function useStorePicks(id: StoreId, budget: number | null, n = 12): StorePicks {
@@ -91,7 +94,7 @@ export function useStorePicks(id: StoreId, budget: number | null, n = 12): Store
       return { fetchedAt: cache.fetchedAt, picks: rankCandidates(advisor, items, opts, n), tips: [], saved, items };
     }
     const items = cache.list?.picks ?? [];
-    return { fetchedAt: cache.fetchedAt, picks: explainSuggestions(advisor, items, opts).slice(0, n), tips: cache.list?.tips ?? [], saved, items };
+    return { fetchedAt: cache.fetchedAt, picks: explainSuggestions(advisor, items, opts).slice(0, n), tips: cache.list?.tips ?? [], saved, items, fromStock: cache.list?.fromStock };
   }, [cache, advisor, lists, taste, budget, id, n]);
 }
 
@@ -102,6 +105,24 @@ export function useAllStoreItems(): { storeId: StoreId; item: StoreItem | Sugges
     () => caches?.filter((c) => !listExpired(c)).flatMap((c) => [...(c.items ?? []), ...(c.list?.picks ?? [])].map((item) => ({ storeId: c.id, item }))),
     [caches],
   );
+}
+
+// One load of the imported Total Wine stock for a few minutes, shared by every screen.
+let stockLoad: { at: number; p: Promise<TwStock | null> } | null = null;
+
+/** The imported Total Wine stock (Chrome extension): undefined while loading, null if none. */
+export function useTwStock(enabled = true): TwStock | null | undefined {
+  const [stock, setStock] = useState<TwStock | null | undefined>(undefined);
+  useEffect(() => {
+    if (!enabled) return setStock(null);
+    if (!stockLoad || Date.now() - stockLoad.at > 5 * 60 * 1000) stockLoad = { at: Date.now(), p: loadTwStock().catch(() => null) };
+    let live = true;
+    void stockLoad.p.then((s) => live && setStock(s));
+    return () => {
+      live = false;
+    };
+  }, [enabled]);
+  return stock;
 }
 
 /** Tonight's last dish choice. */

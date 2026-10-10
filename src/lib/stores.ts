@@ -48,6 +48,12 @@ export interface SuggestedItem extends StoreItem {
   region: string;
   grapes: string[];
   claudeReason: string;
+  /** From an imported stock list: where it is and how many, e.g. "Aisle 11, Left", "35 in stock". */
+  aisle?: string;
+  stock?: string;
+  /** A conditional price, e.g. "Mix 6 for $19.79 each", and a critic score as the store shows it. */
+  deal?: string;
+  score?: string;
 }
 
 export interface StoreList {
@@ -55,6 +61,8 @@ export interface StoreList {
   /** Section-level advice, and bottles that couldn't be confirmed, as producer/style tips. */
   tips: string[];
   budget: number | null;
+  /** Picked from the store's imported stock (the Chrome extension) rather than its website. */
+  fromStock?: { storeName: string; importedAt: number; count: number };
 }
 
 export interface StoreCache {
@@ -215,6 +223,22 @@ export async function requestStoreList(
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false, reason: 'add your Anthropic API key in My palate first' };
   const out = await (await import('./storeListClient')).findStoreListWithClaude(apiKey, req, signal);
+  if (out.ok) await database.stores.put({ id: req.store.id, fetchedAt: Date.now(), list: out.list });
+  return out;
+}
+
+/** Ask Claude to choose from a store's imported stock (a few cents, seconds), and save it on this device. */
+export async function requestStockList(
+  req: import('./storeListClient').StoreListRequest,
+  stock: { storeName: string; importedAt: number; count: number },
+  bottles: SuggestedItem[],
+  signal?: AbortSignal,
+  database: PalateDB = db,
+): Promise<import('./storeListClient').StoreListOutcome> {
+  const { getApiKey } = await import('./labelReader');
+  const apiKey = getApiKey();
+  if (!apiKey) return { ok: false, reason: 'add your Anthropic API key in My palate first' };
+  const out = await (await import('./storeListClient')).pickFromStockWithClaude(apiKey, req, stock, bottles, signal);
   if (out.ok) await database.stores.put({ id: req.store.id, fetchedAt: Date.now(), list: out.list });
   return out;
 }

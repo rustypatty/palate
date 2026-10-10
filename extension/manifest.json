@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Palate · Total Wine import",
+  "version": "1.0",
+  "description": "Saves the Total Wine page you're looking at (what's in stock at your store) to Palate.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Import this page to Palate",
+    "default_icon": { "16": "icon-16.png", "32": "icon-32.png", "48": "icon-48.png", "128": "icon-128.png" }
+  },
+  "icons": { "16": "icon-16.png", "32": "icon-32.png", "48": "icon-48.png", "128": "icon-128.png" },
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["https://www.totalwine.com/*", "https://divnzezlhqksjjqmjcbl.supabase.co/*"]
+}

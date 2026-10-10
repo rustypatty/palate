@@ -256,6 +256,8 @@ export function PickRow({
   const { item } = pick;
   const { producer, name } = pickNames(pick);
   const size = item.sizeMl && item.sizeMl !== 750 ? (item.sizeMl >= 1000 ? `${item.sizeMl / 1000} L` : `${item.sizeMl} ml`) : '';
+  // From an imported stock list: aisle, how many, deal and score.
+  const shelf = item as Partial<SuggestedItem>;
   return (
     <article className="pick-row lift">
       <a href={item.url} target="_blank" rel="noreferrer" className="tile" aria-label={`${item.title} on ${possessive(storeName)} website`}>
@@ -269,6 +271,8 @@ export function PickRow({
           {item.price !== null ? formatPrice(item.price) : 'Price on website'}
           {size && <span className="pr-size"> · {size}</span>}
         </div>
+        {(shelf.aisle || shelf.stock) && <div className="pr-stock">{[shelf.aisle, shelf.stock].filter(Boolean).join(' · ')}</div>}
+        {(shelf.deal || shelf.score) && <div className="pr-deal">{[shelf.deal, shelf.score].filter(Boolean).join(' · ')}</div>}
         <a className="pr-link" href={item.url} target="_blank" rel="noreferrer">
           {storeName} · {domain} <ArrowUpRight size={14} strokeWidth={1.6} />
         </a>
