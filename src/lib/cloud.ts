@@ -183,9 +183,40 @@ async function runSync() {
   setStatus({ state: 'syncing', email, lastSyncedAt: last });
   try {
     await syncOnce(supabaseRemote(sb, user.id));
+    await syncProfile(sb, user.id);
     setStatus({ state: 'synced', email, lastSyncedAt: Date.now() });
   } catch (e) {
     setStatus({ state: 'error', email, lastSyncedAt: last, message: friendly(e) });
+  }
+}
+
+/**
+ * Your imported wine profile, kept with your account (table palate_profiles): the newer copy
+ * wins, so importing on one device reaches the others and a reinstall gets it back.
+ */
+async function syncProfile(sb: SupabaseClient, userId: string) {
+  const { loadProfile, saveProfile, profileClearedAt, forgetProfileClear } = await import('./profile');
+  const { data, error } = await sb.from('palate_profiles').select('data, updated_at').maybeSingle();
+  if (error) throw new Error(error.message);
+  const remoteAt = data ? Number(data.updated_at) : 0;
+  const cleared = profileClearedAt();
+  if (cleared !== null) {
+    if (cleared > remoteAt) {
+      if (data) {
+        const { error: e } = await sb.from('palate_profiles').delete().eq('user_id', userId);
+        if (e) throw new Error(e.message);
+      }
+      forgetProfileClear();
+      return;
+    }
+    forgetProfileClear(); // imported again elsewhere since: that copy wins
+  }
+  const local = loadProfile();
+  if (data && (!local || remoteAt > local.importedAt)) {
+    saveProfile(data.data as import('./profile').PalateProfile, { fromServer: true });
+  } else if (local && local.importedAt > remoteAt) {
+    const { error: e } = await sb.from('palate_profiles').upsert({ user_id: userId, data: local, updated_at: local.importedAt });
+    if (e) throw new Error(e.message);
   }
 }
 
@@ -222,6 +253,8 @@ export function startCloud() {
   db.wines.hook('deleting', changed);
   document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && scheduleSync(300));
   window.addEventListener('online', () => scheduleSync(300));
+  // Importing or removing your wine profile → keep the account's copy in step.
+  void import('./profile').then((m) => m.subscribeProfile(() => scheduleSync()));
   // Pick up changes from other devices while the app stays open.
   setInterval(() => document.visibilityState === 'visible' && scheduleSync(0), 3 * 60_000);
   void client().then(async (sb) => {
