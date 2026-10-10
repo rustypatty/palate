@@ -61,7 +61,7 @@ const CARD: Record<Mode, SnapCardContent> = {
     icon: <Camera size={22} strokeWidth={1.6} />,
     title: 'Snap a bottle',
     line: 'Point at the label. I’ll tell you right away if it’s for you.',
-    link: 'or snap a whole shelf (several photos)',
+    link: 'or snap a shelf: take photos or choose from your library',
     label: 'Snap a bottle: take a photo',
   },
   restaurant: {
@@ -545,7 +545,8 @@ export function InStorePage() {
           <SnapCard
             content={CARD[mode]}
             onCamera={() => (mode === 'shop' ? bottle : snap).current?.camera()}
-            onLibrary={() => (mode === 'shop' ? snap.current?.camera() : snap.current?.library())}
+            // The shelf opens the photo picker, which on a phone also offers the camera: shoot or choose from your library.
+            onLibrary={() => snap.current?.library()}
           />
         )}
         {label && mode === 'shop' && (
