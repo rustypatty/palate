@@ -2300,6 +2300,21 @@ details.more[open] > .more-body {
   color: var(--ink-2);
 }
 
+.stock-refresh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 0 6px;
+  color: var(--ink-3);
+}
+
+.stock-refresh .text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .picks-status > span {
   flex: 1 1 auto;
   min-width: 0;

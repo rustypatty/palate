@@ -219,3 +219,14 @@ describe('another cuvée is not one you have', () => {
     expect(alreadyHave(l('Mousset Clos St Michel Chateauneuf du Pape Reserve'), mine)).toBeNull();
   });
 });
+
+describe('remembering a list for the weekly refresh', () => {
+  it('keeps the filters, drops the page number, and uses 120 a page', async () => {
+    const { sourceUrl } = await import('../../supabase/functions/_shared/totalwine');
+    const a = sourceUrl('https://www.totalwine.com/wine/red-wine/c/000009?page=3&pageSize=24&aty=1,0,0,0');
+    const b = sourceUrl('https://www.totalwine.com/wine/red-wine/c/000009?aty=1,0,0,0&pageSize=120');
+    expect(a).toBe(b);
+    expect(new URL(a).searchParams.get('pageSize')).toBe('120');
+    expect(new URL(a).searchParams.get('page')).toBeNull();
+  });
+});

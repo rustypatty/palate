@@ -12,8 +12,8 @@ import type { SuggestedItem } from './stores';
  * bottles that were on the shelf when you imported, with their aisle.
  */
 
-/** An import older than this isn't used for lists: stock moves. */
-export const STOCK_FRESH = 7 * 24 * 3600 * 1000;
+/** An import older than this isn't used for lists: stock moves. The weekly refresh keeps it newer. */
+export const STOCK_FRESH = 10 * 24 * 3600 * 1000;
 
 const STYLES: WineStyle[] = ['red', 'white', 'rose', 'sparkling', 'orange', 'dessert', 'fortified'];
 
@@ -160,6 +160,42 @@ export function shortlist(advisor: ReturnType<typeof makeAdvisor>, bottles: Sugg
   }
   return [...out.values()];
 }
+
+export interface RefreshJob {
+  kind: 'weekly' | 'manual';
+  status: 'queued' | 'running' | 'needs_you' | 'done' | 'failed' | 'expired';
+  next_page: number;
+  total_pages: number | null;
+  message: string;
+  created_at: string;
+  finished_at: string | null;
+}
+
+/** The lists the extension refreshes, and the latest refresh (null when signed out). */
+export async function loadRefresh(): Promise<{ lists: number; job: RefreshJob | null } | null> {
+  const sb = await signedInClient();
+  if (!sb) return null;
+  const [{ count }, { data }] = await Promise.all([
+    sb.from('tw_sources').select('id', { count: 'exact', head: true }).eq('active', true),
+    sb
+      .from('tw_jobs')
+      .select('kind, status, next_page, total_pages, message, created_at, finished_at, tw_sources!inner(active)')
+      .eq('tw_sources.active', true)
+      .order('created_at', { ascending: false })
+      .limit(1),
+  ]);
+  return { lists: count ?? 0, job: (data?.[0] as RefreshJob | undefined) ?? null };
+}
+
+/** Ask the extension on your computer to refresh every imported list now. */
+export async function requestRefresh(): Promise<void> {
+  const sb = await signedInClient();
+  if (!sb) throw new Error('Sign in first.');
+  const { error } = await sb.rpc('request_tw_refresh');
+  if (error) throw new Error(error.message);
+}
+
+export const refreshOpen = (job: RefreshJob | null) => Boolean(job && ['queued', 'running', 'needs_you'].includes(job.status));
 
 /** The newest import's stock (in stock or limited, imported in the last week); null if none or signed out. */
 export async function loadTwStock(now = Date.now()): Promise<TwStock | null> {

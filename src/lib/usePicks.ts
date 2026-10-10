@@ -113,6 +113,12 @@ let stockLoad: { at: number; p: Promise<TwStock | null> } | null = null;
 /** The imported Total Wine stock (Chrome extension): undefined while loading, null if none. */
 export function useTwStock(enabled = true): TwStock | null | undefined {
   const [stock, setStock] = useState<TwStock | null | undefined>(undefined);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const on = () => setTick((t) => t + 1);
+    window.addEventListener('palate:twstock', on);
+    return () => window.removeEventListener('palate:twstock', on);
+  }, []);
   useEffect(() => {
     if (!enabled) return setStock(null);
     if (!stockLoad || Date.now() - stockLoad.at > 5 * 60 * 1000) stockLoad = { at: Date.now(), p: loadTwStock().catch(() => null) };
@@ -121,8 +127,14 @@ export function useTwStock(enabled = true): TwStock | null | undefined {
     return () => {
       live = false;
     };
-  }, [enabled]);
+  }, [enabled, tick]);
   return stock;
+}
+
+/** Load the imported stock again (after a refresh finished). */
+export function reloadTwStock() {
+  stockLoad = null;
+  window.dispatchEvent(new Event('palate:twstock'));
 }
 
 /** Tonight's last dish choice. */
