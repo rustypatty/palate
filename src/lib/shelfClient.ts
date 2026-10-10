@@ -33,6 +33,9 @@ const PickSchema = z.object({
   why: z.string().describe('Why it suits me, under 30 words, naming a wine I rated or words from my notes.'),
   price_call: z.enum(CALLS).describe('Shelf price vs what it usually sells for in the US; "unknown" if no price or not confident.'),
   tip: z.string().describe('One practical tip under 12 words (e.g. which vintage to grab, decanting), or empty.'),
+  tag: z
+    .enum(['match', 'value', 'new', ''])
+    .describe('"match" for the best fit for me, "value" for the best value, "new" for something new worth trying. Each label once at most; empty if none fits.'),
 });
 
 const AlsoSchema = z.object({
@@ -52,7 +55,7 @@ const AlsoSchema = z.object({
 // Picks first, so they can be shown while the rest is still being written.
 const ShelfSchema = z.object({
   picks: z.array(PickSchema).describe('The 3 best buys for me here, best first.'),
-  also_good: z.array(AlsoSchema).describe('Up to 6 more worth a look. Leave out anything I should skip.'),
+  also_good: z.array(AlsoSchema).describe('Up to 3 more worth a look. Leave out anything I should skip.'),
   decision: z.string().describe('The call, under 35 words: "If you get one: <wine>." plus one alternative for a budget, tonight, or exploring.'),
   lesson: z.string().describe('One sentence (under 25 words) on what trying the picks side by side would teach me. Empty if nothing useful.'),
   unreadable: z.string().describe('Under 20 words on tags you could not read; empty if none.'),
@@ -61,17 +64,17 @@ const ShelfSchema = z.object({
 const { type: FORMAT_TYPE, schema: FORMAT_SCHEMA } = betaZodOutputFormat(ShelfSchema);
 
 const pickToBottle = (p: z.infer<typeof PickSchema>): ShelfBottle => ({ ...p, verdict: 'top' });
-const alsoToBottle = ({ line, ...a }: z.infer<typeof AlsoSchema>): ShelfBottle => ({ ...a, grapes: [], verdict: 'good', taste: [], why: line, price_call: 'unknown', tip: '' });
+const alsoToBottle = ({ line, ...a }: z.infer<typeof AlsoSchema>): ShelfBottle => ({ ...a, grapes: [], verdict: 'good', taste: [], why: line, price_call: 'unknown', tip: '', tag: '' });
 
 function prompt(context: string, store: string, photos: number, lookingFor: string, budget: number | null): string {
   return (
     `I'm in ${store || 'a wine store'} and took ${photos === 1 ? 'a photo' : `${photos} photos`} of the shelf. Help me choose what to buy.\n\n` +
     `${context}\n\n` +
     (lookingFor.trim() ? `What I'm looking for: ${lookingFor.trim()}\n\n` : '') +
-    (budget ? `My budget: up to $${budget} a bottle. Only suggest bottles whose single-bottle tag price is at or under that. Always copy the tag price exactly, even when it is over.\n\n` : '') +
+    (budget ? `My budget: up to $${budget} a bottle. Choose all your picks (the 3 and the extras) from bottles whose single-bottle tag price is at or under that. Always copy the tag price exactly.\n\n` : '') +
     'Read the bottles and match each to the price tag directly below or beside it. Only consider bottles you can identify, and skip any marked out of stock. ' +
     'If the same wine is in several photos, list it once. Never invent a bottle, vintage, price or score — use scores only as printed on tags. ' +
-    'Pick the 3 best buys for me, then up to 6 more worth a look. Do not mention bottles I should skip. ' +
+    'Pick the 3 best buys for me and label them (best match, best value, something new), then up to 3 more worth a look. Do not mention bottles I should skip. ' +
     'Be brief and specific: short words, no filler.'
   );
 }

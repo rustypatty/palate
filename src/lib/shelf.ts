@@ -36,6 +36,8 @@ export interface ShelfBottle {
   /** Filled in by "Check prices online". */
   price_note?: string;
   tip: string;
+  /** For the top picks: best match for you, best value, or something new (each once at most). */
+  tag?: 'match' | 'value' | 'new' | '';
   /** What Palate's wine catalog adds (free, after the read): null when it doesn't know this bottle for sure. */
   catalog?: ShelfCatalog | null;
 }
@@ -171,11 +173,11 @@ export function withinBudget(bottles: ShelfBottle[], budget: number | null): She
   return [...top, ...good, ...(stretch ? [{ ...stretch, verdict: 'good' as const }] : [])];
 }
 
-/** The top 3 stay on top; any further picks join "Also good" (first), so nothing is lost. */
+/** The top 3 on top, then up to 3 "Also good" (any further pick first, as "Also good" without a label). */
 export function topThree(bottles: ShelfBottle[]): ShelfBottle[] {
   const top = bottles.filter((b) => b.verdict === 'top');
-  const extra = top.slice(3).map((b) => ({ ...b, verdict: 'good' as const }));
-  return [...top.slice(0, 3), ...extra, ...bottles.filter((b) => b.verdict !== 'top')];
+  const extra = top.slice(3).map((b) => ({ ...b, verdict: 'good' as const, tag: '' as const }));
+  return [...top.slice(0, 3), ...[...extra, ...bottles.filter((b) => b.verdict !== 'top')].slice(0, 3)];
 }
 
 /** Quick answers for "Looking for…", sent with the photos. */

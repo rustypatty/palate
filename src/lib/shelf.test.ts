@@ -62,10 +62,10 @@ describe('Snap a shelf', () => {
     expect(withinBudget([b('X', 150, 'top')], null)).toHaveLength(1);
   });
 
-  it('keeps three on top and moves any further picks to the start of "Also good"', () => {
+  it('keeps three on top and at most three under "Also good", further picks first', () => {
     const b = (wine: string, verdict: 'top' | 'good') => ({ wine, verdict }) as unknown as ShelfBottle;
-    const out = topThree([b('A', 'top'), b('B', 'top'), b('C', 'top'), b('D', 'top'), b('E', 'good')]);
-    expect(out.map((x) => `${x.wine}:${x.verdict}`)).toEqual(['A:top', 'B:top', 'C:top', 'D:good', 'E:good']);
+    const out = topThree([b('A', 'top'), b('B', 'top'), b('C', 'top'), b('D', 'top'), b('E', 'good'), b('F', 'good'), b('G', 'good')]);
+    expect(out.map((x) => `${x.wine}:${x.verdict}`)).toEqual(['A:top', 'B:top', 'C:top', 'D:good', 'E:good', 'F:good']);
   });
 
   it('lets a shelf result go after an hour', () => {

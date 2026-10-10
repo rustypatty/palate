@@ -36,6 +36,8 @@ function clock(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
+const TAG_LABEL = { match: 'Best match for you', value: 'Best value', new: 'Something new' } as const;
+
 const CALL_LABEL: Record<PriceCall, string> = { bargain: 'Bargain', fair: 'Fair price', pricey: 'A little pricey', unknown: '' };
 
 /** A shelf bottle as a store listing, so it can go on Want to try or into the collection like any store pick. */
@@ -478,6 +480,7 @@ function ShelfCard({
       )}
       <div className="sc-head">
         {n !== undefined && <div className="pr-no">No. {String(n).padStart(2, '0')}</div>}
+        {b.tag && <span className={`wl-tag ${b.tag}`}>{TAG_LABEL[b.tag]}</span>}
         {b.producer && <div className="pr-producer">{b.producer}</div>}
         <h3 className="pr-name">{[b.wine || b.producer, b.vintage].filter(Boolean).join(' ')}</h3>
         {facts && <div className="sc-facts">{facts}</div>}
