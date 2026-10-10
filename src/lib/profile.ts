@@ -59,14 +59,41 @@ export function loadProfile(): PalateProfile | null {
   }
 }
 
-export function saveProfile(p: PalateProfile | null): void {
+const CLEARED = 'palate.profileClearedAt';
+
+/**
+ * Keep the profile on this device. It's also kept with your account (see cloud.ts), so it survives
+ * reinstalling the app; `fromServer` is that copy arriving, which needn't be sent back.
+ */
+export function saveProfile(p: PalateProfile | null, opts: { fromServer?: boolean } = {}): void {
   try {
     if (p) localStorage.setItem(KEY, JSON.stringify(p));
     else localStorage.removeItem(KEY);
+    // Removing it here should remove the account's copy too, not have it come back.
+    if (!p && !opts.fromServer) localStorage.setItem(CLEARED, String(Date.now()));
+    if (p) localStorage.removeItem(CLEARED);
   } catch {
     /* storage unavailable: the profile just isn't kept */
   }
   listeners.forEach((l) => l());
+}
+
+/** When the profile was removed on this device (to remove the account's copy), if it was. */
+export function profileClearedAt(): number | null {
+  try {
+    const v = Number(localStorage.getItem(CLEARED));
+    return v > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function forgetProfileClear(): void {
+  try {
+    localStorage.removeItem(CLEARED);
+  } catch {
+    /* nothing to forget */
+  }
 }
 
 const listeners = new Set<() => void>();

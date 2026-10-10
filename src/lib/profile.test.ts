@@ -130,3 +130,15 @@ it('shows preferences in plain words and pulls out favourites', () => {
   expect(shown.find((x) => x.label === 'Favourite red')?.value).toBe('Barolo');
   expect(shown.map((x) => x.label)).not.toContain('Wine identity');
 });
+
+describe('profile kept with your account', () => {
+  it('remembers a removal on this device so the account copy goes too, and forgets it on the next import', async () => {
+    const { saveProfile, profileClearedAt, forgetProfileClear } = await import('./profile');
+    saveProfile(null);
+    expect(profileClearedAt()).toBeGreaterThan(0);
+    forgetProfileClear();
+    expect(profileClearedAt()).toBeNull();
+    saveProfile(null, { fromServer: true });
+    expect(profileClearedAt()).toBeNull();
+  });
+});
