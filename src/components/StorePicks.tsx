@@ -1,10 +1,10 @@
 import { ArrowUpRight, RefreshCw, Sparkles, Store as StoreIcon } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAllWines, useLists, useWines } from '../hooks';
 import { getApiKey } from '../lib/labelReader';
 import { markNotForMe, saveToWant } from '../lib/lists';
-import { possessive, refreshPogos, requestStoreList, storeById, STORES, type StoreId } from '../lib/stores';
+import { clearStoreList, LIST_TTL, possessive, refreshPogos, requestStoreList, storeById, STORES, type StoreId } from '../lib/stores';
 import { MIN_RATED } from '../lib/taste';
 import { formatPrice, producerAndName } from '../lib/format';
 import { dropReason, priceDrops, type Drop } from '../lib/priceWatch';
@@ -154,6 +154,13 @@ export function StorePicksPanel() {
   const abort = useRef<AbortController | null>(null);
   const hasKey = Boolean(getApiKey());
 
+  // A list Claude made clears itself after an hour, also while the app stays open.
+  useEffect(() => {
+    if (!fetchedAt || store.kind === 'catalog') return;
+    const t = window.setTimeout(() => void clearStoreList(store.id), Math.max(0, fetchedAt + LIST_TTL - Date.now()));
+    return () => window.clearTimeout(t);
+  }, [fetchedAt, store.id, store.kind]);
+
   const load = async () => {
     abort.current?.abort();
     const ctl = new AbortController();
@@ -239,6 +246,11 @@ export function StorePicksPanel() {
         <div className={`picks-status${busy ? ' busy' : ''}`}>
           <span role="status">{status}</span>
           {button}
+          {!busy && !catalog && fetchedAt && (
+            <button type="button" className="text-link" onClick={() => void clearStoreList(store.id)}>
+              Clear
+            </button>
+          )}
         </div>
       )}
       {shownError && (

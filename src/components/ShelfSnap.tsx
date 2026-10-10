@@ -13,6 +13,7 @@ import {
   MAX_SHELF_PHOTOS,
   readShelf,
   saveShelf,
+  SHELF_TTL,
   shelfContext,
   shelfDetails,
   shelfTitle,
@@ -108,6 +109,13 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
     setShelf(s);
     saveShelf(s);
   };
+
+  // A shelf result clears itself after an hour, also while the app stays open.
+  useEffect(() => {
+    if (!shelf) return;
+    const t = window.setTimeout(() => update(null), Math.max(0, shelf.at + SHELF_TTL - Date.now()));
+    return () => window.clearTimeout(t);
+  }, [shelf?.at]);
 
   // After a read, each bottle is looked up in Palate's wine catalog (free) for a photo and its details,
   // a few at a time; the results are saved with the shelf.
@@ -378,6 +386,9 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
           {report.decision && <p className="reason shelf-summary">{cleanReason(report.decision)}</p>}
           {report.lesson && <p className="shelf-lesson">{cleanReason(report.lesson)}</p>}
 
+          {top.length > 0 && (
+            <h3 className="eyebrow list-title">{top.length === 1 ? 'Top pick' : `Top ${top.length}`}</h3>
+          )}
           {top.length > 0 && (
             <div className="pick-list">
               {top.map((b, i) => (

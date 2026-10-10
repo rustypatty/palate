@@ -4,7 +4,7 @@ import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
 import { resizeImage } from './image';
 import { loadProfile } from './profile';
-import { completeItems, shelfBudget, withinBudget, type PriceCheckOutcome, type ShelfBottle, type ShelfOutcome, type ShelfProgress, type ShelfReport } from './shelf';
+import { completeItems, shelfBudget, topThree, withinBudget, type PriceCheckOutcome, type ShelfBottle, type ShelfOutcome, type ShelfProgress, type ShelfReport } from './shelf';
 
 const MODEL = 'claude-opus-5-5';
 
@@ -51,7 +51,7 @@ const AlsoSchema = z.object({
 
 // Picks first, so they can be shown while the rest is still being written.
 const ShelfSchema = z.object({
-  picks: z.array(PickSchema).describe('The 3–5 best buys for me here, best first.'),
+  picks: z.array(PickSchema).describe('The 3 best buys for me here, best first.'),
   also_good: z.array(AlsoSchema).describe('Up to 6 more worth a look. Leave out anything I should skip.'),
   decision: z.string().describe('The call, under 35 words: "If you get one: <wine>." plus one alternative for a budget, tonight, or exploring.'),
   lesson: z.string().describe('One sentence (under 25 words) on what trying the picks side by side would teach me. Empty if nothing useful.'),
@@ -71,7 +71,7 @@ function prompt(context: string, store: string, photos: number, lookingFor: stri
     (budget ? `My budget: up to $${budget} a bottle. Only suggest bottles whose single-bottle tag price is at or under that. Always copy the tag price exactly, even when it is over.\n\n` : '') +
     'Read the bottles and match each to the price tag directly below or beside it. Only consider bottles you can identify, and skip any marked out of stock. ' +
     'If the same wine is in several photos, list it once. Never invent a bottle, vintage, price or score — use scores only as printed on tags. ' +
-    'Pick the 3–5 best buys for me, then up to 6 more worth a look. Do not mention bottles I should skip. ' +
+    'Pick the 3 best buys for me, then up to 6 more worth a look. Do not mention bottles I should skip. ' +
     'Be brief and specific: short words, no filler.'
   );
 }
@@ -155,7 +155,7 @@ export async function readShelfImagesWithClaude(
         const p = AlsoSchema.safeParse(x);
         return p.success ? [alsoToBottle(p.data)] : [];
       });
-      const bottles = withinBudget([...picks, ...also], budget);
+      const bottles = topThree(withinBudget([...picks, ...also], budget));
       if (bottles.length > shown) {
         shown = bottles.length;
         onProgress({ bottles });
@@ -179,7 +179,7 @@ export async function readShelfImagesWithClaude(
       report: {
         decision: r.decision,
         lesson: r.lesson,
-        bottles: withinBudget([...r.picks.map(pickToBottle), ...r.also_good.map(alsoToBottle)], budget),
+        bottles: topThree(withinBudget([...r.picks.map(pickToBottle), ...r.also_good.map(alsoToBottle)], budget)),
         unreadable: r.unreadable,
       },
     };

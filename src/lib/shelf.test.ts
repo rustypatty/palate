@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cleanReason } from '../components/Shelf';
 import { wine } from '../test/fixtures';
-import { completeItems, loadShelf, saveShelf, shelfBudget, shelfContext, shelfTitle, withinBudget, type SavedShelf, type ShelfBottle } from './shelf';
+import { completeItems, loadShelf, saveShelf, SHELF_TTL, shelfBudget, shelfContext, shelfTitle, topThree, withinBudget, type SavedShelf, type ShelfBottle } from './shelf';
 
 describe('Snap a shelf', () => {
   it('tells Claude your ratings and your own notes', () => {
@@ -28,7 +28,7 @@ describe('Snap a shelf', () => {
   });
 
   it('forgets a shelf read before the shorter answers, instead of showing it half-empty', () => {
-    const lean: SavedShelf = { at: 1, store: 'Total Wine', photos: 2, report: { decision: 'If you get one: X.', lesson: '', bottles: [], unreadable: '' } };
+    const lean: SavedShelf = { at: Date.now(), store: 'Total Wine', photos: 2, report: { decision: 'If you get one: X.', lesson: '', bottles: [], unreadable: '' } };
     saveShelf(lean);
     expect(loadShelf()).toEqual(lean);
     localStorage.setItem('palate.shelf', JSON.stringify({ at: 1, store: 'Total Wine', photos: 2, report: { summary: 'old', bottles: [], comparisons: [] } }));
@@ -60,6 +60,21 @@ describe('Snap a shelf', () => {
       ['Argiano', 'good'],
     ]);
     expect(withinBudget([b('X', 150, 'top')], null)).toHaveLength(1);
+  });
+
+  it('keeps three on top and moves any further picks to the start of "Also good"', () => {
+    const b = (wine: string, verdict: 'top' | 'good') => ({ wine, verdict }) as unknown as ShelfBottle;
+    const out = topThree([b('A', 'top'), b('B', 'top'), b('C', 'top'), b('D', 'top'), b('E', 'good')]);
+    expect(out.map((x) => `${x.wine}:${x.verdict}`)).toEqual(['A:top', 'B:top', 'C:top', 'D:good', 'E:good']);
+  });
+
+  it('lets a shelf result go after an hour', () => {
+    const report = { decision: 'If you get one: X.', lesson: '', bottles: [], unreadable: '' };
+    saveShelf({ at: Date.now() - SHELF_TTL - 1000, store: 'Total Wine', photos: 2, report });
+    expect(loadShelf()).toBeNull();
+    saveShelf({ at: Date.now() - SHELF_TTL + 60_000, store: 'Total Wine', photos: 2, report });
+    expect(loadShelf()).not.toBeNull();
+    saveShelf(null);
   });
 
   it('names bottles plainly', () => {

@@ -4,7 +4,7 @@ import { db } from '../db';
 import { useLists, useWines } from '../hooks';
 import { makeAdvisor } from './insights';
 import { explainSuggestions, rankCandidates, type Pick } from './recommend';
-import { storeById, type StoreId, type StoreItem, type SuggestedItem } from './stores';
+import { clearStoreList, listExpired, storeById, type StoreId, type StoreItem, type SuggestedItem } from './stores';
 import { buildTaste } from './taste';
 
 // Per-device conveniences: which store and budget you last picked.
@@ -67,7 +67,14 @@ export interface StorePicks {
 }
 
 export function useStorePicks(id: StoreId, budget: number | null, n = 12): StorePicks {
-  const result = useLiveQuery(async () => ({ id, cache: (await db.stores.get(id)) ?? null }), [id]);
+  const result = useLiveQuery(async () => {
+    const cache = (await db.stores.get(id)) ?? null;
+    if (cache && listExpired(cache)) {
+      await clearStoreList(id);
+      return { id, cache: null };
+    }
+    return { id, cache };
+  }, [id]);
   // Right after switching stores the previous store's result is still here: treat it as loading.
   const cache = result?.id === id ? result.cache : undefined;
   const advisor = useAdvisor();
@@ -92,7 +99,7 @@ export function useStorePicks(id: StoreId, budget: number | null, n = 12): Store
 export function useAllStoreItems(): { storeId: StoreId; item: StoreItem | SuggestedItem }[] | undefined {
   const caches = useLiveQuery(() => db.stores.toArray(), []);
   return useMemo(
-    () => caches?.flatMap((c) => [...(c.items ?? []), ...(c.list?.picks ?? [])].map((item) => ({ storeId: c.id, item }))),
+    () => caches?.filter((c) => !listExpired(c)).flatMap((c) => [...(c.items ?? []), ...(c.list?.picks ?? [])].map((item) => ({ storeId: c.id, item }))),
     [caches],
   );
 }
