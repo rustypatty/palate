@@ -67,14 +67,14 @@ export interface StorePicks {
 }
 
 export function useStorePicks(id: StoreId, budget: number | null, n = 12): StorePicks {
+  // Read only here: a live query can't write, so an expired list is hidden now and deleted just after.
   const result = useLiveQuery(async () => {
     const cache = (await db.stores.get(id)) ?? null;
-    if (cache && listExpired(cache)) {
-      await clearStoreList(id);
-      return { id, cache: null };
-    }
-    return { id, cache };
+    return { id, cache: cache && listExpired(cache) ? null : cache, expired: Boolean(cache && listExpired(cache)) };
   }, [id]);
+  useEffect(() => {
+    if (result?.expired) void clearStoreList(result.id);
+  }, [result?.expired, result?.id]);
   // Right after switching stores the previous store's result is still here: treat it as loading.
   const cache = result?.id === id ? result.cache : undefined;
   const advisor = useAdvisor();
