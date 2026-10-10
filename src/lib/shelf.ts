@@ -36,6 +36,8 @@ export interface ShelfBottle {
   /** Filled in by "Check prices online". */
   price_note?: string;
   tip: string;
+  /** For the top picks: best match for you, best value, or something new (each once at most). */
+  tag?: 'match' | 'value' | 'new' | '';
   /** What Palate's wine catalog adds (free, after the read): null when it doesn't know this bottle for sure. */
   catalog?: ShelfCatalog | null;
 }
@@ -91,13 +93,16 @@ export type PriceCheckOutcome = { ok: true; checks: ShelfPriceCheck[] } | { ok: 
 export const MAX_SHELF_PHOTOS = 10;
 
 const KEY = 'palate.shelf';
+/** How long a shelf result is kept. */
+export const SHELF_TTL = 60 * 60 * 1000;
 
 export function loadShelf(): SavedShelf | null {
   try {
     const raw = localStorage.getItem(KEY);
     const saved = raw ? (JSON.parse(raw) as SavedShelf) : null;
-    // Shelves read before the shorter answers (no decision line) are dropped rather than shown half-empty.
-    return saved && typeof saved.report?.decision === 'string' ? saved : null;
+    // Shelves read before the shorter answers (no decision line) are dropped rather than shown half-empty,
+    // and a shelf is only kept for an hour: by then you've left the aisle.
+    return saved && typeof saved.report?.decision === 'string' && Date.now() - saved.at < SHELF_TTL ? saved : null;
   } catch {
     return null;
   }
@@ -166,6 +171,13 @@ export function withinBudget(bottles: ShelfBottle[], budget: number | null): She
   const good = bottles.filter((b) => b.verdict === 'good' && fits(b));
   const stretch = bottles.find((b) => over(b) && (dealPrice(b.deal) ?? Infinity) <= budget);
   return [...top, ...good, ...(stretch ? [{ ...stretch, verdict: 'good' as const }] : [])];
+}
+
+/** The top 3 on top, then up to 3 "Also good" (any further pick first, as "Also good" without a label). */
+export function topThree(bottles: ShelfBottle[]): ShelfBottle[] {
+  const top = bottles.filter((b) => b.verdict === 'top');
+  const extra = top.slice(3).map((b) => ({ ...b, verdict: 'good' as const, tag: '' as const }));
+  return [...top.slice(0, 3), ...[...extra, ...bottles.filter((b) => b.verdict !== 'top')].slice(0, 3)];
 }
 
 /** Quick answers for "Looking for…", sent with the photos. */

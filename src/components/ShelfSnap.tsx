@@ -13,6 +13,7 @@ import {
   MAX_SHELF_PHOTOS,
   readShelf,
   saveShelf,
+  SHELF_TTL,
   shelfContext,
   shelfDetails,
   shelfTitle,
@@ -34,6 +35,8 @@ function clock(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
+
+const TAG_LABEL = { match: 'Best match for you', value: 'Best value', new: 'Something new' } as const;
 
 const CALL_LABEL: Record<PriceCall, string> = { bargain: 'Bargain', fair: 'Fair price', pricey: 'A little pricey', unknown: '' };
 
@@ -108,6 +111,13 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
     setShelf(s);
     saveShelf(s);
   };
+
+  // A shelf result clears itself after an hour, also while the app stays open.
+  useEffect(() => {
+    if (!shelf) return;
+    const t = window.setTimeout(() => update(null), Math.max(0, shelf.at + SHELF_TTL - Date.now()));
+    return () => window.clearTimeout(t);
+  }, [shelf?.at]);
 
   // After a read, each bottle is looked up in Palate's wine catalog (free) for a photo and its details,
   // a few at a time; the results are saved with the shelf.
@@ -379,6 +389,9 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
           {report.lesson && <p className="shelf-lesson">{cleanReason(report.lesson)}</p>}
 
           {top.length > 0 && (
+            <h3 className="eyebrow list-title">{top.length === 1 ? 'Top pick' : `Top ${top.length}`}</h3>
+          )}
+          {top.length > 0 && (
             <div className="pick-list">
               {top.map((b, i) => (
                 <ShelfCard key={shelfTitle(b)} b={b} n={i + 1} done={shelf.done?.[shelfTitle(b)]} rated={rated(b)} act={act} />
@@ -467,6 +480,7 @@ function ShelfCard({
       )}
       <div className="sc-head">
         {n !== undefined && <div className="pr-no">No. {String(n).padStart(2, '0')}</div>}
+        {b.tag && <span className={`wl-tag ${b.tag}`}>{TAG_LABEL[b.tag]}</span>}
         {b.producer && <div className="pr-producer">{b.producer}</div>}
         <h3 className="pr-name">{[b.wine || b.producer, b.vintage].filter(Boolean).join(' ')}</h3>
         {facts && <div className="sc-facts">{facts}</div>}

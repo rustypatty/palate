@@ -64,6 +64,17 @@ export interface StoreCache {
   list?: StoreList;
 }
 
+/** How long a list Claude made for a store is kept: an hour, for one trip to the shop. */
+export const LIST_TTL = 60 * 60 * 1000;
+
+/** A Claude-made list that has passed its hour (Pogo's downloaded wine list doesn't expire). */
+export const listExpired = (c: StoreCache, now = Date.now()) => Boolean(c.list) && now - c.fetchedAt >= LIST_TTL;
+
+/** Clear a store's list (the Clear button, or after its hour). */
+export function clearStoreList(id: StoreId, database: PalateDB = db) {
+  return database.stores.delete(id);
+}
+
 export function cacheFor(id: StoreId, database: PalateDB = db) {
   return database.stores.get(id);
 }

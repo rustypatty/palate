@@ -110,3 +110,13 @@ describe('Central Market', () => {
     expect(verifyReport({ picks: [{ ...pick, url: 'https://www.heb.com/product/1' }], tips: [] }, cm, new Set(['heb.com/product/1']), null).picks).toHaveLength(0);
   });
 });
+
+describe('store lists', () => {
+  it('lets a list Claude made go after an hour, but keeps a downloaded wine list', async () => {
+    const { listExpired, LIST_TTL } = await import('./stores');
+    const now = Date.now();
+    expect(listExpired({ id: 'totalwine', fetchedAt: now - LIST_TTL - 1, list: { picks: [], tips: [], budget: null } }, now)).toBe(true);
+    expect(listExpired({ id: 'totalwine', fetchedAt: now - 60_000, list: { picks: [], tips: [], budget: null } }, now)).toBe(false);
+    expect(listExpired({ id: 'pogos', fetchedAt: now - 10 * LIST_TTL, items: [] }, now)).toBe(false);
+  });
+});
