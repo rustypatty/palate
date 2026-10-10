@@ -45,6 +45,9 @@ export function ago(t: number, now = Date.now()): string {
   return d === 1 ? 'yesterday' : `${d} days ago`;
 }
 
+/** How old Pogo's downloaded list can get before it's downloaded again on its own. */
+const CATALOG_FRESH = 3 * 24 * 3600 * 1000;
+
 /** "Rate a few more" instead of weak guesses. */
 export function RatePrompt({ rated }: { rated: number }) {
   const left = MIN_RATED - rated;
@@ -210,6 +213,15 @@ export function StorePicksPanel() {
       if (abort.current === ctl) setBusy(null);
     }
   };
+
+  // Pogo's list is free to download: keep it current by itself (first visit, or older than 3 days).
+  const autoLoaded = useRef(new Set<StoreId>());
+  useEffect(() => {
+    if (store.kind !== 'catalog' || fetchedAt === undefined || busy || autoLoaded.current.has(store.id)) return;
+    if (fetchedAt !== null && Date.now() - fetchedAt < CATALOG_FRESH) return;
+    autoLoaded.current.add(store.id);
+    void load();
+  }, [store.id, store.kind, fetchedAt, busy]);
 
   if (taste && !taste.enough) return <RatePrompt rated={taste.rated} />;
   if (fetchedAt === undefined) return null;
