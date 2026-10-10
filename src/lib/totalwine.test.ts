@@ -4,7 +4,8 @@ import { checkImport, mapProduct, pickupStatus, sizeMl, splitVintage, styleFromU
 import { wine } from '../test/fixtures';
 import { makeAdvisor } from './insights';
 import { stockLine, stockList } from './storeListClient';
-import { shortlist, stockBottle, type StockRow } from './twStock';
+import { alreadyHave, shortlist, stockBottle, type StockRow } from './twStock';
+import { bottleTitle } from './likeThis';
 
 // Trimmed copies of real products from window.INITIAL_STATE on Total Wine's Italian reds page (Las Colinas, 2026-10-09).
 const renieri: TwProduct = {
@@ -174,5 +175,47 @@ describe('the reason shown on a list pick', () => {
     const b = { ...stockBottle(row(renieri))!, claudeReason: 'Like the Fèlsina you loved, at half the price' };
     expect(explainSuggestions(advisor, [b])[0].reason).toBe('Like the Fèlsina you loved, at half the price');
     expect(explainSuggestions(advisor, [{ ...b, claudeReason: '' }])[0].reason).not.toBe('');
+  });
+});
+
+describe('leaving out bottles you already have', () => {
+  const mine = [
+    wine({ producer: 'Clos Saint Michel (Mousset)', name: 'Châteauneuf-du-Pape Cuvée Réservée', vintage: 2023 }),
+    wine({ producer: 'Clos Saint Jean', name: 'Vieilles Vignes Châteauneuf-du-Pape', vintage: 2022 }),
+    wine({ producer: 'Bodegas Benjamin de Rothschild & Vega Sicilia', name: 'Macán Clásico', vintage: 2021 }),
+    wine({ producer: 'Domaine de la Bressande', name: 'Mercurey Premier Cru En Sazenay', vintage: 2022 }),
+    wine({ producer: 'R. López de Heredia', name: 'Viña Bosconia Reserva', vintage: 2014 }),
+    wine({ producer: 'Barone Ricasoli', name: 'Castello di Brolio Chianti Classico Gran Selezione Gaiole', vintage: 2021 }),
+    wine({ producer: 'Marchesi di Barolo', name: 'Barolo', vintage: 2019 }),
+  ];
+  const listing = (producer: string, name: string, vintage = '') => ({ producer, wine: name, title: bottleTitle(producer, name, vintage) });
+
+  it('knows them under the store’s shorter names, any vintage', () => {
+    const have = (p: string, n: string, v?: string) => alreadyHave(listing(p, n, v), mine)?.producer ?? null;
+    expect(have('Clos Saint Michel', 'Mousset Clos St Michel Chateauneuf du Pape Reserve', '2022')).toBe('Clos Saint Michel (Mousset)');
+    expect(have('Vega Sicilia', 'Vega Sicilia & Rothschild Macan Clasico', '2022')).toBe('Bodegas Benjamin de Rothschild & Vega Sicilia');
+    expect(have('Domaine de la Bressande', 'Dom de la Bressande Mercurey Rouge 1er Cru en Sazenay', '2022')).toBe('Domaine de la Bressande');
+    expect(have('Lopez de Heredia', 'Lopez de Heredia Bosconia Reserva')).toBe('R. López de Heredia');
+    expect(have('Barone Ricasoli', 'Ricasoli Castello di Brolio Chianti Classico Gran Selezione', '2021')).toBe('Barone Ricasoli');
+    expect(have('Marchesi di Barolo', 'Marchesi di Barolo Tradizone Barolo')).toBe('Marchesi di Barolo');
+  });
+
+  it('keeps other wines from the same producers, and lookalikes', () => {
+    const have = (p: string, n: string) => alreadyHave(listing(p, n), mine);
+    expect(have('Marchesi di Barolo', 'Marchesi di Barolo Barbera Maraia')).toBeNull();
+    expect(have('Lopez de Heredia', 'Lopez de Heredia Tondonia Reserva')).toBeNull();
+    expect(have('Barone Ricasoli', 'Ricasoli Colledila Gran Selezione')).toBeNull();
+    expect(have('Clos Saint Michel', 'Mousset Clos St Michel Vieilles Vignes Chateauneuf du Pape')).toBeNull();
+    expect(have('Vega Sicilia', 'Vega Sicilia Alion')).toBeNull();
+  });
+});
+
+describe('another cuvée is not one you have', () => {
+  it('keeps a Grand Vin or Riserva of a wine you have the plain bottling of', () => {
+    const mine = [wine({ producer: 'Clos Saint Michel (Mousset)', name: 'Châteauneuf-du-Pape', region: 'Châteauneuf-du-Pape' })];
+    const l = (name: string) => ({ producer: 'Clos Saint Michel', wine: name, title: bottleTitle('Clos Saint Michel', name, '2022') });
+    expect(alreadyHave(l('Mousset Clos St Michel Chateauneuf du Pape'), mine)).not.toBeNull();
+    expect(alreadyHave(l('Mousset Clos St Michel Chateauneuf-du-Pape Grand Vin'), mine)).toBeNull();
+    expect(alreadyHave(l('Mousset Clos St Michel Chateauneuf du Pape Reserve'), mine)).toBeNull();
   });
 });

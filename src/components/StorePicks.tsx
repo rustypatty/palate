@@ -184,13 +184,13 @@ export function StorePicksPanel() {
           loved: rated.filter((w) => w.rating === 'loved').map(label),
           liked: rated.filter((w) => w.rating === 'liked').map(label),
           disliked: rated.filter((w) => w.rating === 'wouldnt').map(label),
-          // Saved and dismissed first: those are the ones Claude can't know about otherwise.
-          skip: [...(lists?.want ?? []), ...(lists?.passed ?? []), ...(wines ?? [])].map(label).slice(0, 40),
+          // Your collection first (tried or at home), then saved and dismissed; a long list costs little.
+          skip: [...(wines ?? []), ...(lists?.want ?? []), ...(lists?.passed ?? [])].map(label).slice(0, 150),
           budget,
         };
         let out;
         if (inStock && advisor) {
-          const short = shortlist(advisor, inStock.bottles, { passed: lists?.passed, budget, usual: taste?.price ?? null });
+          const short = shortlist(advisor, inStock.bottles, { passed: lists?.passed, budget, usual: taste?.price ?? null, have: wines ?? [] });
           if (!short.length) {
             setError({ store: store.id, text: `Nothing in stock at ${inStock.storeName} fits that budget. Try a higher one.` });
             return;

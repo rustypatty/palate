@@ -1,7 +1,8 @@
-import type { WineStyle } from '../types';
+import type { Wine, WineStyle } from '../types';
 import { signedInClient } from './cloud';
 import { bottleTitle, normalizeUrl, totalWineImage } from './likeThis';
 import { rankCandidates, type RankOptions } from './recommend';
+import { tokens } from './text';
 import type { makeAdvisor } from './insights';
 import type { SuggestedItem } from './stores';
 
@@ -80,14 +81,75 @@ export function stockBottle(row: StockRow): SuggestedItem | null {
   };
 }
 
+// Shop shorthand and accents vary ("Clos St Michel", "1er Cru", "Dom de la Bressande"): compare on one spelling.
+const SAME: Record<string, string> = { st: 'saint', ste: 'sainte', '1er': 'premier', dom: 'domaine', chateauneuf: 'chateauneuf', cdp: 'chateauneuf' };
+// Words that say little about which wine it is.
+const FILLER = new Set(['de', 'du', 'des', 'la', 'le', 'les', 'di', 'del', 'della', 'da', 'd', 'l', 'y', 'e', 'et', 'and', 'the', 'en', 'domaine', 'chateau', 'bodegas', 'bodega', 'vina', 'rouge', 'red', 'vin', 'tinto', 'rosso']);
+
+const COMMON = new Set(['saint', 'sainte', 'clo', 'tenuta', 'marchesi', 'marchese', 'barone', 'cantina', 'castello', 'weingut', 'maison', 'famille', 'estate', 'vineyard', 'cellar', 'winery', 'grand', 'mont']);
+
+function words(s: string): string[] {
+  return tokens(s.replace(/\([^)]*\)/g, (m) => ` ${m.slice(1, -1)} `))
+    .map((t) => SAME[t] ?? t)
+    .filter((t) => !FILLER.has(t))
+    // "Réservée" and "Reserve", "Vieilles" and "Vieille".
+    .map((t) => t.replace(/e?e$|s$/, ''))
+    .filter(Boolean);
+}
+
+// Words that mark a different cuvée from the same producer.
+const TIER = new Set(words('grand gran reserve reserva riserva vieilles vv selection selezione special speciale prestige cuvee old vines single'));
+
+/**
+ * A wine from your collection that this bottle is (any vintage): same producer, and nearly all of
+ * your wine's name in the store's listing. Looser than the label matcher, because shops shorten
+ * names ("Mousset Clos St Michel Chateauneuf du Pape" is your "Clos Saint Michel (Mousset) Châteauneuf-du-Pape").
+ */
+export function alreadyHave(b: Pick<SuggestedItem, 'producer' | 'wine' | 'title'>, collection: Wine[]): Wine | null {
+  const listing = new Set(words(`${b.producer} ${b.title}`));
+  // The listing's name without its brand at the front, so "Marchesi di Barolo Barbera" isn't a Barolo.
+  const brand = new Set(words(b.producer));
+  const nameWords = words(b.title);
+  while (nameWords.length && brand.has(nameWords[0])) nameWords.shift();
+  const name = new Set(nameWords);
+  for (const w of collection) {
+    const { producer, mine, known } = prepared(w);
+    if (!producer.length || producer.filter((t) => listing.has(t)).length < (producer.length * 2) / 3) continue;
+    if (!mine.length) continue;
+    const found = mine.filter((t) => name.has(t)).length;
+    if (found / mine.length < 0.75) continue;
+    // Words the listing has beyond yours: a place or a year is fine, a tier ("Grand Vin", "Riserva") is another cuvée.
+    const extra = [...name].filter((t) => !known.has(t) && !brand.has(t) && !/^\d+$/.test(t));
+    if (extra.length === 0 || (extra.length === 1 && !TIER.has(extra[0]))) return w;
+  }
+  return null;
+}
+
+// Each of your wines' words, worked out once rather than for every bottle in the store.
+const cache = new WeakMap<Wine, { producer: string[]; mine: string[]; known: Set<string> }>();
+function prepared(w: Wine) {
+  let p = cache.get(w);
+  if (!p) {
+    // The producer's own name, not words many producers share ("Clos Saint Jean" is not "Clos St Michel").
+    const producer = words(w.producer).filter((t) => t.length > 3 && !COMMON.has(t));
+    // Your wine's own name, without the producer's words unless that's all it is (Marchesi di Barolo "Barolo").
+    const all = words(w.name);
+    const mine = all.some((t) => !producer.includes(t)) ? all.filter((t) => !producer.includes(t)) : all;
+    p = { producer, mine, known: new Set([...mine, ...words(w.producer), ...words(w.region)]) };
+    cache.set(w, p);
+  }
+  return p;
+}
+
 /**
  * The bottles worth showing Claude: the best fits for your taste from your own ratings, plus the
  * best-reviewed ones you haven't tried anything like, all within budget. Keeps the request small.
+ * Bottles already in your collection (tried or at home, any vintage) are left out.
  */
-export function shortlist(advisor: ReturnType<typeof makeAdvisor>, bottles: SuggestedItem[], opts: RankOptions, n = 50): SuggestedItem[] {
+export function shortlist(advisor: ReturnType<typeof makeAdvisor>, bottles: SuggestedItem[], opts: RankOptions & { have?: Wine[] }, n = 50): SuggestedItem[] {
   const budget = opts.budget ?? null;
   const fits = (b: SuggestedItem) => b.sizeMl === null || b.sizeMl === 750;
-  const pool = bottles.filter((b) => fits(b) && (budget === null || (b.price !== null && b.price <= budget)));
+  const pool = bottles.filter((b) => fits(b) && (budget === null || (b.price !== null && b.price <= budget)) && !alreadyHave(b, opts.have ?? []));
   const out = new Map<string, SuggestedItem>();
   for (const p of rankCandidates(advisor, pool, opts, Math.round(n * 0.7), 4)) out.set(p.item.key, p.item);
   const passed = new Set((opts.passed ?? []).map((w) => w.suggestion?.key).filter(Boolean));
