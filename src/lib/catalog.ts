@@ -93,13 +93,15 @@ export async function catalogLookup(
 
 /** Photos tried per wine: its own, then other shops' entries for the same wine. */
 const PHOTO_TRIES = 4;
+/** Shop images that are never a bottle photo: "no image" placeholders and logos. */
+const NOT_A_PHOTO = /placeholder|no[-_]?image|coming[-_]?soon|camera[-_]?shy|logo/i;
 
 /** A matched catalog wine as the details a lookup gives, with a clean bottle photo when one of its entries has it. */
 async function lookupFrom(w: CatalogWine, needPhoto: boolean, deps: CatalogDeps, others: CatalogWine[] = []): Promise<WineLookup> {
   let photo: WineLookup['photo'] = null;
   // Shops also show labels, gift boxes, lifestyle and phone shots: only a whole bottle will do.
   const seen = new Set<string>();
-  const tries = [w, ...(needPhoto ? others : [])].filter((e) => e.image_url && !seen.has(e.image_url) && seen.add(e.image_url)).slice(0, PHOTO_TRIES);
+  const tries = [w, ...(needPhoto ? others : [])].filter((e) => e.image_url && !NOT_A_PHOTO.test(e.image_url.split('?')[0]) && !seen.has(e.image_url) && seen.add(e.image_url)).slice(0, PHOTO_TRIES);
   for (const e of tries) {
     const url = relayedImageUrl(e.image_url!);
     if (await deps.isBottle(url)) {
