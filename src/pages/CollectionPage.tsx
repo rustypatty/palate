@@ -1,8 +1,7 @@
-import { Bookmark, Plus, ScanLine, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Bookmark, MessageSquare, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { BarcodeScanner } from '../components/BarcodeScanner';
-import { useToast } from '../components/Toast';
+import { Link } from 'react-router-dom';
+import { AskSheet } from '../components/AskSheet';
 import { BottleImage, BottlePlaceholder } from '../components/BottleImage';
 import { FilterSheet, SORTS } from '../components/FilterSheet';
 import { FillerTile, MiniWineCard, ShelfRow } from '../components/Shelf';
@@ -16,13 +15,11 @@ import { useBottleBox } from '../components/useTrimmedPhoto';
 import { PRICE_BANDS, STYLE_LABEL } from '../lib/constants';
 import { producerAndName } from '../lib/format';
 import { shownPhoto } from '../lib/image';
-import { lookupBarcode } from '../lib/imageSearch';
 import { activeFilterCount, applyFilters, DEFAULT_FILTERS, type Filters, type Shelf } from '../lib/filters';
 import { currentWindow, drinkSoon, STATUS_LABEL, windowStatus } from '../lib/drinkWindow';
 import { buyAgain } from '../lib/recommend';
 import { useTaste } from '../lib/usePicks';
 import type { Wine } from '../types';
-import type { CheckPrefill } from './InStorePage';
 import type { AddPrefill } from './WineFormPage';
 
 const SHELVES: { value: Shelf; label: string }[] = [
@@ -331,29 +328,7 @@ export function CollectionPage() {
   const [filters, setFilters] = useState<Filters>(loadFilters);
   const [showFilters, setShowFilters] = useState(false);
   const query = useDebounced(filters.query, 120);
-  const [scanning, setScanning] = useState(false);
-  const navigate = useNavigate();
-  const toast = useToast();
-
-  // Scanned on the home screen: your own bottle opens straight away; anything else gets the in-store check.
-  const onScanned = async (code: string) => {
-    setScanning(false);
-    const mine = wines?.find((w) => w.barcode === code);
-    if (mine) {
-      navigate(`/wine/${mine.id}`);
-      return;
-    }
-    toast('Looking up the barcode…');
-    let text = '';
-    try {
-      const found = await lookupBarcode(code);
-      text = found ? [found.brand, found.title].filter(Boolean).join(' ') : '';
-    } catch {
-      /* offline: check by typing instead */
-    }
-    if (!text) toast('Barcode not recognised. Type the name from the label.');
-    navigate('/store', { state: { check: text, barcode: code } satisfies CheckPrefill });
-  };
+  const [asking, setAsking] = useState(false);
 
   useEffect(() => {
     try {
@@ -386,20 +361,20 @@ export function CollectionPage() {
             </span>
           )}
         </Link>
-        <button type="button" className="icon-btn" onClick={() => setScanning(true)} aria-label="Scan a bottle’s barcode">
-          <ScanLine size={20} strokeWidth={1.6} />
+        <button type="button" className="icon-btn" onClick={() => setAsking(true)} aria-label="Ask your wines">
+          <MessageSquare size={20} strokeWidth={1.6} />
         </button>
       </div>
     </div>
   );
 
-  const scanner = scanning && <BarcodeScanner onDetected={onScanned} onClose={() => setScanning(false)} />;
+  const askSheet = asking && <AskSheet onClose={() => setAsking(false)} />;
 
   if (wines.length === 0) {
     return (
       <>
         {header}
-        {scanner}
+        {askSheet}
         <div className="empty">
           <div className="art">
             <BottlePlaceholder />
@@ -433,7 +408,7 @@ export function CollectionPage() {
   return (
     <>
       {header}
-      {scanner}
+      {askSheet}
       <Hero wines={wines} />
 
       <div className="search-row home-search mobile-only">

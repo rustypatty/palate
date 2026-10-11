@@ -15,6 +15,7 @@ It works on its own in the browser. Signing in to Palate's online storage (Supab
   - **More like this** — bottles like it you could buy at your stores, from one Claude search of the stores' websites.
   - **Price watch** — the bell on Loved and Want to try bottles (see below).
 - **Photos** — take one, upload one, or let Palate find one: Claude searches the web for pages about the wine and picks bottle shots of this wine, or you search Open Food Facts / Wikimedia Commons, or paste an image address. Every candidate goes through an "Is this your bottle?" check. Photos are downscaled and stored on the device.
+- **Ask your wines** — the chat button at the top of My wines opens a chat that answers from your own wines ("What did I love from Spain?", "What should I open tonight with steak?"), plus general wine questions and what to try next. Wines it names appear as rows you can tap; recommendations offer "Find at Total Wine / Pogo's", which opens that store's list in In store. It only reads your wines, never changes them, and the conversation lasts for the session.
 - **Want to try** — bottles saved for later, grouped by where they were suggested. Imported wishlists show as their own groups, your priorities first, then by tier and price.
 - **Tonight** — pick what you're cooking (pasta, steak, fish, spicy…) and Palate picks a bottle from your cellar, from a pairing table and your ratings. Free and on the device.
 - **Passport** — the places and grapes you've tasted, which ones you loved, the classics you haven't tried, and where to go next (starting with bottles you already have).
@@ -50,7 +51,7 @@ Barcode scanning works on iPhone and Android, live or from a photo of the back l
 
 ## Claude
 
-Every Claude feature (label reading, the coach, Snap a shelf, Snap a wine list, store lists, More like this, About this wine, Learn, photo finding, price checks) uses `claude-opus-5-5` with structured output. The key can live in one of two places:
+Every Claude feature (Ask your wines, label reading, the coach, Snap a shelf, Snap a wine list, store lists, More like this, About this wine, Learn, photo finding, price checks) uses `claude-opus-5-5` with structured output. The key can live in one of two places:
 
 - **On the server (recommended):** stored once as the Supabase secret `ANTHROPIC_API_KEY`. Signed-in requests go through the `claude` edge function, which adds the key; it never reaches a browser, and only the project's owner (its first account) can use it.
 - **On this device:** **My palate → Label reading with Claude**. It's checked, then stored in this browser's local storage and sent straight to Anthropic. A key saved on the device takes precedence over the server's. Anyone with access to the device could use it, so set a spend limit on the key in the Anthropic Console.

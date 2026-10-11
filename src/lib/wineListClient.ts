@@ -97,7 +97,7 @@ const pickFrom = ({ n, why, tag, ...details }: PickOut) => ({ n, why, tag: tag ?
 export const lastRun = { firstTextMs: 0, totalMs: 0, usage: null as Anthropic.Beta.BetaUsage | null };
 
 /** Stream a structured answer, reporting what's written so far, and return the parsed whole. */
-async function streamParsed<T>(
+export async function streamParsed<T>(
   client: Anthropic,
   params: Parameters<Anthropic['beta']['messages']['stream']>[0],
   signal: AbortSignal | undefined,
@@ -130,7 +130,7 @@ async function toBase64Jpeg(photo: Blob): Promise<string> {
   return btoa(bin);
 }
 
-function reason(e: unknown): string | null {
+export function reason(e: unknown): string | null {
   if (e instanceof Anthropic.AuthenticationError) return 'your Anthropic key was rejected — check it in My palate';
   if (e instanceof Anthropic.PermissionDeniedError) return 'your API key doesn’t have access to this model';
   if (e instanceof Anthropic.RateLimitError) return 'too many requests right now — try again in a moment';
