@@ -41,6 +41,7 @@ interface Wine {
   watchOff?: boolean;
   price?: number | null;
   priceHistory?: PricePoint[];
+  fieldTimes?: Record<string, number>;
   updatedAt?: number;
 }
 interface Report {
@@ -208,7 +209,8 @@ async function savePoint(userId: string, id: string, point: PricePoint): Promise
     if (!row) return false;
     const now = Math.max(Date.now(), Number(row.updated_at) + 1);
     const wine = row.data as Wine;
-    const data = { ...wine, priceHistory: [...(wine.priceHistory ?? []), point].slice(-KEEP_POINTS), updatedAt: now };
+    // fieldTimes: so a device that edited this wine meanwhile keeps its edit and this price (src/lib/sync.ts).
+    const data = { ...wine, priceHistory: [...(wine.priceHistory ?? []), point].slice(-KEEP_POINTS), fieldTimes: { ...wine.fieldTimes, priceHistory: now }, updatedAt: now };
     const { data: done } = await admin.from('wines').update({ data, updated_at: now }).eq('user_id', userId).eq('id', id).eq('updated_at', row.updated_at).select('id');
     if (done?.length) return true;
   }

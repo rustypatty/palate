@@ -145,6 +145,11 @@ export interface Wine {
   priceHistory?: PricePoint[];
   /** "Learn": why this wine tastes the way it does, written once and kept (see learn.ts). */
   lesson?: WineLesson | null;
+  /**
+   * When each field was last changed (ms), so edits made to different fields on two devices
+   * are combined by sync rather than one copy replacing the other. Absent on older wines.
+   */
+  fieldTimes?: Partial<Record<keyof Wine, number>>;
   createdAt: number;
   updatedAt: number;
 }

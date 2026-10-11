@@ -2,7 +2,8 @@
 // (jsdom’s Blob does not survive fake-indexeddb’s structured clone; Node’s does.)
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createWine, deleteWine, emptyDraft, PalateDB, savePhoto, updateWine } from '../db';
-import { syncOnce, type Remote, type RemoteRow } from './sync';
+import { mergeWines, syncOnce, type Remote, type RemoteRow } from './sync';
+import type { Wine } from '../types';
 
 /** An in-memory stand-in for the online copy, shared by two "devices". */
 function memoryRemote() {
@@ -137,5 +138,81 @@ describe('sync', () => {
     await syncOnce(cloud.remote, laptop);
     expect(await laptop.wines.count()).toBe(1);
     expect(await laptop.photos.count()).toBe(0);
+  });
+
+  it('keeps edits to different fields made on two devices', async () => {
+    const id = await createWine({ ...emptyDraft(), producer: 'Ridge' }, phone);
+    await syncOnce(cloud.remote, phone);
+    await syncOnce(cloud.remote, laptop);
+
+    await updateWine(id, { rating: 'loved' }, phone);
+    await tick();
+    await updateWine(id, { owned: 3 }, laptop);
+    await syncOnce(cloud.remote, laptop);
+    await syncOnce(cloud.remote, phone);
+    await syncOnce(cloud.remote, laptop);
+    for (const device of [phone, laptop]) expect(await device.wines.get(id)).toMatchObject({ rating: 'loved', owned: 3 });
+    // Settled: nothing more to send either way.
+    expect(await syncOnce(cloud.remote, phone)).toEqual({ sent: 0, received: 0, removed: 0 });
+    expect(await syncOnce(cloud.remote, laptop)).toEqual({ sent: 0, received: 0, removed: 0 });
+  });
+
+  it('keeps a rating made offline when the server’s price check changed the wine meanwhile', async () => {
+    const id = await createWine({ ...emptyDraft(), producer: 'Ridge' }, phone);
+    await syncOnce(cloud.remote, phone);
+
+    await updateWine(id, { rating: 'loved' }, phone);
+    await tick();
+    // What supabase/functions/price-check does to the online row.
+    const row = cloud.rows.get(id)!;
+    const now = Date.now();
+    const point = { date: new Date(now).toISOString(), price: 42, store: 'Total Wine', url: 'https://example.com' };
+    const data = row.data as Wine;
+    cloud.rows.set(id, { ...row, updated_at: now, data: { ...data, priceHistory: [point], fieldTimes: { ...data.fieldTimes, priceHistory: now }, updatedAt: now } });
+
+    await syncOnce(cloud.remote, phone);
+    expect(await phone.wines.get(id)).toMatchObject({ rating: 'loved', priceHistory: [point] });
+    expect(cloud.rows.get(id)!.data).toMatchObject({ rating: 'loved', priceHistory: [point] });
+  });
+
+  it('settles even though the online copy comes back with its keys reordered', async () => {
+    const reorder = (r: RemoteRow): RemoteRow => ({ ...r, data: Object.fromEntries(Object.entries(r.data).sort(([a], [b]) => a.localeCompare(b))) as RemoteRow['data'] });
+    const sorted: Remote = { ...cloud.remote, fetch: async (ids) => (await cloud.remote.fetch(ids)).map(reorder) };
+    const id = await createWine({ ...emptyDraft(), producer: 'Ridge', grapes: ['Zinfandel'] }, phone);
+    await syncOnce(sorted, phone);
+    await syncOnce(sorted, laptop);
+    await updateWine(id, { notes: 'Brambly' }, phone);
+    await tick();
+    await updateWine(id, { rating: 'liked' }, laptop);
+    await syncOnce(sorted, phone);
+    await syncOnce(sorted, laptop);
+    await syncOnce(sorted, phone);
+    expect(await syncOnce(sorted, phone)).toEqual({ sent: 0, received: 0, removed: 0 });
+    expect(await syncOnce(sorted, laptop)).toEqual({ sent: 0, received: 0, removed: 0 });
+    expect(await laptop.wines.get(id)).toMatchObject({ notes: 'Brambly', rating: 'liked' });
+  });
+});
+
+describe('mergeWines', () => {
+  const base: Wine = { ...emptyDraft(), id: 'w', producer: 'Ridge', createdAt: 1, updatedAt: 1 };
+
+  it('takes the newer copy whole when neither says which fields changed (older wines)', () => {
+    const a = { ...base, rating: 'liked' as const, updatedAt: 5 };
+    const b = { ...base, owned: 2, updatedAt: 6 };
+    expect(mergeWines(a, b)).toEqual(b);
+    expect(mergeWines(b, a)).toEqual(b);
+  });
+
+  it('lets the later edit of the same field win', () => {
+    const a = { ...base, rating: 'liked' as const, fieldTimes: { rating: 5 }, updatedAt: 5 };
+    const b = { ...base, rating: 'loved' as const, fieldTimes: { rating: 6 }, updatedAt: 6 };
+    expect(mergeWines(a, b).rating).toBe('loved');
+    expect(mergeWines(b, a).rating).toBe('loved');
+  });
+
+  it('keeps the older copy’s fields that it changed more recently', () => {
+    const a = { ...base, notes: 'Brambly', fieldTimes: { notes: 5 }, updatedAt: 5 };
+    const b = { ...base, owned: 2, fieldTimes: { owned: 6 }, updatedAt: 6 };
+    expect(mergeWines(a, b)).toMatchObject({ notes: 'Brambly', owned: 2, fieldTimes: { notes: 5, owned: 6 }, updatedAt: 6 });
   });
 });
