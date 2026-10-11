@@ -50,7 +50,13 @@ function readTotalWinePage() {
   return {
     stale,
     payload: {
-      store: { id: String(store.storeNumber), name: String(store.name || ''), city: String(store.city || '') },
+      store: {
+        id: String(store.storeNumber),
+        name: String(store.name || ''),
+        city: String(store.city || ''),
+        lat: typeof store.latitude === 'number' ? store.latitude : undefined,
+        lng: typeof store.longitude === 'number' ? store.longitude : undefined,
+      },
       pageUrl: location.href,
       pagination: { page: pg.page, pageSize: pg.pageSize, totalPages: pg.totalPages, totalResults: pg.totalResults },
       products: clean,

@@ -146,10 +146,17 @@ function prepared(w: Wine) {
  * best-reviewed ones you haven't tried anything like, all within budget. Keeps the request small.
  * Bottles already in your collection (tried or at home, any vintage) are left out.
  */
-export function shortlist(advisor: ReturnType<typeof makeAdvisor>, bottles: SuggestedItem[], opts: RankOptions & { have?: Wine[] }, n = 50): SuggestedItem[] {
+export function shortlist(
+  advisor: ReturnType<typeof makeAdvisor>,
+  bottles: SuggestedItem[],
+  opts: RankOptions & { have?: Wine[]; style?: WineStyle | null; prefer?: string[] },
+  n = 50,
+): SuggestedItem[] {
   const budget = opts.budget ?? null;
   const fits = (b: SuggestedItem) => b.sizeMl === null || b.sizeMl === 750;
-  const pool = bottles.filter((b) => fits(b) && (budget === null || (b.price !== null && b.price <= budget)) && !alreadyHave(b, opts.have ?? []));
+  const pool = bottles.filter(
+    (b) => fits(b) && (!opts.style || b.style === opts.style) && (budget === null || (b.price !== null && b.price <= budget)) && !alreadyHave(b, opts.have ?? []),
+  );
   const out = new Map<string, SuggestedItem>();
   for (const p of rankCandidates(advisor, pool, opts, Math.round(n * 0.7), 4)) out.set(p.item.key, p.item);
   const passed = new Set((opts.passed ?? []).map((w) => w.suggestion?.key).filter(Boolean));
@@ -158,7 +165,73 @@ export function shortlist(advisor: ReturnType<typeof makeAdvisor>, bottles: Sugg
     if (out.size >= n) break;
     out.set(b.key, b);
   }
+  // Few ratings of this kind (e.g. whites) leave room: styles you've said you like first, then the rest.
+  const preferred = (opts.prefer ?? []).map((w) => tokens(w)).filter((t) => t.length);
+  const likes = (b: SuggestedItem) => {
+    const t = ` ${tokens(`${b.title} ${b.context ?? ''}`).join(' ')} `;
+    return preferred.some((w) => t.includes(` ${w.join(' ')} `));
+  };
+  const rest = pool.filter((b) => !out.has(b.key) && !passed.has(b.key));
+  for (const b of [...rest.filter(likes), ...rest.filter((b) => !likes(b))]) {
+    if (out.size >= n) break;
+    out.set(b.key, b);
+  }
   return [...out.values()];
+}
+
+// ---------- Which store ----------
+
+export interface TwStoreInfo {
+  storeId: string;
+  name: string;
+  importedAt: number;
+  lat: number | null;
+  lng: number | null;
+}
+
+/** Kilometres between two points (haversine). */
+export function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+
+/** The store nearest to you among those Palate knows where they are; null if none has a location. */
+export function nearestStore(stores: TwStoreInfo[], here: { lat: number; lng: number }): TwStoreInfo | null {
+  const located = stores.filter((s): s is TwStoreInfo & { lat: number; lng: number } => s.lat !== null && s.lng !== null);
+  if (!located.length) return null;
+  return located.reduce((best, s) => (distanceKm(here, s) < distanceKm(here, best) ? s : best));
+}
+
+/** Your phone's location, or null if it's refused, unavailable or slow. Stays on the device. */
+export function whereAmI(timeout = 8000): Promise<{ lat: number; lng: number } | null> {
+  return new Promise((resolve) => {
+    if (!('geolocation' in navigator)) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => resolve(null),
+      { timeout, maximumAge: 10 * 60 * 1000, enableHighAccuracy: false },
+    );
+  });
+}
+
+/** Total Wine stores with stock imported in the last 10 days, newest first. */
+export async function loadTwStores(now = Date.now()): Promise<TwStoreInfo[]> {
+  const sb = await signedInClient();
+  if (!sb) return [];
+  const { data, error } = await sb
+    .from('tw_stores')
+    .select('store_id, name, imported_at, lat, lng')
+    .gte('imported_at', new Date(now - STOCK_FRESH).toISOString())
+    .order('imported_at', { ascending: false });
+  if (error) return [];
+  return (data ?? []).map((s) => ({
+    storeId: s.store_id as string,
+    name: s.name as string,
+    importedAt: Date.parse(s.imported_at as string),
+    lat: (s.lat as number | null) ?? null,
+    lng: (s.lng as number | null) ?? null,
+  }));
 }
 
 export interface RefreshJob {
@@ -197,11 +270,13 @@ export async function requestRefresh(): Promise<void> {
 
 export const refreshOpen = (job: RefreshJob | null) => Boolean(job && ['queued', 'running', 'needs_you'].includes(job.status));
 
-/** The newest import's stock (in stock or limited, imported in the last week); null if none or signed out. */
-export async function loadTwStock(now = Date.now()): Promise<TwStock | null> {
+/** A store's stock (the newest import's store when none is named) (in stock or limited, imported in the last week); null if none or signed out. */
+export async function loadTwStock(storeId?: string | null, now = Date.now()): Promise<TwStock | null> {
   const sb = await signedInClient();
   if (!sb) return null;
-  const { data: stores, error } = await sb.from('tw_stores').select('store_id, name, imported_at').order('imported_at', { ascending: false }).limit(1);
+  let q = sb.from('tw_stores').select('store_id, name, imported_at');
+  q = storeId ? q.eq('store_id', storeId) : q.order('imported_at', { ascending: false });
+  const { data: stores, error } = await q.limit(1);
   if (error || !stores?.length) return null;
   const store = stores[0] as { store_id: string; name: string; imported_at: string };
   const since = new Date(now - STOCK_FRESH).toISOString();

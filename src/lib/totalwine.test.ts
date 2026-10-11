@@ -230,3 +230,27 @@ describe('remembering a list for the weekly refresh', () => {
     expect(new URL(a).searchParams.get('page')).toBeNull();
   });
 });
+
+describe('the nearest Total Wine', () => {
+  it('picks the store closest to you', async () => {
+    const { nearestStore, distanceKm } = await import('./twStock');
+    const lasColinas = { storeId: '535', name: 'Las Colinas (Irving)', importedAt: 0, lat: 32.91167, lng: -96.95619 };
+    const oakLawn = { storeId: '531', name: 'Oak Lawn', importedAt: 0, lat: 32.8135, lng: -96.8137 };
+    const noPlace = { storeId: '999', name: 'Unknown', importedAt: 0, lat: null, lng: null };
+    // Uptown Dallas is nearer Oak Lawn; DFW airport is nearer Las Colinas.
+    expect(nearestStore([lasColinas, oakLawn, noPlace], { lat: 32.8, lng: -96.8 })?.storeId).toBe('531');
+    expect(nearestStore([lasColinas, oakLawn], { lat: 32.9, lng: -97.04 })?.storeId).toBe('535');
+    expect(nearestStore([noPlace], { lat: 32.8, lng: -96.8 })).toBeNull();
+    expect(distanceKm({ lat: 32.91167, lng: -96.95619 }, { lat: 32.8135, lng: -96.8137 })).toBeGreaterThan(15);
+  });
+});
+
+describe('a list of whites', () => {
+  it('keeps only whites, styles you like first', () => {
+    const advisor = makeAdvisor([wine({ producer: 'Fèlsina', name: 'Chianti Classico', region: 'Chianti Classico', grapes: ['Sangiovese'], rating: 'loved', country: 'Italy' })]);
+    const white = (key: string, title: string) => ({ ...stockBottle(row(renieri))!, key, title, style: 'white' as const, score: '', context: '' });
+    const bottles = [stockBottle(row(renieri))!, white('a', 'Some Pinot Grigio 2024'), white('b', 'Domaine X Sancerre 2023'), white('c', 'Another Chardonnay 2023')];
+    const out = shortlist(advisor, bottles, { style: 'white', prefer: ['Sancerre', 'Chablis'] }, 2);
+    expect(out.map((b) => b.title)).toEqual(['Domaine X Sancerre 2023', 'Some Pinot Grigio 2024']);
+  });
+});

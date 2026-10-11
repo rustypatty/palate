@@ -17,6 +17,8 @@ export interface StoreListRequest {
   /** Wines already in the collection or marked "Not for me" — don't suggest these. */
   skip: string[];
   budget: number | null;
+  /** Only reds or only whites this time. */
+  style?: 'red' | 'white' | null;
 }
 
 export type StoreListOutcome = { ok: true; list: StoreList } | { ok: false; reason: string };
@@ -134,7 +136,8 @@ function aboutMe(r: StoreListRequest): string {
     list('Wines I liked', r.liked) +
     list('Wines I would not buy again', r.disliked) +
     list('Already had, saved or not interested — do not suggest', r.skip, 150) +
-    (r.budget ? `Only suggest bottles at or under $${r.budget}.\n` : '')
+    (r.budget ? `Only suggest bottles at or under $${r.budget}.\n` : '') +
+    (r.style ? `This time I want a ${r.style} wine: only suggest ${r.style}s, chosen for my taste in ${r.style}s.\n` : '')
   );
 }
 

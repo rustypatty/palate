@@ -5,12 +5,28 @@ import { useAllWines, useLists, useWines } from '../hooks';
 import { getApiKey } from '../lib/labelReader';
 import { markNotForMe, saveToWant } from '../lib/lists';
 import { asSuggestion, clearStoreList, LIST_TTL, possessive, refreshPogos, requestStockList, requestStoreList, storeById, STORES, type StoreId } from '../lib/stores';
-import { shortlist } from '../lib/twStock';
+import { nearestStore, shortlist, whereAmI } from '../lib/twStock';
+import { loadProfile, whiteFavourites } from '../lib/profile';
 import { StockRefresh } from './StockRefresh';
 import { MIN_RATED } from '../lib/taste';
 import { formatPrice, producerAndName } from '../lib/format';
 import { dropReason, priceDrops, type Drop } from '../lib/priceWatch';
-import { useAdvisor, useAllStoreItems, useBudget, useRestaurantBudget, useStoreChoice, useStoreMode, useStorePicks, useTaste, useTwStock } from '../lib/usePicks';
+import {
+  twStockFor,
+  useAdvisor,
+  useAllStoreItems,
+  useBudget,
+  useListStyle,
+  useRestaurantBudget,
+  useStoreChoice,
+  useStoreMode,
+  useStorePicks,
+  useTaste,
+  useTwNearest,
+  useTwStock,
+  useTwStoreChoice,
+  useTwStores,
+} from '../lib/usePicks';
 
 /** Rough cost of one Claude store list, shown on the button. */
 import { HiddenRow, PickCard, PickRow, pickNames, ShelfRow, type PickLike } from './Shelf';
@@ -152,7 +168,15 @@ export function StorePicksPanel() {
   const taste = useTaste();
   const advisor = useAdvisor();
   // Total Wine: what your store had in stock when you last imported it with the Chrome extension.
-  const stock = useTwStock(store.id === 'totalwine');
+  // With more than one store imported, lists use the one nearest you (decided when you tap Make a list) or the one you pick.
+  const isTw = store.id === 'totalwine';
+  const twStores = useTwStores(isTw);
+  const [twChoice, setTwChoice] = useTwStoreChoice();
+  const [twNearest, setTwNearest] = useTwNearest();
+  const [listStyle, setListStyle] = useListStyle();
+  const known = (id: string | null) => Boolean(id && twStores?.some((s) => s.storeId === id));
+  const twStoreId = twChoice !== 'nearest' && known(twChoice) ? twChoice : known(twNearest) ? twNearest : (twStores?.[0]?.storeId ?? null);
+  const stock = useTwStock(isTw && twStores !== undefined, twStoreId);
   const inStock = stock?.bottles.length ? stock : null;
   // What Claude chooses from: Total Wine's imported stock, or Pogo's downloaded wine list.
   const source = useMemo(
@@ -214,16 +238,37 @@ export function StorePicksPanel() {
           // Your collection first (tried or at home), then saved and dismissed; a long list costs little.
           skip: [...(wines ?? []), ...(lists?.want ?? []), ...(lists?.passed ?? [])].map(label).slice(0, 150),
           budget,
+          style: listStyle === 'any' ? null : listStyle,
         };
         let out;
-        if (source && advisor) {
-          const short = shortlist(advisor, source.bottles, { passed: lists?.passed, budget, usual: taste?.price ?? null, have: wines ?? [] });
+        let src = source;
+        // Several Total Wine stores: use the one nearest you right now (your location stays on this phone).
+        if (isTw && twChoice === 'nearest' && (twStores?.length ?? 0) > 1) {
+          setBusy('Finding your nearest Total Wine…');
+          const here = await whereAmI();
+          const near = here ? nearestStore(twStores!, here) : null;
+          if (near && near.storeId !== twStoreId) {
+            setTwNearest(near.storeId);
+            const s = await twStockFor(near.storeId);
+            if (s?.bottles.length) src = s;
+          }
+        }
+        if (src && advisor) {
+          const style = listStyle === 'any' ? null : listStyle;
+          const short = shortlist(advisor, src.bottles, {
+            passed: lists?.passed,
+            budget,
+            usual: taste?.price ?? null,
+            have: wines ?? [],
+            style,
+            prefer: style === 'white' ? whiteFavourites(loadProfile()) : [],
+          });
           if (!short.length) {
-            setError({ store: store.id, text: `Nothing in stock at ${source.storeName} fits that budget. Try a higher one.` });
+            setError({ store: store.id, text: `No ${style ? `${style}s` : 'bottles'} in stock at ${src.storeName} fit that budget. Try a higher one.` });
             return;
           }
-          setBusy(`Choosing from ${source.bottles.length} bottles in stock at ${source.storeName}…`);
-          out = await requestStockList(req, { storeName: source.storeName, importedAt: source.importedAt, count: source.bottles.length }, short, ctl.signal);
+          setBusy(`Choosing from ${src.bottles.length} bottles in stock at ${src.storeName}…`);
+          out = await requestStockList(req, { storeName: src.storeName, importedAt: src.importedAt, count: src.bottles.length }, short, ctl.signal);
         } else {
           setBusy(`Searching ${possessive(store.name)} website for bottles you’d like — about a minute…`);
           out = await requestStoreList(req, ctl.signal);
@@ -279,7 +324,7 @@ export function StorePicksPanel() {
         : !hasKey
           ? `Needs your Anthropic API key (in My palate) for Claude to make a list.`
           : source
-            ? `Claude picks from the ${source.bottles.length} bottles in stock at ${source.storeName}, ${store.id === 'totalwine' ? 'imported' : 'updated'} ${ago(source.importedAt)}. A few seconds.`
+            ? `Claude picks from the ${source.bottles.length} bottles in stock at ${source.storeName}${isTw && twChoice === 'nearest' && (twStores?.length ?? 0) > 1 ? ' (or whichever store is nearest when you tap)' : ''}, ${isTw ? 'imported' : 'updated'} ${ago(source.importedAt)}. A few seconds.`
             : `Claude searches ${possessive(store.name)} website for bottles that fit your taste. About a minute.`;
 
   const shownError = error?.store === store.id ? error.text : null;
@@ -305,6 +350,28 @@ export function StorePicksPanel() {
           )}
         </div>
       )}
+      <div className="list-options">
+        <div className="chips" role="group" aria-label="Red or white">
+          {(['any', 'red', 'white'] as const).map((s) => (
+            <button key={s} type="button" className="chip outline" aria-pressed={listStyle === s} onClick={() => setListStyle(s)}>
+              {s === 'any' ? 'Red or white' : s === 'red' ? 'Reds' : 'Whites'}
+            </button>
+          ))}
+        </div>
+        {isTw && (twStores?.length ?? 0) > 1 && (
+          <label className="store-select small">
+            Store
+            <select value={known(twChoice) ? twChoice : 'nearest'} onChange={(e) => setTwChoice(e.target.value)}>
+              <option value="nearest">Nearest to me{known(twNearest) ? ` (${twStores!.find((s) => s.storeId === twNearest)!.name})` : ''}</option>
+              {twStores!.map((s) => (
+                <option key={s.storeId} value={s.storeId}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
       {store.id === 'totalwine' && stock !== undefined && <StockRefresh stock={inStock} />}
       {catalog && stockAt && !busy && (
         <div className="stock-refresh small">
