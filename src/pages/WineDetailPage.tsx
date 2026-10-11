@@ -8,7 +8,6 @@ import { WatchBell } from '../components/PriceWatch';
 import { RatingPicker } from '../components/Rating';
 import { Sheet } from '../components/Sheet';
 import { useToast } from '../components/Toast';
-import { DrinkWindowCard } from '../components/DrinkWindowCard';
 import { WineLearn } from '../components/WineLearn';
 import { WineTake } from '../components/WineTake';
 import { useFindingPhoto } from '../components/usePhotoFinder';
@@ -184,8 +183,6 @@ export function WineDetailPage() {
             <Stepper value={wine.owned} onChange={(owned) => updateWine(wine.id, { owned })} label="bottles owned" />
           </div>
         </div>
-
-        <DrinkWindowCard wine={wine} />
 
         <WineTake wine={wine}>
           <WineLearn wine={wine} />

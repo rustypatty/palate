@@ -5,6 +5,7 @@ import { fetchNotes, fetchNotesByIds, noteFor, noteForIds, noteKey, notesConfigu
 import { hasApiKey } from '../lib/labelReader';
 import { needsTake, writeTake } from '../lib/wineTake';
 import { currentWindow, formatWindow } from '../lib/drinkWindow';
+import { DrinkWindowEditor } from './DrinkWindowEditor';
 import type { Wine } from '../types';
 import { cleanReason } from './Shelf';
 import { serveFacts, tasteTags } from './takeFormat';
@@ -27,6 +28,7 @@ function Head({ text }: { text: string }) {
  */
 export function WineTake({ wine, children }: { wine: Wine; children?: ReactNode }) {
   const wines = useWines();
+  const [editWindow, setEditWindow] = useState(false);
   const [state, setState] = useState<{ status: 'idle' | 'busy' | 'checking' } | { status: 'error'; reason: string }>({ status: 'idle' });
   const canWrite = hasApiKey();
 
@@ -126,14 +128,30 @@ export function WineTake({ wine, children }: { wine: Wine; children?: ReactNode 
           {serve ? (
             <>
               <div className="serve-tiles">
-                {serve.tiles.map((tile) => (
-                  <div key={tile.label} className="serve-tile">
-                    <div className="serve-value">{tile.value}</div>
-                    <div className="serve-label">{tile.label}</div>
-                  </div>
-                ))}
+                {serve.tiles.map((tile) =>
+                  tile.label === 'Drink window' ? (
+                    // Tap to change the years; they're saved on the wine.
+                    <button
+                      key={tile.label}
+                      type="button"
+                      className="serve-tile serve-tile-edit"
+                      onClick={() => setEditWindow((v) => !v)}
+                      aria-expanded={editWindow}
+                      aria-label={`Drink window ${tile.value}. Change it`}
+                    >
+                      <div className="serve-value">{tile.value}</div>
+                      <div className="serve-label">{tile.label}</div>
+                    </button>
+                  ) : (
+                    <div key={tile.label} className="serve-tile">
+                      <div className="serve-value">{tile.value}</div>
+                      <div className="serve-label">{tile.label}</div>
+                    </div>
+                  ),
+                )}
               </div>
               {serve.pairing && <p className="serve-pairing">{serve.pairing}</p>}
+              {editWindow && <DrinkWindowEditor wine={wine} onDone={() => setEditWindow(false)} />}
             </>
           ) : (
             <p className="take-text">{cleanReason(t.serve)}</p>

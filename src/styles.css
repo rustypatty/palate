@@ -6776,38 +6776,24 @@ a.stamp:hover {
   user-select: all;
 }
 
-/* Best years (drinking window) under In my cellar */
-.window-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 18px 14px 24px;
+/* The Drink window tile in Palate's take: tap to change the years */
+.serve-tile-edit {
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.3s var(--glide);
 }
-.window-card > div:first-child {
-  min-width: 0;
-}
-.window-status {
-  font-size: 13px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-  background: var(--surface-2);
-  color: var(--ink-2);
-}
-.window-status.ready {
-  background: var(--good-soft);
-  color: var(--good);
-}
-.window-status.soon,
-.window-status.past {
-  background: var(--warn-soft);
-  color: var(--warn);
+.serve-tile-edit:hover {
+  background: var(--tone-hover);
 }
 .window-edit {
   display: grid;
   gap: 12px;
+  padding: 14px;
+  border-radius: 20px;
+  background: var(--tone);
 }
 .window-fields {
   display: grid;
@@ -6823,11 +6809,6 @@ a.stamp:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-}
-@media (max-width: 420px) {
-  .window-card {
-    padding-left: 20px;
-  }
 }
 
 /* A small label on a shelf bottle, e.g. "Drink soon" in In your cellar */
