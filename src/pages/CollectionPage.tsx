@@ -18,7 +18,7 @@ import { producerAndName } from '../lib/format';
 import { shownPhoto } from '../lib/image';
 import { lookupBarcode } from '../lib/imageSearch';
 import { activeFilterCount, applyFilters, DEFAULT_FILTERS, type Filters, type Shelf } from '../lib/filters';
-import { currentWindow, drinkSoon, windowStatus } from '../lib/drinkWindow';
+import { currentWindow, drinkSoon, STATUS_LABEL, windowStatus } from '../lib/drinkWindow';
 import { buyAgain } from '../lib/recommend';
 import { useTaste } from '../lib/usePicks';
 import type { Wine } from '../types';
@@ -230,15 +230,25 @@ function HeroBottle({ wine, height, onRatio }: { wine: Wine; height: number; onR
   );
 }
 
+/** "Drink soon" or "Past its best" on a bottle at the end of its best years. */
+function cellarTag(w: Wine): string | undefined {
+  const dw = currentWindow(w);
+  const status = dw && windowStatus(dw);
+  return status === 'soon' || status === 'past' ? STATUS_LABEL[status] : undefined;
+}
+
 /** Suggestion rows above the collection, shown only while browsing. */
 function HomeRows({ wines, onShow }: { wines: Wine[]; onShow: (shelf: Shelf) => void }) {
   const taste = useTaste();
   const wide = useMediaQuery('(min-width: 1024px)');
   // Loved, and none left at home: the ones to buy again.
   const shortlist = useMemo(() => buyAgain(wines), [wines]);
-  const cellar = useMemo(() => wines.filter((w) => w.owned > 0).sort((a, b) => b.updatedAt - a.updatedAt), [wines]);
-  // At the end of their best years, or past them: open these first.
-  const soon = useMemo(() => drinkSoon(wines), [wines]);
+  // Bottles at the end of their best years (or past them) first, tagged; then the latest.
+  const cellar = useMemo(() => {
+    const soon = drinkSoon(wines);
+    const rest = wines.filter((w) => w.owned > 0 && !soon.includes(w)).sort((a, b) => b.updatedAt - a.updatedAt);
+    return [...soon, ...rest];
+  }, [wines]);
   const seeAll = (shelf: Shelf) => (
     <button type="button" className="text-link" onClick={() => onShow(shelf)}>
       See all
@@ -265,16 +275,8 @@ function HomeRows({ wines, onShow }: { wines: Wine[]; onShow: (shelf: Shelf) => 
       grid={{ seeAll: seeAll('owned'), filler: <FillerTile to="/add" label="Add a bottle you own" state={{ draft: { owned: 1 } } satisfies AddPrefill} /> }}
     >
       {cellar.map((wine) => (
-        <MiniWineCard key={wine.id} wine={wine} note={`${wine.owned} in cellar`} />
+        <MiniWineCard key={wine.id} wine={wine} note={`${wine.owned} in cellar`} tag={cellarTag(wine)} />
       ))}
-    </ShelfRow>
-  );
-  const soonRow = soon.length > 0 && (
-    <ShelfRow title="Drink soon" sub="At the end of their best years — open these first" arrows>
-      {soon.map((wine) => {
-        const dw = currentWindow(wine)!;
-        return <MiniWineCard key={wine.id} wine={wine} note={windowStatus(dw) === 'past' ? `Past its best (${dw.to})` : `Best until ${dw.to}`} />;
-      })}
     </ShelfRow>
   );
   // Two short rows sit side by side on a wide screen.
@@ -286,7 +288,6 @@ function HomeRows({ wines, onShow }: { wines: Wine[]; onShow: (shelf: Shelf) => 
         {cellar.length > 0 && <TonightCard />}
         {taste && !taste.enough ? <RatePrompt rated={taste.rated} /> : <StorePicksRow />}
       </div>
-      {soonRow}
       {pair ? (
         <div className="shelf-pair">
           {shortRow}
