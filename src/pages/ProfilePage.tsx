@@ -1,4 +1,4 @@
-import { ChevronRight, Download, Minus, Plus, Stamp, Upload } from 'lucide-react';
+import { ChevronRight, Download, EyeOff, Minus, Plus, Stamp, Upload } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { CloudSync, cloudSummary, useCloudStatus } from '../components/CloudSync';
@@ -377,6 +377,16 @@ export function ProfilePage() {
                 ? `${passport.places} ${passport.places === 1 ? 'region' : 'regions'} and ${passport.grapes} ${passport.grapes === 1 ? 'grape' : 'grapes'} so far · where to go next`
                 : 'Rate what you taste to collect places and grapes.'}
             </span>
+          </span>
+          <ChevronRight size={20} strokeWidth={1.7} />
+        </Link>
+        <Link to="/blind" className="cta-card lift">
+          <EyeOff size={22} strokeWidth={1.7} />
+          <span className="cta-text">
+            <strong>
+              Blind <em>tasting</em>
+            </strong>
+            <span className="small muted">Guess the grape, place and vintage of a hidden bottle from your cellar.</span>
           </span>
           <ChevronRight size={20} strokeWidth={1.7} />
         </Link>

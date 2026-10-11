@@ -15,6 +15,7 @@ import { WineFormPage } from './pages/WineFormPage';
 const TonightPage = lazy(() => import('./pages/TonightPage').then((m) => ({ default: m.TonightPage })));
 const WatchPage = lazy(() => import('./pages/WatchPage').then((m) => ({ default: m.WatchPage })));
 const PassportPage = lazy(() => import('./pages/PassportPage').then((m) => ({ default: m.PassportPage })));
+const BlindPage = lazy(() => import('./pages/BlindPage').then((m) => ({ default: m.BlindPage })));
 
 export function App() {
   return (
@@ -54,6 +55,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={null}>
                 <PassportPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="blind"
+            element={
+              <Suspense fallback={null}>
+                <BlindPage />
               </Suspense>
             }
           />

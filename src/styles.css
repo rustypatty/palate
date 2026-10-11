@@ -6789,3 +6789,176 @@ a.stamp:hover {
   color: var(--warn);
   white-space: nowrap;
 }
+
+/* Blind tasting */
+.blind-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  padding-top: 10px;
+  padding-bottom: 24px;
+}
+.blind-intro {
+  display: grid;
+  gap: 10px;
+  padding: 0 var(--text-in);
+}
+.blind-intro .lede {
+  margin: 0;
+}
+.blind-start {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  padding: 0 var(--text-in);
+}
+.blind-start p {
+  margin: 0;
+}
+.blind-pour {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+.blind-pour-list {
+  display: grid;
+  gap: 6px;
+}
+.blind-pour-item {
+  border: 0;
+  border-radius: 16px;
+  background: var(--tone);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  padding: 14px 18px;
+  cursor: pointer;
+}
+.blind-pour-item:hover {
+  background: var(--tone-hover);
+}
+.blind-hidden,
+.blind-reveal-bottle {
+  position: relative;
+  height: 220px;
+  border-radius: var(--r-tone);
+  background: var(--tone);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.blind-reveal-bottle .bottle {
+  height: 200px;
+  width: auto;
+  object-fit: contain;
+}
+.blind-mark {
+  position: absolute;
+  font-family: var(--font-display);
+  font-size: 64px;
+  color: var(--wine);
+  opacity: 0.85;
+}
+.blind-q {
+  display: grid;
+  gap: 10px;
+}
+.blind-q-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.blind-vintage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.blind-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.blind-score {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 var(--text-in);
+}
+.blind-score strong {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 40px;
+  line-height: 1;
+}
+.blind-checks {
+  display: grid;
+  border-radius: var(--r-tone);
+  background: var(--tone);
+  padding: 6px 18px;
+}
+.blind-check {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+.blind-check:last-child {
+  border-bottom: 0;
+}
+.blind-check-label {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.blind-said {
+  display: block;
+  font-weight: 600;
+}
+.blind-check:not(.right) .blind-said {
+  text-decoration: line-through;
+  text-decoration-color: rgba(0, 0, 0, 0.3);
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.blind-was {
+  display: block;
+  font-weight: 600;
+}
+.blind-mark-cell {
+  color: var(--warn);
+  display: grid;
+  place-items: center;
+}
+.blind-check.right .blind-mark-cell {
+  color: var(--good);
+}
+.blind-note {
+  margin: 0;
+  padding: 0 var(--text-in);
+  color: var(--ink-2);
+}
+.blind-explain {
+  display: grid;
+  gap: 8px;
+  padding: 18px 20px;
+  border-radius: var(--r-tone);
+  background: var(--good-soft);
+}
+.blind-explain p {
+  margin: 0;
+}
+.blind-tip {
+  font-weight: 600;
+}
+.blind-explain-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
