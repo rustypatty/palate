@@ -162,7 +162,6 @@ export function AskSheet({ onClose }: { onClose: () => void }) {
       footer={
         <form className="ask-input" onSubmit={onSubmit}>
           <input
-            data-autofocus
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={talking ? 'Ask a follow-up…' : 'Ask about your wines…'}
