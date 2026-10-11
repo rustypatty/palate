@@ -145,7 +145,7 @@ export function mapProduct(p: TwProduct, origin = ''): { product: ProductRow; ch
 }
 
 export interface ImportPayload {
-  store: { id: string; name: string; city?: string };
+  store: { id: string; name: string; city?: string; lat?: number; lng?: number };
   pageUrl: string;
   pagination?: { page?: number; pageSize?: number; totalPages?: number; totalResults?: number };
   products: TwProduct[];

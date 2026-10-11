@@ -71,7 +71,7 @@ const pageUrl = (base, page) => {
  * Save the pages of a list from `page` on, in `tabId` (which already shows that page).
  * Returns how it ended: done, stopped, or a problem on a page (with `page` to carry on from).
  */
-async function walk({ tabId, base, page, key, onPage }) {
+async function walk({ tabId, base, page, key, onPage, store }) {
   let totalPages = null;
   for (;;) {
     if (stopAsked) return { end: 'stopped', page };
@@ -82,6 +82,8 @@ async function walk({ tabId, base, page, key, onPage }) {
       result = await read(tabId);
     }
     if (!result || result.error || !result.payload) return { end: 'blocked', page };
+    // A refresh is for one store: never save another store's stock under its list.
+    if (store && result.payload.store.id !== store) return { end: 'store', page, found: result.payload.store.name };
     const { ok, status, out } = await post('', key, result.payload);
     if (status === 401) return { end: 'key', page, message: out.error };
     if (!ok) return { end: 'error', page, message: out.error || `error ${status}` };
@@ -165,6 +167,7 @@ async function runJob(job, key, resume) {
       if (!(await open(tabId, pageUrl(job.url, job.nextPage)))) throw new Error('Total Wine took too long to load. It carries on later.');
     }
     const r = await walk({
+      store: job.storeId,
       tabId,
       base: job.url,
       page: job.nextPage,
@@ -195,6 +198,12 @@ async function runJob(job, key, resume) {
         title: 'Palate: Total Wine needs a quick check',
         message: 'Finish it in the Total Wine window and the stock refresh carries on.',
       });
+      return progress({ running: false, error: message });
+    }
+    if (r.end === 'store') {
+      const message = `Total Wine in Chrome is set to ${r.found}, but this list is for ${job.storeName || `store ${job.storeId}`}. Pick that store in Total Wine's header, then tap Refresh stock.`;
+      await report(key, { jobId: job.id, status: 'failed', nextPage: r.page, message });
+      await chrome.tabs.remove(tabId).catch(() => {});
       return progress({ running: false, error: message });
     }
     if (r.end === 'key') {

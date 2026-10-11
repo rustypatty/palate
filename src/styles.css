@@ -2300,6 +2300,29 @@ details.more[open] > .more-body {
   color: var(--ink-2);
 }
 
+.list-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.store-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-2);
+}
+
+.store-select select {
+  padding: 6px 10px;
+  border: 1px solid var(--line, #d9d2cb);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+}
+
 .stock-refresh {
   display: flex;
   flex-wrap: wrap;

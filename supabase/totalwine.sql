@@ -45,7 +45,10 @@ create table if not exists public.tw_stores (
   store_id text primary key,
   name text not null,
   city text not null default '',
-  imported_at timestamptz not null default now()
+  imported_at timestamptz not null default now(),
+  -- Where the store is (from Total Wine's page), so the app can use the one nearest you.
+  lat double precision,
+  lng double precision
 );
 
 -- The extension's connect keys. Only a SHA-256 hash is kept; the key itself is shown once.

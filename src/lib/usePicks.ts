@@ -6,7 +6,7 @@ import { makeAdvisor } from './insights';
 import { explainSuggestions, type Pick } from './recommend';
 import { clearStoreList, listExpired, listMadeAt, type StoreId, type StoreItem, type SuggestedItem } from './stores';
 import { buildTaste } from './taste';
-import { loadTwStock, type TwStock } from './twStock';
+import { loadTwStock, loadTwStores, type TwStock, type TwStoreInfo } from './twStock';
 
 // Per-device conveniences: which store and budget you last picked.
 export function usePref<T>(key: string, fallback: T): [T, (v: T) => void] {
@@ -118,11 +118,48 @@ export function useAllStoreItems(): { storeId: StoreId; item: StoreItem | Sugges
   );
 }
 
-// One load of the imported Total Wine stock for a few minutes, shared by every screen.
-let stockLoad: { at: number; p: Promise<TwStock | null> } | null = null;
+// Each store's imported Total Wine stock, loaded once for a few minutes and shared by every screen.
+const stockLoads = new Map<string, { at: number; p: Promise<TwStock | null> }>();
+
+/** One store's imported stock (the newest import's store when none is named), cached a few minutes. */
+export function twStockFor(storeId: string | null): Promise<TwStock | null> {
+  const k = storeId ?? '';
+  const hit = stockLoads.get(k);
+  if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.p;
+  const p = loadTwStock(storeId).catch(() => null);
+  stockLoads.set(k, { at: Date.now(), p });
+  return p;
+}
+
+/** Which Total Wine store lists use: 'nearest' (decided when you make a list) or a store number. */
+export const useTwStoreChoice = () => usePref<string>('palate.twStore', 'nearest');
+/** The store found nearest you last time, used until the next list. */
+export const useTwNearest = () => usePref<string | null>('palate.twNearest', null);
+/** Make a list: reds, whites, or either. */
+export const useListStyle = () => usePref<'any' | 'red' | 'white'>('palate.listStyle', 'any');
+
+/** Total Wine stores with recent stock. */
+export function useTwStores(enabled = true): TwStoreInfo[] | undefined {
+  const [stores, setStores] = useState<TwStoreInfo[] | undefined>(undefined);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const on = () => setTick((t) => t + 1);
+    window.addEventListener('palate:twstock', on);
+    return () => window.removeEventListener('palate:twstock', on);
+  }, []);
+  useEffect(() => {
+    if (!enabled) return setStores([]);
+    let live = true;
+    void loadTwStores().then((s) => live && setStores(s));
+    return () => {
+      live = false;
+    };
+  }, [enabled, tick]);
+  return stores;
+}
 
 /** The imported Total Wine stock (Chrome extension): undefined while loading, null if none. */
-export function useTwStock(enabled = true): TwStock | null | undefined {
+export function useTwStock(enabled = true, storeId: string | null = null): TwStock | null | undefined {
   const [stock, setStock] = useState<TwStock | null | undefined>(undefined);
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -132,19 +169,18 @@ export function useTwStock(enabled = true): TwStock | null | undefined {
   }, []);
   useEffect(() => {
     if (!enabled) return setStock(null);
-    if (!stockLoad || Date.now() - stockLoad.at > 5 * 60 * 1000) stockLoad = { at: Date.now(), p: loadTwStock().catch(() => null) };
     let live = true;
-    void stockLoad.p.then((s) => live && setStock(s));
+    void twStockFor(storeId).then((s) => live && setStock(s));
     return () => {
       live = false;
     };
-  }, [enabled, tick]);
+  }, [enabled, tick, storeId]);
   return stock;
 }
 
 /** Load the imported stock again (after a refresh finished). */
 export function reloadTwStock() {
-  stockLoad = null;
+  stockLoads.clear();
   window.dispatchEvent(new Event('palate:twstock'));
 }
 

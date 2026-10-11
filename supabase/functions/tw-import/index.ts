@@ -46,7 +46,8 @@ async function claim() {
     .maybeSingle();
   if (!taken) return null;
   const source = job.tw_sources as unknown as { url: string; store_id: string };
-  return { id: job.id, kind: job.kind, url: source.url, storeId: source.store_id, nextPage: job.next_page, totalPages: job.total_pages, saved: job.saved, inStock: job.in_stock };
+  const { data: store } = await admin.from('tw_stores').select('name').eq('store_id', source.store_id).maybeSingle();
+  return { id: job.id, kind: job.kind, url: source.url, storeId: source.store_id, storeName: store?.name ?? '', nextPage: job.next_page, totalPages: job.total_pages, saved: job.saved, inStock: job.in_stock };
 }
 
 const STATUSES = ['running', 'needs_you', 'done', 'failed'];
@@ -96,7 +97,16 @@ Deno.serve(async (req) => {
   if (p.error) return json({ error: p.error.message }, 500);
   const s = await admin.from('tw_stock').upsert(stock.map(strip));
   if (s.error) return json({ error: s.error.message }, 500);
-  await admin.from('tw_stores').upsert({ store_id: store.id, name: store.name.slice(0, 120), city: (store.city ?? '').slice(0, 80), imported_at: now });
+  const coord = (x: unknown, max: number) => (typeof x === 'number' && Number.isFinite(x) && Math.abs(x) <= max ? x : undefined);
+  const lat = coord(store.lat, 90);
+  const lng = coord(store.lng, 180);
+  await admin.from('tw_stores').upsert({
+    store_id: store.id,
+    name: store.name.slice(0, 120),
+    city: (store.city ?? '').slice(0, 80),
+    imported_at: now,
+    ...(lat !== undefined && lng !== undefined ? { lat, lng } : {}),
+  });
   // Remember the list, so the weekly refresh covers it.
   await admin.from('tw_sources').upsert({ store_id: store.id, url: sourceUrl(payload.pageUrl), last_imported_at: now }, { onConflict: 'store_id,url' });
   await admin.from('import_keys').update({ last_used_at: now }).eq('key_hash', hash);

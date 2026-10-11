@@ -218,6 +218,15 @@ export function profileFavourites(p: PalateProfile | null): string[] {
   ];
 }
 
+/** The white styles you named as favourites (e.g. Sancerre, Chablis, Riesling). */
+export function whiteFavourites(p: PalateProfile | null): string[] {
+  if (!p) return [];
+  return p.preferences
+    .filter((x) => (x.key ?? x.dimension.replace(/ /g, '_')) === 'white_style_favorites')
+    .flatMap((x) => x.value.replace(/\s*\(.*\)$/, '').split(/,\s*/))
+    .filter(Boolean);
+}
+
 /** The red you named as your favourite / benchmark, if the profile has one. */
 export function favouriteRed(p: PalateProfile | null): string {
   const x = p?.preferences.find((x) => (x.key ?? x.dimension.replace(/ /g, '_')) === 'red_benchmark');
