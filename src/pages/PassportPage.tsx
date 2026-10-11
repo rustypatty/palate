@@ -5,6 +5,7 @@ import { useAllWines } from '../hooks';
 import { producerAndName } from '../lib/format';
 import { norm } from '../lib/catalogNorm';
 import { matchesWant } from '../lib/lists';
+import { blindRecord } from '../lib/blind';
 import { buildPassport, type NextStep, type Stamp } from '../lib/passport';
 import { learningPath, savePathBottle, type LearningPath } from '../lib/paths';
 import type { Wine } from '../types';
@@ -120,6 +121,43 @@ function NextCard({ step, wines }: { step: NextStep; wines: Wine[] }) {
   );
 }
 
+/** Your blind-tasting record: how often you named each grape, and grapes you keep mixing up. */
+function BlindSection() {
+  const all = useAllWines();
+  const rec = useMemo(() => blindRecord(all ?? []), [all]);
+  return (
+    <section className="passport-section">
+      <h2 className="title-lg">Blind tastings</h2>
+      {rec.tastings > 0 ? (
+        <>
+          <p className="small muted" style={{ margin: 0 }}>
+            {rec.right} of {rec.of} guesses right across {rec.tastings} {rec.tastings === 1 ? 'tasting' : 'tastings'}
+          </p>
+          <div className="stamps">
+            {rec.grapes.map((g) => (
+              <span key={g.grape} className={`stamp${g.named === g.tried ? ' loved' : ''}`}>
+                {g.grape} · {g.named} of {g.tried}
+              </span>
+            ))}
+          </div>
+          {rec.mixups.map((m) => (
+            <p key={`${m.said}>${m.was}`} className="small muted" style={{ margin: 0 }}>
+              You’ve taken {m.was} for {m.said} {m.times} times.
+            </p>
+          ))}
+        </>
+      ) : (
+        <p className="small muted" style={{ margin: 0 }}>
+          Hide a bottle from your cellar, guess what it is, then reveal.
+        </p>
+      )}
+      <Link to="/blind" className="btn btn-tone" style={{ justifySelf: 'start' }}>
+        {rec.tastings > 0 ? 'Taste another blind' : 'Start a blind tasting'}
+      </Link>
+    </section>
+  );
+}
+
 /** Your wine passport: where you've been, what you loved, where to go next. Free, worked out on the device. */
 export function PassportPage() {
   const all = useAllWines();
@@ -220,6 +258,8 @@ export function PassportPage() {
           <p className="footnote">Your stamps are the bottles you’ve rated. ♥ marks the ones you loved.</p>
         </>
       )}
+
+      <BlindSection />
     </div>
   );
 }

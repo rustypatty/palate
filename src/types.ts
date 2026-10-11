@@ -147,6 +147,8 @@ export interface Wine {
   lesson?: WineLesson | null;
   /** When this bottle is at its best (see drinkWindow.ts). */
   drinkWindow?: DrinkWindow | null;
+  /** Blind tastings of this wine, oldest first (see blind.ts). */
+  blind?: BlindTasting[];
   /**
    * When each field was last changed (ms), so edits made to different fields on two devices
    * are combined by sync rather than one copy replacing the other. Absent on older wines.
@@ -154,6 +156,32 @@ export interface Wine {
   fieldTimes?: Partial<Record<keyof Wine, number>>;
   createdAt: number;
   updatedAt: number;
+}
+
+export type BlindPrice = 'under20' | '20to40' | 'over40';
+
+/** What you guessed before the reveal. null: "Not sure". */
+export interface BlindGuess {
+  style: WineStyle | null;
+  grape: string | null;
+  country: string | null;
+  region: string | null;
+  vintage: number | null;
+  price: BlindPrice | null;
+  /** What you noticed, e.g. "Red fruit", "High acid". */
+  noticed: string[];
+}
+
+/** One blind tasting: the guess, the score, the rating you gave without seeing the label. */
+export interface BlindTasting {
+  at: number;
+  guess: BlindGuess;
+  rating: Rating | null;
+  right: number;
+  /** How many things could be checked (unknown answers, like a missing price, don't count). */
+  of: number;
+  /** Claude's lesson, asked for with Explain; kept so reopening is free. */
+  explain?: { text: string; tip: string } | null;
 }
 
 /** The years a bottle is at its best, inclusive. */
