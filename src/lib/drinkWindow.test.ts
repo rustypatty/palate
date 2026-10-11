@@ -35,13 +35,13 @@ describe('best years', () => {
     expect(formatWindow(win(2095, 2105))).toBe('2095–2105');
   });
 
-  it('needs a new window when the vintage changed, unless you set it', () => {
+  it('needs a new window when the vintage changed', () => {
     const w = wine({ producer: 'Ridge', vintage: 2021, owned: 1, drinkWindow: win(2024, 2030, 'claude', 2020) });
     expect(currentWindow(w)).toBeNull();
     expect(needsWindow(w)).toBe(true);
-    const mine = { ...w, drinkWindow: win(2024, 2030, 'you', 2020) };
-    expect(currentWindow(mine)).toEqual(mine.drinkWindow);
-    expect(needsWindow(mine)).toBe(false);
+    const same = { ...w, drinkWindow: win(2024, 2030, 'claude', 2021) };
+    expect(currentWindow(same)).toEqual(same.drinkWindow);
+    expect(needsWindow(same)).toBe(false);
   });
 
   it('only gives windows to bottles you own', () => {
@@ -114,14 +114,14 @@ describe('filling windows in', () => {
     expect(calls).toEqual([1]);
   });
 
-  it('never replaces a window you set, even one set while Claude was answering', async () => {
+  it('keeps a window that arrived while Claude was answering (e.g. from another device)', async () => {
     const id = await createWine({ ...emptyDraft(), producer: 'Ridge', vintage: 2021, owned: 1 }, db);
     const estimate: Estimate = async (asks) => {
-      await updateWine(id, { drinkWindow: win(2030, 2040, 'you', 2021) }, db);
+      await updateWine(id, { drinkWindow: win(2030, 2040, 'claude', 2021) }, db);
       return { ok: true, windows: asks.map(() => ({ from: 2025, to: 2028 })) };
     };
     expect(await fillWindows(await db.wines.toArray(), db, estimate, now)).toBe(0);
-    expect((await db.wines.get(id))!.drinkWindow).toMatchObject({ from: 2030, to: 2040, source: 'you' });
+    expect((await db.wines.get(id))!.drinkWindow).toMatchObject({ from: 2030, to: 2040 });
   });
 
   it('keeps going without a key or connection: nothing saved, nothing thrown', async () => {

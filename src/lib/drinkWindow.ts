@@ -6,7 +6,7 @@ import type { WindowAsk, WindowsOutcome } from './drinkWindowClient';
  * When a bottle you own is at its best: a range of years saved on the wine, so it syncs, can be
  * edited, and drives the Drink soon shelf and Tonight. Filled in for free from Palate's take when
  * its "Serve it" names one, otherwise estimated by Claude for all your bottles in one request
- * (drinkWindowClient.ts). A range you set yourself is never replaced.
+ * (drinkWindowClient.ts).
  */
 
 export type WindowStatus = 'early' | 'ready' | 'soon' | 'past';
@@ -41,12 +41,10 @@ function ordered(a: number, b: number): { from: number; to: number } {
   return a <= b ? { from: a, to: b } : { from: b, to: a };
 }
 
-/** The saved window, if it still belongs to this vintage (a changed vintage needs a new one, unless you set it). */
+/** The saved window, if it still belongs to this vintage (a changed vintage needs a new one). */
 export function currentWindow(w: Wine): DrinkWindow | null {
   const dw = w.drinkWindow;
-  if (!dw) return null;
-  if (dw.source !== 'you' && dw.vintage !== w.vintage) return null;
-  return dw;
+  return dw && dw.vintage === w.vintage ? dw : null;
 }
 
 /** Worth a window: a bottle you own, with a name, and no window for this vintage yet. */
@@ -112,7 +110,7 @@ const askKey = (w: Wine) => `${w.id}:${w.vintage ?? ''}`;
 
 /**
  * Gives every bottle you own a window: from its take when that names one (free), else one Claude
- * request for the rest. Re-reads each wine before saving, so an edit made meanwhile is kept.
+ * request for the rest. Re-reads each wine before saving, so a change made meanwhile is kept.
  * Returns how many wines were updated.
  */
 export function fillWindows(wines: Wine[], database: PalateDB = db, estimate: Estimate = estimateWithKey, now = new Date()): Promise<number> {
@@ -156,11 +154,6 @@ function toAsk(w: Wine): WindowAsk {
     style: w.style ?? '',
     grapes: w.grapes,
   };
-}
-
-/** Ask Claude about this bottle again (after you cleared the window you set). */
-export function forgetAsked(w: Wine) {
-  asked.delete(askKey(w));
 }
 
 /** For tests: forget which bottles were asked about. */

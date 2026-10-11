@@ -6776,41 +6776,6 @@ a.stamp:hover {
   user-select: all;
 }
 
-/* The Drink window tile in Palate's take: tap to change the years */
-.serve-tile-edit {
-  border: 0;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.3s var(--glide);
-}
-.serve-tile-edit:hover {
-  background: var(--tone-hover);
-}
-.window-edit {
-  display: grid;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 20px;
-  background: var(--tone);
-}
-.window-fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-.window-fields label {
-  display: grid;
-  gap: 4px;
-}
-.window-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-
 /* A small label on a shelf bottle, e.g. "Drink soon" in In your cellar */
 .mini-tag {
   position: absolute;

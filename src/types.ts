@@ -160,8 +160,8 @@ export interface Wine {
 export interface DrinkWindow {
   from: number;
   to: number;
-  /** 'take': read from Palate's take; 'claude': estimated; 'you': set by hand (never replaced). */
-  source: 'take' | 'claude' | 'you';
+  /** 'take': read from Palate's take; 'claude': estimated by Claude. */
+  source: 'take' | 'claude';
   /** The vintage it was worked out for: a different vintage needs a new window. */
   vintage: Wine['vintage'];
 }
