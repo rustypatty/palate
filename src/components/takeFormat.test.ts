@@ -57,6 +57,13 @@ describe('serving tiles from "Serve it"', () => {
     expect(tiles('Serve at 55–60°F; decant for an hour.')).toEqual(['55–60°', '1 h']);
   });
 
+  it('shows the wine’s saved best years in place of the ones in the text', () => {
+    const tiles = (t: string, best?: string) => serveFacts(t, best)?.tiles.map((x) => x.value);
+    expect(tiles('Serve at 16–18°C after a 1–2 hour decant. Drink 2025–2035.', '2027–33')).toEqual(['16–18°', '1–2 h', '2027–33']);
+    // A saved window counts as a fact, so the tiles show even when the text has no years.
+    expect(tiles('Serve at 17°C.', '2027–33')).toEqual(['17°', '2027–33']);
+  });
+
   it('stops the food at the next clause', () => {
     expect(serveFacts('Serve at 16°C. It suits roast lamb, duck and hard cheeses, and will keep well for 10-15 years.')?.pairing).toBe('With roast lamb, duck and hard cheeses');
   });

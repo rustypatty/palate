@@ -18,6 +18,7 @@ import { producerAndName } from '../lib/format';
 import { shownPhoto } from '../lib/image';
 import { lookupBarcode } from '../lib/imageSearch';
 import { activeFilterCount, applyFilters, DEFAULT_FILTERS, type Filters, type Shelf } from '../lib/filters';
+import { currentWindow, drinkSoon, windowStatus } from '../lib/drinkWindow';
 import { buyAgain } from '../lib/recommend';
 import { useTaste } from '../lib/usePicks';
 import type { Wine } from '../types';
@@ -236,6 +237,8 @@ function HomeRows({ wines, onShow }: { wines: Wine[]; onShow: (shelf: Shelf) => 
   // Loved, and none left at home: the ones to buy again.
   const shortlist = useMemo(() => buyAgain(wines), [wines]);
   const cellar = useMemo(() => wines.filter((w) => w.owned > 0).sort((a, b) => b.updatedAt - a.updatedAt), [wines]);
+  // At the end of their best years, or past them: open these first.
+  const soon = useMemo(() => drinkSoon(wines), [wines]);
   const seeAll = (shelf: Shelf) => (
     <button type="button" className="text-link" onClick={() => onShow(shelf)}>
       See all
@@ -266,6 +269,14 @@ function HomeRows({ wines, onShow }: { wines: Wine[]; onShow: (shelf: Shelf) => 
       ))}
     </ShelfRow>
   );
+  const soonRow = soon.length > 0 && (
+    <ShelfRow title="Drink soon" sub="At the end of their best years — open these first" arrows>
+      {soon.map((wine) => {
+        const dw = currentWindow(wine)!;
+        return <MiniWineCard key={wine.id} wine={wine} note={windowStatus(dw) === 'past' ? `Past its best (${dw.to})` : `Best until ${dw.to}`} />;
+      })}
+    </ShelfRow>
+  );
   // Two short rows sit side by side on a wide screen.
   const pair = wide && shortlist.length > 0 && cellar.length > 0 && shortlist.length <= 4 && cellar.length <= 4;
   return (
@@ -275,6 +286,7 @@ function HomeRows({ wines, onShow }: { wines: Wine[]; onShow: (shelf: Shelf) => 
         {cellar.length > 0 && <TonightCard />}
         {taste && !taste.enough ? <RatePrompt rated={taste.rated} /> : <StorePicksRow />}
       </div>
+      {soonRow}
       {pair ? (
         <div className="shelf-pair">
           {shortRow}

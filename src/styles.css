@@ -6774,3 +6774,57 @@ a.stamp:hover {
   font-variant-numeric: tabular-nums;
   user-select: all;
 }
+
+/* Best years (drinking window) under In my cellar */
+.window-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px 14px 24px;
+}
+.window-card > div:first-child {
+  min-width: 0;
+}
+.window-status {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.window-status.ready {
+  background: var(--good-soft);
+  color: var(--good);
+}
+.window-status.soon,
+.window-status.past {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.window-edit {
+  display: grid;
+  gap: 12px;
+}
+.window-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.window-fields label {
+  display: grid;
+  gap: 4px;
+}
+.window-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+@media (max-width: 420px) {
+  .window-card {
+    padding-left: 20px;
+  }
+}

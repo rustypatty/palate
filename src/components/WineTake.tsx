@@ -4,6 +4,7 @@ import { updateWine } from '../db';
 import { fetchNotes, fetchNotesByIds, noteFor, noteForIds, noteKey, notesConfigured, takeFromNote } from '../lib/catalogNotes';
 import { hasApiKey } from '../lib/labelReader';
 import { needsTake, writeTake } from '../lib/wineTake';
+import { currentWindow, formatWindow } from '../lib/drinkWindow';
 import type { Wine } from '../types';
 import { cleanReason } from './Shelf';
 import { serveFacts, tasteTags } from './takeFormat';
@@ -87,7 +88,8 @@ export function WineTake({ wine, children }: { wine: Wine; children?: ReactNode 
   const fromCatalog = t.source === 'catalog';
   const stale = !fromCatalog && t.rating !== wine.rating;
   const taste = tasteTags(cleanReason(t.taste));
-  const serve = t.serve.trim() ? serveFacts(cleanReason(t.serve)) : null;
+  const best = currentWindow(wine);
+  const serve = t.serve.trim() ? serveFacts(cleanReason(t.serve), best ? formatWindow(best) : undefined) : null;
   return (
     <section className="take-section" aria-live="polite">
       <span className="take-eyebrow">Palate’s take</span>
