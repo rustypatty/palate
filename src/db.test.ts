@@ -27,6 +27,14 @@ describe('wine storage', () => {
     expect(await db.photos.count()).toBe(0);
   });
 
+  it('notes when each changed field was changed, for sync', async () => {
+    const id = await createWine({ ...emptyDraft(), producer: 'Ridge', grapes: ['Zinfandel'] }, db);
+    // Same producer and grapes (a form saves every field): only the rating really changed.
+    await updateWine(id, { producer: 'Ridge', grapes: ['Zinfandel'], rating: 'loved' }, db);
+    const w = (await db.wines.get(id))!;
+    expect(w.fieldTimes).toEqual({ rating: w.updatedAt });
+  });
+
   it('removes the old photo when a wine’s photo is replaced', async () => {
     const a = await savePhoto(photoBlob(), 1, 1, db);
     const b = await savePhoto(photoBlob(), 1, 1, db);

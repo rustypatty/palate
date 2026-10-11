@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie';
 import type { Deletion, StoredPhoto, Wine, WineDraft } from './types';
 import type { StoreCache } from './lib/stores';
 import { combine, isSameBottle } from './lib/dedupe';
+import { sameValue } from './lib/sameValue';
 
 export class PalateDB extends Dexie {
   wines!: EntityTable<Wine, 'id'>;
@@ -87,7 +88,13 @@ export async function updateWine(
   database: PalateDB = db,
 ): Promise<void> {
   const before = await database.wines.get(id);
-  await database.wines.update(id, { ...changes, updatedAt: Date.now() });
+  const now = Date.now();
+  // Note which fields really changed, so sync can combine this edit with one made elsewhere.
+  const fieldTimes = { ...before?.fieldTimes };
+  for (const [key, value] of Object.entries(changes)) {
+    if (key !== 'fieldTimes' && !sameValue(value, before?.[key as keyof Wine])) fieldTimes[key as keyof Wine] = now;
+  }
+  await database.wines.update(id, { ...changes, fieldTimes, updatedAt: now });
   // Drop the old local photo if it was replaced.
   if (
     'photo' in changes &&
