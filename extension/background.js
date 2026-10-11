@@ -151,6 +151,49 @@ async function report(key, body) {
   }
 }
 
+// ---------- Which store Total Wine shows ----------
+// Total Wine keeps your store in the cookie twm-userStoreInformation, e.g.
+// "ispStore~535:ifcStore~null@ifcStoreState~US-TX@method~INSTORE_PICKUP". A refresh for another
+// store sets that number for the refresh, then puts your own store back. The page it loads says
+// which store it shows, and walk() stops if that isn't the list's store.
+
+const SITE = 'https://www.totalwine.com/';
+const STORE_COOKIE = 'twm-userStoreInformation';
+
+async function setCookie(name, value, like) {
+  await chrome.cookies.set({
+    url: SITE,
+    name,
+    value,
+    path: '/',
+    secure: true,
+    sameSite: 'no_restriction',
+    ...(like?.expirationDate ? { expirationDate: like.expirationDate } : { expirationDate: Date.now() / 1000 + 365 * 86400 }),
+  });
+}
+
+/** Point Total Wine at `storeId`, remembering your own store to put back. False if it can't. */
+async function useStore(storeId) {
+  const c = await chrome.cookies.get({ url: SITE, name: STORE_COOKIE });
+  if (!c || !/ispStore~\d+/.test(c.value)) return false;
+  if (c.value.includes(`ispStore~${storeId}:`) || c.value.endsWith(`ispStore~${storeId}`)) return true;
+  const { homeStore } = await chrome.storage.local.get('homeStore');
+  if (!homeStore) await chrome.storage.local.set({ homeStore: c.value });
+  await setCookie(STORE_COOKIE, c.value.replace(/ispStore~\d+/, `ispStore~${storeId}`), c);
+  const o = await chrome.cookies.get({ url: SITE, name: 'overrideStore' });
+  if (o?.value !== 'true') await setCookie('overrideStore', 'true', o);
+  return true;
+}
+
+/** Put back the store you had picked, if a refresh changed it. */
+async function restoreStore() {
+  const { homeStore } = await chrome.storage.local.get('homeStore');
+  if (!homeStore) return;
+  const c = await chrome.cookies.get({ url: SITE, name: STORE_COOKIE });
+  await setCookie(STORE_COOKIE, homeStore, c);
+  await chrome.storage.local.remove('homeStore');
+}
+
 async function runJob(job, key, resume) {
   stopAsked = false;
   busy = true;
@@ -158,9 +201,12 @@ async function runJob(job, key, resume) {
   let inStock = job.inStock || 0;
   let win = null;
   let tabId = resume?.tabId ?? null;
+  // Waiting on a Total Wine check keeps the list's store until the refresh is done.
+  let paused = false;
   await progress({ running: true, label: job.kind === 'weekly' ? 'Weekly refresh' : 'Refreshing', page: job.nextPage, totalPages: job.totalPages, saved, inStock, error: '', done: false });
   try {
     if (!tabId) {
+      if (job.storeId) await useStore(job.storeId);
       // An empty window first, so the page load below is the one waited for.
       win = await chrome.windows.create({ url: 'about:blank', state: 'minimized', focused: false });
       tabId = win.tabs[0].id;
@@ -192,6 +238,7 @@ async function runJob(job, key, resume) {
       const tab = await chrome.tabs.get(tabId);
       await chrome.windows.update(tab.windowId, { state: 'normal', focused: true });
       await chrome.storage.local.set({ paused: { job: { ...job, nextPage: r.page, saved, inStock }, tabId } });
+      paused = true;
       chrome.notifications.create('palate-check', {
         type: 'basic',
         iconUrl: 'icon-128.png',
@@ -201,7 +248,7 @@ async function runJob(job, key, resume) {
       return progress({ running: false, error: message });
     }
     if (r.end === 'store') {
-      const message = `Total Wine in Chrome is set to ${r.found}, but this list is for ${job.storeName || `store ${job.storeId}`}. Pick that store in Total Wine's header, then tap Refresh stock.`;
+      const message = `Total Wine showed ${r.found} instead of ${job.storeName || `store ${job.storeId}`}, so this list wasn't refreshed. Pick ${job.storeName || 'that store'} in Total Wine's header, then tap Refresh stock.`;
       await report(key, { jobId: job.id, status: 'failed', nextPage: r.page, message });
       await chrome.tabs.remove(tabId).catch(() => {});
       return progress({ running: false, error: message });
@@ -217,6 +264,7 @@ async function runJob(job, key, resume) {
     if (win) await chrome.windows.remove(win.id).catch(() => {});
     return progress({ running: false, error: e instanceof Error ? e.message : 'Something went wrong.' });
   } finally {
+    if (!paused) await restoreStore().catch(() => {});
     busy = false;
   }
 }
@@ -239,6 +287,7 @@ async function poll() {
     }
     // The window was closed: the job is handed out again and carries on from its page.
     await chrome.storage.local.remove('paused');
+    await restoreStore().catch(() => {});
     await report(key, { jobId: paused.job.id, status: 'running', nextPage: paused.job.nextPage, message: 'Window closed' });
     return;
   }
