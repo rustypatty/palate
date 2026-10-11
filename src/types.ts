@@ -145,6 +145,8 @@ export interface Wine {
   priceHistory?: PricePoint[];
   /** "Learn": why this wine tastes the way it does, written once and kept (see learn.ts). */
   lesson?: WineLesson | null;
+  /** When this bottle is at its best (see drinkWindow.ts). */
+  drinkWindow?: DrinkWindow | null;
   /**
    * When each field was last changed (ms), so edits made to different fields on two devices
    * are combined by sync rather than one copy replacing the other. Absent on older wines.
@@ -152,6 +154,16 @@ export interface Wine {
   fieldTimes?: Partial<Record<keyof Wine, number>>;
   createdAt: number;
   updatedAt: number;
+}
+
+/** The years a bottle is at its best, inclusive. */
+export interface DrinkWindow {
+  from: number;
+  to: number;
+  /** 'take': read from Palate's take; 'claude': estimated by Claude. */
+  source: 'take' | 'claude';
+  /** The vintage it was worked out for: a different vintage needs a new window. */
+  vintage: Wine['vintage'];
 }
 
 /** One lesson card's headline: "Tempranillo" / "Cherry and leather, with a bright lift" / "Tannins: the drying grip…". */

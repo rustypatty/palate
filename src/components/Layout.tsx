@@ -4,6 +4,7 @@ import { useLists } from '../hooks';
 import { underlay } from './overlay';
 import { usePriceAutoCheck } from './PriceWatch';
 import { useDedupe } from './useDedupe';
+import { useDrinkWindows } from './useDrinkWindows';
 import { useCatalogNotes } from './useCatalogNotes';
 import { usePhotoFinder } from './usePhotoFinder';
 
@@ -28,6 +29,7 @@ export function Layout() {
   useCatalogNotes();
   usePriceAutoCheck();
   useDedupe();
+  useDrinkWindows();
   // Add/Edit wine has its own sticky Save bar instead of the navigation.
   const editing = Boolean(matchPath('/add', location.pathname) || matchPath('/wine/:id/edit', location.pathname));
 

@@ -1,4 +1,5 @@
 import type { Wine } from '../types';
+import { currentWindow, windowStatus } from './drinkWindow';
 import { producerAndName } from './format';
 import { fold } from './text';
 
@@ -163,6 +164,22 @@ export function reasonFor(w: Wine, dish: Dish, now = new Date()): string {
   return `${opening}.`;
 }
 
+/** Its best years: open the ones at the end of them first, and leave the young ones be. */
+function bestYears(w: Wine, now: Date): { score: number; note: string } {
+  const dw = currentWindow(w);
+  if (!dw) return { score: 0, note: '' };
+  switch (windowStatus(dw, now)) {
+    case 'soon':
+      return { score: 1, note: ' It’s at the end of its best years, so now’s the time.' };
+    case 'past':
+      return { score: 1, note: ' It’s past its best years: open it soon.' };
+    case 'early':
+      return { score: -1.5, note: ` It’s still young: better from ${dw.from}.` };
+    default:
+      return { score: 0.25, note: '' };
+  }
+}
+
 /** Bottles at home ranked for this dish: dish fit + Loved 2 / Liked 1, a little less for the pricier ones. */
 export function rankTonight(wines: Wine[], dish: Dish, now = new Date()): TonightPick[] {
   const candidates = wines.filter((w) => !w.list && w.owned > 0 && w.rating !== 'wouldnt');
@@ -172,7 +189,8 @@ export function rankTonight(wines: Wine[], dish: Dish, now = new Date()): Tonigh
     const bonus = w.rating === 'loved' ? 2 : w.rating === 'liked' ? 1 : 0;
     // Just a glass: keep the good bottles for later.
     const penalty = mid !== null && w.price !== null && w.price > mid ? (dish === 'glass' ? 1.5 : 0.5) : 0;
-    return { wine: w, fit, score: fit + bonus - penalty, reason: reasonFor(w, dish, now) };
+    const best = bestYears(w, now);
+    return { wine: w, fit, score: fit + bonus - penalty + best.score, reason: reasonFor(w, dish, now) + best.note };
   });
   return scored.sort((a, b) => b.score - a.score || b.fit - a.fit || b.wine.owned - a.wine.owned || a.wine.id.localeCompare(b.wine.id));
 }

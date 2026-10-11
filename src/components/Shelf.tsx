@@ -116,12 +116,14 @@ export function FillerTile({ to, label, state }: { to: string; label: string; st
 }
 
 /** One of your wines, small, on a burgundy-tinted shelf. */
-export function MiniWineCard({ wine, note }: { wine: Wine; note?: string }) {
+/** `tag`: a small label on the bottle, e.g. "Drink soon". */
+export function MiniWineCard({ wine, note, tag }: { wine: Wine; note?: string; tag?: string }) {
   const loved = !note && wine.rating === 'loved';
   return (
     <Link to={`/wine/${wine.id}`} className="mini-card lift">
       <div className="tile shelf-stage">
         <BottleImage photo={wine.photo} alt="" />
+        {tag && <span className="mini-tag">{tag}</span>}
       </div>
       {/* The producer too: a cuvée alone ("Barolo", "Clásico") doesn't say which wine it is. */}
       {wine.producer && wine.name && <div className="pc-producer mini-p">{wine.producer}</div>}

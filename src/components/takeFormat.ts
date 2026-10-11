@@ -134,8 +134,12 @@ function pairings(t: string): string {
   return '';
 }
 
-/** Up to three serving tiles and the pairings line, or nothing when fewer than two facts come out. */
-export function serveFacts(text: string): { tiles: ServeTile[]; pairing: string } | null {
-  const tiles = [temperature(text), decanting(text), drinkWindow(text)].filter((x): x is ServeTile => x !== null);
+/**
+ * Up to three serving tiles and the pairings line, or nothing when fewer than two facts come out.
+ * `bestYears`: the wine's saved drinking window, shown in place of the one read from the text.
+ */
+export function serveFacts(text: string, bestYears?: string): { tiles: ServeTile[]; pairing: string } | null {
+  const window = bestYears ? { value: bestYears, label: 'Drink window' } : drinkWindow(text);
+  const tiles = [temperature(text), decanting(text), window].filter((x): x is ServeTile => x !== null);
   return tiles.length >= 2 ? { tiles, pairing: pairings(text) } : null;
 }

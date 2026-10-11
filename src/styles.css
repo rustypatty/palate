@@ -3745,6 +3745,7 @@ details.more[open] > .more-body {
 }
 
 .mini-card .tile {
+  position: relative;
   aspect-ratio: auto;
   height: 180px;
   border-radius: 22px;
@@ -6773,4 +6774,18 @@ a.stamp:hover {
   letter-spacing: 0.18em;
   font-variant-numeric: tabular-nums;
   user-select: all;
+}
+
+/* A small label on a shelf bottle, e.g. "Drink soon" in In your cellar */
+.mini-tag {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  white-space: nowrap;
 }

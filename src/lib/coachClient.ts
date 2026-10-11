@@ -21,7 +21,7 @@ const CoachSchema = z.object({
 const _check: z.infer<typeof CoachSchema> extends BottleCoach ? true : never = true;
 void _check;
 
-function reason(e: unknown): string | null {
+export function reason(e: unknown): string | null {
   if (e instanceof Anthropic.AuthenticationError) return 'your Anthropic key was rejected — check it in My palate';
   if (e instanceof Anthropic.RateLimitError) return 'too many requests right now — try again in a moment';
   if (e instanceof Anthropic.APIConnectionError) return 'no connection';

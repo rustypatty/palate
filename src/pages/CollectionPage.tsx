@@ -18,6 +18,7 @@ import { producerAndName } from '../lib/format';
 import { shownPhoto } from '../lib/image';
 import { lookupBarcode } from '../lib/imageSearch';
 import { activeFilterCount, applyFilters, DEFAULT_FILTERS, type Filters, type Shelf } from '../lib/filters';
+import { currentWindow, drinkSoon, STATUS_LABEL, windowStatus } from '../lib/drinkWindow';
 import { buyAgain } from '../lib/recommend';
 import { useTaste } from '../lib/usePicks';
 import type { Wine } from '../types';
@@ -229,13 +230,25 @@ function HeroBottle({ wine, height, onRatio }: { wine: Wine; height: number; onR
   );
 }
 
+/** "Drink soon" or "Past its best" on a bottle at the end of its best years. */
+function cellarTag(w: Wine): string | undefined {
+  const dw = currentWindow(w);
+  const status = dw && windowStatus(dw);
+  return status === 'soon' || status === 'past' ? STATUS_LABEL[status] : undefined;
+}
+
 /** Suggestion rows above the collection, shown only while browsing. */
 function HomeRows({ wines, onShow }: { wines: Wine[]; onShow: (shelf: Shelf) => void }) {
   const taste = useTaste();
   const wide = useMediaQuery('(min-width: 1024px)');
   // Loved, and none left at home: the ones to buy again.
   const shortlist = useMemo(() => buyAgain(wines), [wines]);
-  const cellar = useMemo(() => wines.filter((w) => w.owned > 0).sort((a, b) => b.updatedAt - a.updatedAt), [wines]);
+  // Bottles at the end of their best years (or past them) first, tagged; then the latest.
+  const cellar = useMemo(() => {
+    const soon = drinkSoon(wines);
+    const rest = wines.filter((w) => w.owned > 0 && !soon.includes(w)).sort((a, b) => b.updatedAt - a.updatedAt);
+    return [...soon, ...rest];
+  }, [wines]);
   const seeAll = (shelf: Shelf) => (
     <button type="button" className="text-link" onClick={() => onShow(shelf)}>
       See all
@@ -262,7 +275,7 @@ function HomeRows({ wines, onShow }: { wines: Wine[]; onShow: (shelf: Shelf) => 
       grid={{ seeAll: seeAll('owned'), filler: <FillerTile to="/add" label="Add a bottle you own" state={{ draft: { owned: 1 } } satisfies AddPrefill} /> }}
     >
       {cellar.map((wine) => (
-        <MiniWineCard key={wine.id} wine={wine} note={`${wine.owned} in cellar`} />
+        <MiniWineCard key={wine.id} wine={wine} note={`${wine.owned} in cellar`} tag={cellarTag(wine)} />
       ))}
     </ShelfRow>
   );
