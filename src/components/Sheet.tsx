@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from 'react';
 import { createPortal } from 'react-dom';
 
 interface SheetProps {
@@ -10,11 +10,36 @@ interface SheetProps {
   wide?: boolean;
   tall?: boolean;
   headerAction?: ReactNode;
+  /** Shown in place of the title (which still names the dialog for screen readers). */
+  heading?: ReactNode;
+  className?: string;
+  /** Close by swiping down from the top of the sheet (phones). */
+  swipeToClose?: boolean;
 }
 
+/** How far down a swipe must go to close the sheet. */
+const SWIPE_CLOSE_PX = 90;
+
 /** Bottom sheet on phones, centered dialog on larger screens. */
-export function Sheet({ title, onClose, children, footer, wide, tall, headerAction }: SheetProps) {
+export function Sheet({ title, onClose, children, footer, wide, tall, headerAction, heading, className, swipeToClose }: SheetProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const startY = useRef<number | null>(null);
+  const [drag, setDrag] = useState(0);
+  const swipe = swipeToClose
+    ? {
+        onTouchStart: (e: TouchEvent) => {
+          startY.current = e.touches[0].clientY;
+        },
+        onTouchMove: (e: TouchEvent) => {
+          if (startY.current !== null) setDrag(Math.max(0, e.touches[0].clientY - startY.current));
+        },
+        onTouchEnd: () => {
+          startY.current = null;
+          if (drag > SWIPE_CLOSE_PX) onClose();
+          else setDrag(0);
+        },
+      }
+    : {};
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -39,15 +64,16 @@ export function Sheet({ title, onClose, children, footer, wide, tall, headerActi
     <div className="sheet-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div
         ref={ref}
-        className={`sheet${wide ? ' wide' : ''}${tall ? ' tall' : ''}`}
+        className={`sheet${wide ? ' wide' : ''}${tall ? ' tall' : ''}${className ? ` ${className}` : ''}`}
+        style={drag ? { transform: `translateY(${drag}px)`, transition: 'none' } : undefined}
         role="dialog"
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
       >
-        <div className="sheet-grabber" />
-        <div className="sheet-head">
-          <h2>{title}</h2>
+        <div className="sheet-grabber" {...swipe} />
+        <div className="sheet-head" {...swipe}>
+          {heading ?? <h2>{title}</h2>}
           <div style={{ display: 'flex', gap: 8 }}>
             {headerAction}
             <button type="button" className="icon-btn sheet-close" onClick={onClose} aria-label="Close">

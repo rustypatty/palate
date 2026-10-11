@@ -11,6 +11,7 @@ import { ShelfSnap, type SnapHandle } from '../components/ShelfSnap';
 import { SnapCard, type SnapCardContent } from '../components/SnapCard';
 import { WineListSnap } from '../components/WineListSnap';
 import { StoreChooser, StorePicksPanel } from '../components/StorePicks';
+import type { StorePicksPrefill } from '../components/AskSheet';
 import { WineRow } from '../components/WineCard';
 import { useDebounced, useLists, useWines } from '../hooks';
 import { STYLES } from '../lib/constants';
@@ -136,7 +137,10 @@ export function InStorePage() {
   const wines = useWines();
   const navigate = useNavigate();
   const toast = useToast();
-  const prefill = useLocation().state as CheckPrefill | null;
+  const arrived = useLocation().state as CheckPrefill | StorePicksPrefill | null;
+  // "Find at …" from Ask your wines: open on that store's list (its store and colour are already chosen).
+  const toPicks = Boolean(arrived && 'picks' in arrived);
+  const prefill = arrived && 'check' in arrived ? arrived : null;
   const [query, setQuery] = useState(prefill?.check ?? '');
   const [style, setStyle] = useState<WineStyle | null>(null);
   const [priceText, setPriceText] = useState('');
@@ -165,10 +169,15 @@ export function InStorePage() {
   const [storeId] = useStoreChoice();
   const store = storeById(storeId);
   const [mode, setMode] = useStoreMode();
-  // Arriving with a bottle to check (a scan elsewhere): that's a shop task.
+  // Arriving with a bottle to check (a scan elsewhere), or for a store's list: that's a shop task.
   useEffect(() => {
-    if (prefill && mode !== 'shop') setMode('shop');
+    if ((prefill || toPicks) && mode !== 'shop') setMode('shop');
   }, []);
+  useEffect(() => {
+    if (!toPicks || !loaded) return;
+    const t = window.setTimeout(() => document.querySelector('.store-picks')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+    return () => window.clearTimeout(t);
+  }, [loaded]);
   const [tableBudget] = useRestaurantBudget();
   const snap = useRef<SnapHandle>(null);
   // In a shop, the card snaps one bottle; the whole-shelf snap is its secondary link.
