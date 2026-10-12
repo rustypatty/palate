@@ -141,6 +141,11 @@ function aboutMe(r: StoreListRequest): string {
   );
 }
 
+/** Keeps a list from being one region, or last time's list again. */
+const VARIETY =
+  'Spread the list out: at most 2 bottles from the same region or appellation, at least 4 different regions or countries, and do not put the same region first every time. ' +
+  'Do not repeat any bottle under "Already had, saved or not interested". ';
+
 function prompt(r: StoreListRequest): string {
   return (
     `Help me choose wine at ${r.store.name} (${r.store.domain}).\n\n` +
@@ -148,6 +153,7 @@ function prompt(r: StoreListRequest): string {
     `\nSearch ${r.store.domain} for 8–10 specific bottles this store sells that I am likely to enjoy and have not had. ` +
     'Only list a bottle as a pick if one of your search results is its product page on that site, and copy that exact URL. ' +
     'Never invent a bottle, cuvée or URL. If you think a producer or style would suit me but did not find its page, put it in tips instead. ' +
+    VARIETY +
     'Give each pick one short reason tied to a wine I rated. Also add 2–4 tips on which sections, appellations or producers to look for there. ' +
     'Then call report_store_list once.'
   );
@@ -275,6 +281,7 @@ export async function pickFromStockWithClaude(
     aboutMe(req) +
     '\nChoose the 8–10 bottles from the list above I am most likely to enjoy, best first, by their number. ' +
     'Mostly ones like wines I loved, plus one or two good-value bottles that would teach me something new. ' +
+    VARIETY +
     'Give each one short reason tied to a wine I rated (name wines, never list numbers). Only choose from the list.';
   try {
     const res = await client.beta.messages.create(

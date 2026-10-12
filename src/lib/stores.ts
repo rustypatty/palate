@@ -1,6 +1,7 @@
 import { db, type PalateDB } from '../db';
 import type { WineStyle } from '../types';
 import type { Candidate } from './recommend';
+import { rememberShown } from './shownPicks';
 
 /**
  * Stores Rusty shops at. Pogo's publishes its full wine list (prices and stock) openly,
@@ -101,6 +102,7 @@ export function asSuggestion(item: StoreItem): SuggestedItem {
 /** Save a list Claude made, next to the store's downloaded wine list if it has one. */
 async function saveList(id: StoreId, list: StoreList, database: PalateDB) {
   const now = Date.now();
+  rememberShown(id, list.picks);
   const row = await database.stores.get(id);
   await database.stores.put(row?.items ? { ...row, list: { ...list, madeAt: now } } : { id, fetchedAt: now, list: { ...list, madeAt: now } });
 }
