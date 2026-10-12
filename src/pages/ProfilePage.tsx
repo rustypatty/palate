@@ -1,28 +1,26 @@
-import { ChevronRight, Download, EyeOff, Minus, Plus, Stamp, Upload } from 'lucide-react';
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ChevronRight, Download, EyeOff, Stamp, Upload } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { CloudSync, cloudSummary, useCloudStatus } from '../components/CloudSync';
-import { TasteHeader, TasteQuote } from '../components/TasteCard';
+import { TasteHeader } from '../components/TasteCard';
 import { ProfileImport, ProfileSummary, useProfile } from '../components/ProfileImport';
+import { Sheet } from '../components/Sheet';
 import { useToast } from '../components/Toast';
-import { BellIcon } from '../components/PriceWatch';
-import { TotalWineImport, twImportSummary } from '../components/TotalWineImport';
-import { useAllWines, useWines } from '../hooks';
+import { TotalWineImport } from '../components/TotalWineImport';
+import { useAllWines, useLists, useWines } from '../hooks';
 import { downloadBlob, exportBackup, importBackup } from '../lib/backup';
-import { STYLE_LABEL } from '../lib/constants';
 import { tally } from '../lib/filters';
-import { formatPrice } from '../lib/format';
 import { apiKeyProblem, getDeviceKey, normalizeApiKey, setApiKey, testApiKey } from '../lib/labelReader';
 import { saveAccountSetting } from '../lib/cloud';
 import { useServerKey } from '../lib/serverKey';
 import { buildPassport } from '../lib/passport';
 import { disablePush, enablePush, pushEnabled, pushSupport, sendTestPush } from '../lib/push';
-import { favouriteRed, profileFavourites } from '../lib/profile';
+import { favouriteRed } from '../lib/profile';
+import { budgetLine, exploreCards, heroSummary, loveChips, redsLine, skipsLine, whitesLine } from '../lib/palatePage';
 import { buildTaste } from '../lib/taste';
 import { lastCheckedAt, priceDrops, watchedWines } from '../lib/priceWatch';
 import { usePriceAuto, usePriceCheckedAt, useTwStock } from '../lib/usePicks';
 import { ago } from '../components/StorePicks';
-import type { Wine } from '../types';
 
 /** Phone alerts when the Monday check finds a lower price. */
 function PriceAlerts() {
@@ -88,7 +86,7 @@ function PriceAlerts() {
   );
 }
 
-function LabelReadingSettings({ onFocusRequest, onChange }: { onFocusRequest: () => void; onChange: () => void }) {
+function LabelReadingSettings({ onChange }: { onChange: () => void }) {
   const location = useLocation();
   const focusKey = (location.state as { focusKey?: number } | null)?.focusKey;
   const inputRef = useRef<HTMLInputElement>(null);
@@ -100,7 +98,6 @@ function LabelReadingSettings({ onFocusRequest, onChange }: { onFocusRequest: ()
 
   useEffect(() => {
     if (!focusKey) return;
-    onFocusRequest();
     window.setTimeout(() => {
       boxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       inputRef.current?.focus({ preventScroll: true });
@@ -211,26 +208,27 @@ function LabelReadingSettings({ onFocusRequest, onChange }: { onFocusRequest: ()
   );
 }
 
-function median(xs: number[]): number | null {
-  if (!xs.length) return null;
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-}
+type SheetName = 'watch' | 'profile' | 'tw' | 'sync' | 'data';
 
 export function ProfilePage() {
   const wines = useWines();
+  const lists = useLists();
   const profile = useProfile();
   const toast = useToast();
+  const location = useLocation();
   const fileRef = useRef<HTMLInputElement>(null);
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [usage, setUsage] = useState<string | null>(null);
   const cloud = useCloudStatus();
   const online = cloud.state === 'syncing' || cloud.state === 'synced' || cloud.state === 'error';
   const twStock = useTwStock(online);
-  const [open, setOpen] = useState<string | null>(null);
+  // "Add key" elsewhere in the app comes here to the key field: open Sync & Claude.
+  const focusKey = (location.state as { focusKey?: number } | null)?.focusKey;
+  const [open, setOpen] = useState<SheetName | null>(focusKey ? 'sync' : null);
+  useEffect(() => {
+    if (focusKey) setOpen('sync');
+  }, [focusKey]);
   const [, setKeyTick] = useState(0);
-  const keySaved = Boolean(getDeviceKey());
   const onServer = useServerKey();
   const everything = useAllWines();
   const [priceAuto, setPriceAuto] = usePriceAuto();
@@ -254,97 +252,116 @@ export function ProfilePage() {
 
   const taste = useMemo(() => (wines ? buildTaste(wines) : null), [wines]);
   const stats = useMemo(() => {
-    const all: Wine[] = wines ?? [];
+    const all = wines ?? [];
     const loved = all.filter((w) => w.rating === 'loved');
     return {
       total: all.length,
       loved: loved.length,
       owned: all.reduce((n, w) => n + w.owned, 0),
-      tasted: all.filter((w) => w.rating !== null).length,
-      grapes: tally(loved.flatMap((w) => w.grapes)),
       countries: tally(loved.map((w) => w.country)),
-      regions: tally(loved.map((w) => w.region)),
-      styles: tally(loved.map((w) => (w.style ? STYLE_LABEL[w.style] : ''))),
-      lovedPrice: median(loved.flatMap((w) => (w.price !== null ? [w.price] : []))),
-      passes: tally(all.filter((w) => w.rating === 'wouldnt').flatMap((w) => w.grapes)),
+      places: [...tally(loved.map((w) => w.region)), ...tally(loved.flatMap((w) => w.grapes))].map((t) => t.value),
     };
   }, [wines]);
 
   if (wines === undefined) return null;
 
-  const pills = [...new Set([...profileFavourites(profile), ...(taste?.enough ? taste.likes.filter((a) => a.kind !== 'country').map((a) => a.value) : [...stats.grapes, ...stats.regions].map((t) => t.value))])].slice(0, 12);
-  const skips = [...new Set(taste?.dislikes.length ? taste.dislikes.map((a) => a.value) : stats.passes.map((t) => t.value))].slice(0, 8);
+  const fav = favouriteRed(profile);
+  const summary = heroSummary(profile, taste, !fav);
+  const rows = [
+    { label: 'Reds', text: redsLine(profile) },
+    { label: 'Whites', text: whitesLine(profile) },
+    { label: 'Skips', text: skipsLine(taste, wines) },
+    { label: 'Budget', text: budgetLine(wines, profile) },
+  ].filter((r) => r.text);
+  const chips = loveChips(profile, taste, stats.places, fav);
+  const skips = [...new Set(taste?.dislikes.map((a) => a.value) ?? [])].slice(0, 8);
+  const explore = exploreCards(profile);
   const maxCountry = Math.max(1, ...stats.countries.map((c) => c.count));
-  const toggle = (k: string) => setOpen((o) => (o === k ? null : k));
+  const toTry = lists?.want.length ?? 0;
+
+  const watchStatus =
+    watch.n === 0
+      ? 'Nothing watched yet'
+      : `${watch.drops > 0 ? `${watch.drops} got cheaper · ` : ''}${watch.n} ${watch.n === 1 ? 'bottle' : 'bottles'} · ${!priceAuto ? 'auto-check off' : onServer ? 'checks Mondays' : 'checks weekly'}`;
+  const profileStatus = profile ? `Imported ${new Date(profile.importedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · how you like advice` : 'Not imported · import a history file';
+  const twStatus = !online ? 'Needs sync' : twStock === undefined ? '…' : twStock ? `${twStock.storeName} · ${twStock.bottles.length.toLocaleString()} in stock` : 'Nothing imported this week';
 
   return (
     <div className="palate-page">
-      {taste && <TasteHeader taste={taste} favouriteRed={favouriteRed(profile)} />}
-      {taste && <TasteQuote taste={taste} />}
+      {taste && (
+        <TasteHeader taste={taste} favouriteRed={fav} summary={summary}>
+          <div className="palate-numbers">
+            <div>
+              <b>{stats.total}</b>
+              <span>Wines</span>
+            </div>
+            <div className="loved">
+              <b>{stats.loved}</b>
+              <span>Loved</span>
+            </div>
+            <div>
+              <b>{stats.owned}</b>
+              <span>At home</span>
+            </div>
+            <Link to="/want">
+              <b>{toTry}</b>
+              <span>To try</span>
+            </Link>
+          </div>
+        </TasteHeader>
+      )}
 
-      <div className="stats">
-        <div className="stat">
-          <div className="n">{stats.total}</div>
-          <div className="l">Wines</div>
-        </div>
-        <div className="stat">
-          <div className="n">{stats.loved}</div>
-          <div className="l">Loved</div>
-        </div>
-        <div className="stat">
-          <div className="n">{stats.owned}</div>
-          <div className="l">Bottles on hand</div>
-        </div>
-        <div className="stat">
-          <div className="n">{stats.lovedPrice !== null ? formatPrice(Math.round(stats.lovedPrice)) : '—'}</div>
-          <div className="l">Typical price of a loved wine</div>
-        </div>
-      </div>
-
-      {profile && (
+      {rows.length > 0 && (
         <section className="palate-section">
-          <h2 className="title-lg">What Palate knows about you</h2>
-          <ProfileSummary profile={profile} />
+          <h2 className="palate-h">
+            Your <em>taste</em>
+          </h2>
+          <dl className="taste-rows">
+            {rows.map((r) => (
+              <div key={r.label}>
+                <dt className="eyebrow">{r.label}</dt>
+                <dd>{r.text}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
       )}
 
       <section className="palate-section">
-        <h2 className="title-lg">Where you love</h2>
-        {stats.countries.length === 0 ? (
-          <p className="footnote">Add countries to wines you love to see where they come from.</p>
-        ) : (
-          <div className="bars">
-            {stats.countries.slice(0, 6).map((r) => (
-              <div key={r.value} className="bar-row">
-                <span className="name">{r.value}</span>
-                <span className="muted">{r.count} loved</span>
-                <span className="track">
-                  <i style={{ width: `${(r.count / maxCountry) * 100}%` }} />
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="palate-section">
-        <h2 className="title-lg">Grapes &amp; regions</h2>
-        {pills.length === 0 ? (
+        <h2 className="palate-h">
+          What you <em className="wine">love</em>
+        </h2>
+        {stats.countries.length === 0 && chips.length === 0 ? (
           <p className="footnote">Rate a few wines “Loved it” to see patterns.</p>
         ) : (
-          <div className="chips">
-            {pills.map((v) => (
-              <span key={v} className="love-pill">
-                {v}
-              </span>
-            ))}
-          </div>
+          <>
+            {stats.countries.length > 0 && (
+              <div className="bars compact">
+                {stats.countries.slice(0, 6).map((r) => (
+                  <div key={r.value} className="bar-row">
+                    <span className="name">{r.value}</span>
+                    <span className="muted">{r.count} loved</span>
+                    <span className="track">
+                      <i style={{ width: `${(r.count / maxCountry) * 100}%` }} />
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {chips.length > 0 && (
+              <div className="chips">
+                {chips.map((v) => (
+                  <span key={v} className="love-pill">
+                    {v}
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
         )}
         {skips.length > 0 && (
           <>
-            <div className="eyebrow" style={{ marginTop: 22 }}>
-              You’d skip
-            </div>
+            <div className="eyebrow">You’d skip</div>
             <div className="chips">
               {skips.map((v) => (
                 <span key={v} className="skip-pill">
@@ -354,189 +371,206 @@ export function ProfilePage() {
             </div>
           </>
         )}
-        <p className="footnote" style={{ marginTop: 18 }}>
-          It updates as you rate more{taste?.price ? '.' : '. Add prices to see your usual range.'}
-        </p>
       </section>
 
-      <section className="palate-section">
-        <h2 className="title-lg">Your wine profile</h2>
-        <ProfileImport />
-      </section>
+      {explore.length > 0 && (
+        <section className="palate-section">
+          <h2 className="palate-h">
+            Worth <em>exploring</em>
+          </h2>
+          <div className="explore-cards">
+            {explore.map((x) => (
+              <div key={x.title} className="explore-card">
+                <strong>{x.title}</strong>
+                {x.sub && <span>{x.sub}</span>}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="palate-section">
-        <h2 className="title-lg">Learn</h2>
-        <Link to="/passport" className="cta-card lift">
-          <Stamp size={22} strokeWidth={1.7} />
-          <span className="cta-text">
+        <h2 className="palate-h">Learn</h2>
+        <div className="palate-learn">
+          <Link to="/passport" className="palate-learn-tile lift">
+            <Stamp size={22} strokeWidth={1.7} />
             <strong>
-              Your wine <em>passport</em>
+              Wine <em>passport</em>
             </strong>
-            <span className="small muted">
+            <span>
               {passport.tasted > 0
-                ? `${passport.places} ${passport.places === 1 ? 'region' : 'regions'} and ${passport.grapes} ${passport.grapes === 1 ? 'grape' : 'grapes'} so far · where to go next`
-                : 'Rate what you taste to collect places and grapes.'}
+                ? `${passport.places} ${passport.places === 1 ? 'region' : 'regions'} · ${passport.grapes} ${passport.grapes === 1 ? 'grape' : 'grapes'}`
+                : 'Rate what you taste to collect places'}
             </span>
-          </span>
-          <ChevronRight size={20} strokeWidth={1.7} />
-        </Link>
-        <Link to="/blind" className="cta-card lift">
-          <EyeOff size={22} strokeWidth={1.7} />
-          <span className="cta-text">
+          </Link>
+          <Link to="/blind" className="palate-learn-tile lift">
+            <EyeOff size={22} strokeWidth={1.7} />
             <strong>
               Blind <em>tasting</em>
             </strong>
-            <span className="small muted">Guess the grape, place and vintage of a hidden bottle from your cellar.</span>
-          </span>
-          <ChevronRight size={20} strokeWidth={1.7} />
-        </Link>
-      </section>
-
-      <section className="palate-section">
-        <h2 className="title-lg">Price watch</h2>
-        <Link to="/watch" className="cta-card lift watch-link">
-          <BellIcon size={22} filled={watch.drops > 0} />
-          <span className="cta-text">
-            <strong>
-              {watch.drops > 0 ? (
-                <>
-                  {watch.drops} {watch.drops === 1 ? 'favourite' : 'favourites'} <em>got cheaper</em>
-                </>
-              ) : watch.n > 0 ? (
-                <>
-                  Watching <em>{watch.n} {watch.n === 1 ? 'bottle' : 'bottles'}</em>
-                </>
-              ) : (
-                <>
-                  Watch <em>a price</em>
-                </>
-              )}
-            </strong>
-            <span className="small muted">
-              {watch.n > 0
-                ? watch.last
-                  ? `Checked ${ago(watch.last)} at your stores`
-                  : 'Not checked yet'
-                : 'Love a wine or add one to Want to try, and Palate watches its price.'}
-            </span>
-          </span>
-          <ChevronRight size={20} strokeWidth={1.7} />
-        </Link>
-      </section>
-
-      <section className="palate-section">
-        <h2 className="title-lg">Settings</h2>
-        <div className="folds">
-          <Fold title="Sync across devices" status={cloudSummary(cloud)} open={open === 'sync'} onToggle={() => toggle('sync')}>
-            <CloudSync bare />
-          </Fold>
-          <Fold title="Label reading with Claude" status={keySaved ? 'Key saved on this device' : onServer ? 'Key stored on the server' : 'No key yet'} open={open === 'key'} onToggle={() => toggle('key')}>
-            <LabelReadingSettings onFocusRequest={() => setOpen('key')} onChange={() => setKeyTick((t) => t + 1)} />
-          </Fold>
-          <Fold
-            title="Price watch"
-            status={watch.n === 0 ? 'Nothing watched' : !priceAuto ? 'Auto-check off' : onServer ? 'Checks every Monday' : 'Checks weekly'}
-            open={open === 'watch'}
-            onToggle={() => toggle('watch')}
-          >
-            <div className="fold-content">
-              <label className="switch-row">
-                <span>
-                  <span className="switch-title">Check prices automatically</span>
-                  <span className="small muted">
-                    {onServer
-                      ? 'Every Monday morning on Palate’s server, even if you don’t open the app, if you’re watching any bottles.'
-                      : 'Once a week, when you open Palate, if you’re watching any bottles.'}
-                  </span>
-                </span>
-                <input
-                  type="checkbox"
-                  role="switch"
-                  className="switch"
-                  checked={priceAuto}
-                  onChange={(e) => {
-                    setPriceAuto(e.target.checked);
-                    // The Monday check on the server reads this from your account.
-                    void saveAccountSetting('price_auto', e.target.checked).catch(() => {});
-                  }}
-                />
-              </label>
-              {onServer && <PriceAlerts />}
-            </div>
-          </Fold>
-          <Fold title="Total Wine import" status={twImportSummary(twStock, online)} open={open === 'tw'} onToggle={() => toggle('tw')}>
-            <TotalWineImport stock={twStock} online={online} />
-          </Fold>
-          <Fold title="Your data" status={usage ? `${usage} on this device` : 'On this device'} open={open === 'data'} onToggle={() => toggle('data')}>
-            <div className="fold-content">
-              <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
-                {online
-                  ? `Your wines and photos are stored on this device${usage ? ` (${usage})` : ''} and saved online. A backup file is an extra copy you keep yourself.`
-                  : `Your wines and photos are stored privately on this device${usage ? ` (${usage})` : ''}. Export a backup now and then, and use it to move your collection to another phone or computer.`}
-              </p>
-              {persisted === false && !online && (
-                <p className="small muted" style={{ margin: 0 }}>
-                  Tip: add Palate to your home screen so your browser keeps the data safe long-term.
-                </p>
-              )}
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  className="btn btn-dark"
-                  disabled={!wines.length}
-                  onClick={async () => {
-                    const blob = await exportBackup();
-                    downloadBlob(blob, `palate-backup-${new Date().toISOString().slice(0, 10)}.json`);
-                  }}
-                >
-                  <Download size={18} /> Export backup
-                </button>
-                <button type="button" className="btn btn-white" onClick={() => fileRef.current?.click()}>
-                  <Upload size={18} /> Restore backup
-                </button>
-              </div>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="application/json,.json"
-                hidden
-                onChange={async (e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = '';
-                  if (!f) return;
-                  try {
-                    const r = await importBackup(f);
-                    toast(`Restored ${r.wines} ${r.wines === 1 ? 'wine' : 'wines'}`);
-                  } catch (err) {
-                    toast(err instanceof Error ? err.message : 'Couldn’t restore that file');
-                  }
-                }}
-              />
-            </div>
-          </Fold>
+            <span>Guess a bottle from your cellar</span>
+          </Link>
         </div>
       </section>
+
+      <section className="palate-section">
+        <h2 className="palate-h">Settings</h2>
+        <div className="settings-card">
+          <SettingRow title="Price watch" status={watchStatus} onOpen={() => setOpen('watch')} />
+          <SettingRow title="Wine profile" status={profileStatus} onOpen={() => setOpen('profile')} />
+          <SettingRow title="Total Wine store" status={twStatus} onOpen={() => setOpen('tw')} />
+          <SettingRow title="Sync & Claude" status={cloudSummary(cloud)} onOpen={() => setOpen('sync')} />
+          <SettingRow title="Your data" status={`${usage ?? 'On this device'} · backup & restore`} onOpen={() => setOpen('data')} />
+        </div>
+      </section>
+
+      {open === 'watch' && (
+        <Sheet title="Price watch" onClose={() => setOpen(null)} swipeToClose>
+          <div className="fold-content">
+            <Link to="/watch" className="cta-card lift watch-link">
+              <span className="cta-text">
+                <strong>
+                  {watch.drops > 0 ? (
+                    <>
+                      {watch.drops} {watch.drops === 1 ? 'favourite' : 'favourites'} <em>got cheaper</em>
+                    </>
+                  ) : watch.n > 0 ? (
+                    <>
+                      Watching <em>{watch.n} {watch.n === 1 ? 'bottle' : 'bottles'}</em>
+                    </>
+                  ) : (
+                    <>
+                      Watch <em>a price</em>
+                    </>
+                  )}
+                </strong>
+                <span className="small muted">
+                  {watch.n > 0
+                    ? watch.last
+                      ? `Checked ${ago(watch.last)} at your stores`
+                      : 'Not checked yet'
+                    : 'Love a wine or add one to Want to try, and Palate watches its price.'}
+                </span>
+              </span>
+              <ChevronRight size={20} strokeWidth={1.7} />
+            </Link>
+            <label className="switch-row">
+              <span>
+                <span className="switch-title">Check prices automatically</span>
+                <span className="small muted">
+                  {onServer
+                    ? 'Every Monday morning on Palate’s server, even if you don’t open the app, if you’re watching any bottles.'
+                    : 'Once a week, when you open Palate, if you’re watching any bottles.'}
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                className="switch"
+                checked={priceAuto}
+                onChange={(e) => {
+                  setPriceAuto(e.target.checked);
+                  // The Monday check on the server reads this from your account.
+                  void saveAccountSetting('price_auto', e.target.checked).catch(() => {});
+                }}
+              />
+            </label>
+            {onServer && <PriceAlerts />}
+          </div>
+        </Sheet>
+      )}
+
+      {open === 'profile' && (
+        <Sheet title="Wine profile" onClose={() => setOpen(null)} tall swipeToClose>
+          <div className="fold-content">
+            {profile && <ProfileSummary profile={profile} />}
+            <ProfileImport />
+          </div>
+        </Sheet>
+      )}
+
+      {open === 'tw' && (
+        <Sheet title="Total Wine store" onClose={() => setOpen(null)} tall swipeToClose>
+          <TotalWineImport stock={twStock} online={online} />
+        </Sheet>
+      )}
+
+      {open === 'sync' && (
+        <Sheet title="Sync & Claude" onClose={() => setOpen(null)} tall swipeToClose>
+          <div className="fold-content">
+            <div className="eyebrow">Sync across devices</div>
+            <CloudSync bare />
+            <div className="eyebrow" style={{ marginTop: 10 }}>
+              Claude
+            </div>
+            <LabelReadingSettings onChange={() => setKeyTick((t) => t + 1)} />
+          </div>
+        </Sheet>
+      )}
+
+      {open === 'data' && (
+        <Sheet title="Your data" onClose={() => setOpen(null)} swipeToClose>
+          <div className="fold-content">
+            <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
+              {online
+                ? `Your wines and photos are stored on this device${usage ? ` (${usage})` : ''} and saved online. A backup file is an extra copy you keep yourself.`
+                : `Your wines and photos are stored privately on this device${usage ? ` (${usage})` : ''}. Export a backup now and then, and use it to move your collection to another phone or computer.`}
+            </p>
+            {persisted === false && !online && (
+              <p className="small muted" style={{ margin: 0 }}>
+                Tip: add Palate to your home screen so your browser keeps the data safe long-term.
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-dark"
+                disabled={!wines.length}
+                onClick={async () => {
+                  const blob = await exportBackup();
+                  downloadBlob(blob, `palate-backup-${new Date().toISOString().slice(0, 10)}.json`);
+                }}
+              >
+                <Download size={18} /> Export backup
+              </button>
+              <button type="button" className="btn btn-white" onClick={() => fileRef.current?.click()}>
+                <Upload size={18} /> Restore backup
+              </button>
+            </div>
+          </div>
+        </Sheet>
+      )}
+      {/* Outside the sheet, so restoring still works after the sheet closes. */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (!f) return;
+          try {
+            const r = await importBackup(f);
+            toast(`Restored ${r.wines} ${r.wines === 1 ? 'wine' : 'wines'}`);
+          } catch (err) {
+            toast(err instanceof Error ? err.message : 'Couldn’t restore that file');
+          }
+        }}
+      />
     </div>
   );
 }
 
-/** A settings row that folds away: title, one-line status, and +/−. */
-function Fold({ title, status, open, onToggle, children }: { title: string; status: string; open: boolean; onToggle: () => void; children: ReactNode }) {
-  const id = useId();
+/** A settings row: title, one-line status, chevron; opens its sheet. */
+function SettingRow({ title, status, onOpen }: { title: string; status: ReactNode; onOpen: () => void }) {
   return (
-    <div className={`fold${open ? ' open' : ''}`}>
-      <button type="button" className="fold-head" aria-expanded={open} aria-controls={id} onClick={onToggle}>
-        <span>
-          <span className="fold-title">{title}</span>
-          <span className="fold-status">{status}</span>
-        </span>
-        <span className="fold-mark" aria-hidden="true">
-          {open ? <Minus size={18} strokeWidth={1.6} /> : <Plus size={18} strokeWidth={1.6} />}
-        </span>
-      </button>
-      <div id={id} className="fold-body" hidden={!open}>
-        {children}
-      </div>
-    </div>
+    <button type="button" className="setting-row" onClick={onOpen}>
+      <span>
+        <span className="setting-title">{title}</span>
+        <span className="setting-status">{status}</span>
+      </span>
+      <ChevronRight size={18} strokeWidth={1.7} aria-hidden="true" />
+    </button>
   );
 }

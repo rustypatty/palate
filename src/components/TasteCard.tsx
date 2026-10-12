@@ -10,44 +10,35 @@ function emphasise(line: string, words: string[]): ReactNode {
   return line.split(re).map((part, i) => (hits.includes(part) ? <em key={i}>{part}</em> : <Fragment key={i}>{part}</Fragment>));
 }
 
-/** "Your taste", in plain language, in the golden header of My palate. */
-export function TasteHeader({ taste, favouriteRed = '' }: { taste: TasteProfile; favouriteRed?: string }) {
+/**
+ * The golden header of My palate: your favourite (or what your ratings say most), one short
+ * summary line, and whatever goes under it (the numbers row).
+ */
+export function TasteHeader({ taste, favouriteRed = '', summary = '', children }: { taste: TasteProfile; favouriteRed?: string; summary?: string; children?: ReactNode }) {
+  const eyebrow = `My palate · ${taste.rated} rated ${taste.rated === 1 ? 'wine' : 'wines'}`;
   if (!taste.enough && !favouriteRed) {
     const left = MIN_RATED - taste.rated;
     return (
       <header className="palate-hero">
-        <div className="eyebrow">My palate · from {taste.rated} rated wines</div>
+        <div className="eyebrow">{eyebrow}</div>
         <h1 className="palate-summary">
           Rate {left} more {left === 1 ? 'wine' : 'wines'} and Palate will <em>describe your taste.</em>
         </h1>
-        <p className="palate-more">Every “Loved it” and “Wouldn’t buy again” sharpens it — and switches on store suggestions.</p>
+        <p className="palate-more">Every “Loved it” and “Wouldn’t buy again” sharpens it, and switches on store suggestions.</p>
+        {children}
       </header>
     );
   }
-  // What you said is your favourite leads; the patterns counted from your ratings follow.
+  // What you said is your favourite leads; otherwise the strongest pattern counted from your ratings.
   const counted = taste.enough ? taste.summary.filter((l) => !l.startsWith('In your words')) : [];
-  const lines = favouriteRed ? [`${favouriteRed} is your favourite red.`, ...counted] : counted;
+  const headline = favouriteRed ? `${favouriteRed} is your favourite red.` : counted[0];
   const places = taste.likes.filter((a) => a.kind === 'region' || a.kind === 'area').map((a) => a.value);
   return (
     <header className="palate-hero">
-      <div className="eyebrow">My palate · from {taste.rated} rated wines</div>
-      {lines[0] && <h1 className="palate-summary">{emphasise(lines[0], favouriteRed ? [favouriteRed, ...places] : places)}</h1>}
-      {lines.length > 1 && <p className="palate-more">{lines.slice(1).join(' ')}</p>}
+      <div className="eyebrow">{eyebrow}</div>
+      {headline && <h1 className="palate-summary">{emphasise(headline, favouriteRed ? [favouriteRed] : places)}</h1>}
+      {summary && <p className="palate-more">{summary}</p>}
+      {children}
     </header>
-  );
-}
-
-/** The first thing you said you're after, as a pull quote. */
-export function TasteQuote({ taste }: { taste: TasteProfile }) {
-  const wish = taste.wishes[0];
-  if (!wish) return null;
-  return (
-    <figure className="pull-quote">
-      <span className="mark" aria-hidden="true">
-        “
-      </span>
-      <blockquote>{wish.replace(/[“”"]/g, '')}</blockquote>
-      <figcaption className="eyebrow">In your words</figcaption>
-    </figure>
   );
 }
