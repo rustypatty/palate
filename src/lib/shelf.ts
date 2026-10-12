@@ -164,6 +164,8 @@ const dealPrice = (deal: string): number | null => {
  */
 export function withinBudget(bottles: ShelfBottle[], budget: number | null): ShelfBottle[] {
   if (budget === null) return bottles;
+  // Photos with no price tag in view (close-ups of bottles): nothing to hold to the budget, so nothing is dropped.
+  if (!bottles.some((b) => b.price_usd > 0)) return bottles;
   // A price that wasn't read can't be shown to fit, so it's left out too.
   const fits = (b: ShelfBottle) => b.price_usd > 0 && b.price_usd <= budget;
   const over = (b: ShelfBottle) => b.price_usd > budget;

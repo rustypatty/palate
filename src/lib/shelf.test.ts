@@ -60,6 +60,8 @@ describe('Snap a shelf', () => {
       ['Argiano', 'good'],
     ]);
     expect(withinBudget([b('X', 150, 'top')], null)).toHaveLength(1);
+    // Close-ups of bottles with no price tags: none can be checked against the budget, so all are kept.
+    expect(withinBudget([b('A', 0, 'top'), b('B', 0, 'top'), b('C', 0, 'good')], 100)).toHaveLength(3);
   });
 
   it('keeps three on top and at most three under "Also good", further picks first', () => {
