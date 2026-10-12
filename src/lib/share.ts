@@ -12,6 +12,18 @@ export const SHARE_SLUG = 'loved';
 /** Whose list it is, in the page title: "Rusty's loved wines". */
 export const SHARE_NAME = 'Rusty';
 
+/** Taste tags for people new to wine, in plain words. */
+export const SHARE_TAGS = ['Light & silky', 'Bright & juicy', 'Warm & spicy', 'Bold & rich', 'Crisp & fresh', 'Rich & creamy', 'Bubbly', 'Sweet'] as const;
+export type ShareTag = (typeof SHARE_TAGS)[number];
+
+/** The friendly bits on the page: a taste tag, one plain sentence, and foods to try it with. */
+export interface ShareBlurb {
+  tag: ShareTag;
+  /** Empty when Claude couldn't write one (the tag then comes from the grapes). */
+  line: string;
+  pairing: string;
+}
+
 export interface SharedWine {
   /** The wine's id in Palate, to reuse its photo copy on the next Update. */
   id: string;
@@ -25,6 +37,10 @@ export interface SharedWine {
   photo: string | null;
   /** Palate's description (what it is, how it tastes), when the wine has one. */
   about: { whatItIs: string; taste: string } | null;
+  /** Lists shared before tags were added have none until the next Update. */
+  blurb?: ShareBlurb;
+  /** The broader, better-known area: "Burgundy" for Mercurey (from the appellation guide), else empty. */
+  area?: string;
 }
 
 export interface SharedList {
@@ -55,6 +71,25 @@ export function changesSince(list: SharedList, wines: Wine[]): number {
   for (const id of now) if (!then.has(id)) n++;
   for (const id of then) if (!now.has(id)) n++;
   return n;
+}
+
+const FLAGS: Record<string, string> = {
+  France: '🇫🇷', Italy: '🇮🇹', Spain: '🇪🇸', Portugal: '🇵🇹', Germany: '🇩🇪', Austria: '🇦🇹', USA: '🇺🇸', 'United States': '🇺🇸',
+  Argentina: '🇦🇷', Chile: '🇨🇱', Australia: '🇦🇺', 'New Zealand': '🇳🇿', 'South Africa': '🇿🇦', Greece: '🇬🇷', Hungary: '🇭🇺',
+  Lebanon: '🇱🇧', Israel: '🇮🇱', Canada: '🇨🇦', England: '🏴', 'United Kingdom': '🇬🇧', Switzerland: '🇨🇭', Georgia: '🇬🇪', Uruguay: '🇺🇾',
+};
+export const flagOf = (country: string) => FLAGS[country.trim()] ?? '';
+
+/** The wines grouped by country, the country with the most first; wines without one go last. */
+export function byCountry(wines: SharedWine[]): { country: string; wines: SharedWine[] }[] {
+  const groups = new Map<string, SharedWine[]>();
+  for (const w of wines) {
+    const c = w.country.trim() || 'Elsewhere';
+    groups.set(c, [...(groups.get(c) ?? []), w]);
+  }
+  return [...groups.entries()]
+    .map(([country, ws]) => ({ country, wines: ws }))
+    .sort((a, b) => Number(a.country === 'Elsewhere') - Number(b.country === 'Elsewhere') || b.wines.length - a.wines.length || a.country.localeCompare(b.country));
 }
 
 /** The page's address, next to the app: https://…/palate/loved/ */
@@ -107,6 +142,15 @@ export async function publishLoved(wines: Wine[]): Promise<{ ok: true; list: Sha
       if (url) photos[key] = url;
     }
     out.push(sharedWine(w, url));
+  }
+  // Tags, plain lines and foods: kept from last time, written by Claude for new wines.
+  const { blurbsFor, areaOf } = await import('./shareBlurbs');
+  const kept = Object.fromEntries((before?.wines ?? []).map((w) => [w.id, w.blurb]));
+  const blurbs = await blurbsFor(lovedToShare(wines), kept);
+  const byId = new Map(lovedToShare(wines).map((w) => [w.id, w]));
+  for (const w of out) {
+    w.blurb = blurbs[w.id];
+    w.area = areaOf(byId.get(w.id)!);
   }
   const list: SharedList = { name: SHARE_NAME, wines: out, photos, sharedAt: Date.now() };
   const { error } = await sb.from('shared_lists').upsert({ slug: SHARE_SLUG, user_id: uid, data: list, updated_at: new Date().toISOString() });
