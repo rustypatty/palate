@@ -1,7 +1,6 @@
-import { Heart } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { BottlePlaceholder } from '../components/BottleSilhouette';
-import { fetchShared, type SharedList, type SharedWine } from '../lib/share';
+import { byCountry, fetchShared, flagOf, type SharedList, type SharedWine } from '../lib/share';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -16,28 +15,33 @@ function Photo({ url }: { url: string | null }) {
 
 function WineCard({ w }: { w: SharedWine }) {
   const [open, setOpen] = useState(false);
-  const place = [w.region, w.country].filter(Boolean).join(', ');
+  const place = w.area ? `${w.region} · ${w.area}` : w.region;
   const meta = [place, w.grapes.slice(0, 3).join(', ')].filter(Boolean).join(' · ');
+  const b = w.blurb;
+  const more = Boolean(w.about?.whatItIs || w.about?.taste);
   return (
     <article className="shared-wine">
       <Photo url={w.photo} />
       <div className="shared-text">
-        {w.producer && w.name && <div className="shared-producer">{w.producer}</div>}
-        <h2 className="shared-name">
-          {[w.name || w.producer, w.vintage ?? ''].filter(Boolean).join(' ')}
-        </h2>
-        {meta && <div className="shared-meta">{meta}</div>}
-        <div className="shared-loved">
-          <Heart size={12} fill="currentColor" strokeWidth={0} /> Loved
-        </div>
-        {w.about && (
+        {b?.tag && <span className="shared-tag">{b.tag}</span>}
+        <h3 className="shared-name">{[w.name || w.producer, w.vintage ?? ''].filter(Boolean).join(' ')}</h3>
+        <div className="shared-meta">{[w.name ? w.producer : '', meta].filter(Boolean).join(' · ')}</div>
+        {b?.line ? <p className="shared-line">{b.line}</p> : w.about?.whatItIs && !open && <p className="shared-about clamp">{w.about.whatItIs}</p>}
+        {b?.pairing && (
+          <p className="shared-pairing">
+            <span>Try it with</span> {b.pairing}
+          </p>
+        )}
+        {open && w.about && (
           <>
-            {w.about.whatItIs && <p className={`shared-about${open ? '' : ' clamp'}`}>{w.about.whatItIs}</p>}
-            {open && w.about.taste && <p className="shared-about">{w.about.taste}</p>}
-            <button type="button" className="text-link shared-more" onClick={() => setOpen(!open)} aria-expanded={open}>
-              {open ? 'Less' : 'More'}
-            </button>
+            {w.about.whatItIs && <p className="shared-about">{w.about.whatItIs}</p>}
+            {w.about.taste && <p className="shared-about">{w.about.taste}</p>}
           </>
+        )}
+        {more && (
+          <button type="button" className="text-link shared-more" onClick={() => setOpen(!open)} aria-expanded={open}>
+            {open ? 'Less' : 'More about it'}
+          </button>
         )}
       </div>
     </article>
@@ -85,11 +89,22 @@ export function SharedPage() {
             </h1>
             <p className="lede">The bottles I’d happily buy again.</p>
           </section>
-          <div className="shared-list">
-            {list.wines.map((w) => (
-              <WineCard key={w.id} w={w} />
-            ))}
-          </div>
+          {byCountry(list.wines).map((g) => (
+            <section key={g.country} className="shared-country" aria-label={g.country}>
+              <h2 className="shared-country-head">
+                {flagOf(g.country) && <span className="shared-flag" aria-hidden="true">{flagOf(g.country)}</span>}
+                {g.country}
+                <span className="shared-count">
+                  {g.wines.length} {g.wines.length === 1 ? 'wine' : 'wines'}
+                </span>
+              </h2>
+              <div className="shared-list">
+                {g.wines.map((w) => (
+                  <WineCard key={w.id} w={w} />
+                ))}
+              </div>
+            </section>
+          ))}
         </>
       )}
       <footer className="shared-foot">Made with Palate</footer>

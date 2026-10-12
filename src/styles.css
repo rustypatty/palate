@@ -7337,3 +7337,53 @@ body.ask-open .bottomnav {
     grid-template-columns: 1fr 1fr;
   }
 }
+/* The shared page: grouped by country, with plain-language tags and lines */
+.shared-country {
+  display: grid;
+  gap: 12px;
+}
+.shared-country-head {
+  margin: 6px 0 0;
+  padding: 0 var(--text-in);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 28px;
+  line-height: 1.15;
+}
+.shared-flag {
+  font-size: 24px;
+}
+.shared-count {
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.shared-tag {
+  justify-self: start;
+  padding: 3px 10px;
+  border-radius: var(--pill);
+  background: rgba(122, 31, 53, 0.08);
+  color: var(--wine);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.shared-line {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.shared-pairing {
+  margin: 2px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.shared-pairing span {
+  font-weight: 600;
+  color: var(--ink);
+}
