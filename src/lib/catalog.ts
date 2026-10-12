@@ -1,7 +1,7 @@
 import { isBottleShot } from './likePhotos';
 import { GRAPES, lookupCatalog, searchCatalogAt, type CatalogWine } from './catalogMatch';
 import { norm } from './catalogNorm';
-import { relayedImageUrl, type WineLookup } from './labelClient';
+import { relayedImageUrl, relayedThumbUrl, type WineLookup } from './labelClient';
 import type { LabelReading } from './labelReader';
 import type { ShelfBottle, ShelfCatalog } from './shelf';
 import { SUPABASE_KEY, SUPABASE_URL } from './supabaseConfig';
@@ -127,6 +127,58 @@ async function lookupFrom(w: CatalogWine, needPhoto: boolean, deps: CatalogDeps,
   };
 }
 
+/** A bottle photo from the catalog, in the shape the photo finder uses. */
+export interface CatalogPhoto {
+  url: string;
+  thumbUrl: string;
+  pageUrl: string;
+  siteName: string;
+  title: string;
+}
+
+/**
+ * Photos of a wine in your cellar from the catalog, for the photo finder (any vintage). `sure`: a
+ * sure match with a clean bottle shot, used as is. `maybe`: when the catalog isn't sure, the photos
+ * of its likely entries from the same producer, for Claude to pick from (or turn down).
+ */
+export async function catalogPhotos(
+  producer: string,
+  name: string,
+  style?: string,
+  signal?: AbortSignal,
+  deps: CatalogDeps = DEFAULT_DEPS,
+): Promise<{ sure: CatalogPhoto | null; maybe: CatalogPhoto[] }> {
+  const none = { sure: null, maybe: [] };
+  if (!catalogConfigured && deps === DEFAULT_DEPS) return none;
+  if (!(producer.trim() || name.trim())) return none;
+  const { match, candidates } = await lookupCatalog({ producer, name, style }, (text) => deps.search(text, signal));
+  if (match.status === 'match') {
+    const l = await lookupFrom(match.wine, true, deps, match.others);
+    if (l.photo) return { sure: { ...l.photo, thumbUrl: relayedThumbUrl(l.photo.url) }, maybe: [] };
+  }
+  // Not sure: the likely entries from the same producer ("Caiarossa Toscane", "Aria di Caiarossa"…).
+  const want = norm(producer)
+    .split(' ')
+    .filter((t) => t.length > 1 && !PRODUCER_FILLER.has(t));
+  const sameProducer = (c: CatalogWine) => {
+    const have = new Set(norm(`${c.producer ?? ''} ${c.display_name ?? ''}`).split(' '));
+    return want.length > 0 && want.every((t) => have.has(t));
+  };
+  const pool = [...(match.status === 'uncertain' ? match.options : []), ...(match.status === 'match' ? [match.wine, ...(match.others ?? [])] : []), ...candidates];
+  const seen = new Set<string>();
+  const maybe = pool
+    .filter((c) => c.image_url && !NOT_A_PHOTO.test(c.image_url.split('?')[0]) && sameProducer(c) && !seen.has(c.image_url) && seen.add(c.image_url))
+    .slice(0, 6)
+    .map((c) => ({
+      url: relayedImageUrl(c.image_url!),
+      thumbUrl: relayedThumbUrl(c.image_url!),
+      pageUrl: c.image_source_page_url ?? '',
+      siteName: siteName(c.image_source_domain, c.image_source_page_url),
+      title: c.display_name ?? '',
+    }));
+  return { sure: null, maybe };
+}
+
 /** A bottle read off a shelf, looked up in the catalog: details and a bottle photo when it's a sure match. */
 export async function catalogForShelfBottle(b: ShelfBottle, signal?: AbortSignal, deps?: CatalogDeps): Promise<ShelfCatalog | null> {
   const reading: LabelReading = {
@@ -173,7 +225,7 @@ export function splitProducer(full: string, catalogProducer: string): { producer
   }
   return null;
 }
-const PRODUCER_FILLER = new Set(['chateau', 'domaine', 'domaines', 'bodegas', 'bodega', 'tenuta', 'maison', 'weingut', 'de', 'di', 'del', 'du', 'des', 'la', 'le', 'les', 'et', 'fils', 'winery', 'estate', 'vineyards', 'cellars']);
+const PRODUCER_FILLER = new Set(['and', 'chateau', 'domaine', 'domaines', 'bodegas', 'bodega', 'tenuta', 'maison', 'weingut', 'de', 'di', 'del', 'du', 'des', 'la', 'le', 'les', 'et', 'fils', 'winery', 'estate', 'vineyards', 'cellars']);
 
 /** The catalog's ids for a wine (its entry, then other shops' entries for the same wine), when it is a sure match. */
 export async function catalogWineIds(producer: string, name: string, deps?: CatalogDeps): Promise<string[]> {

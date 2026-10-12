@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { catalogForShelfBottle, catalogLookup, cleanGrapes, type CatalogDeps } from './catalog';
+import { catalogForShelfBottle, catalogLookup, catalogPhotos, cleanGrapes, type CatalogDeps } from './catalog';
 import type { CatalogWine } from './catalogMatch';
 import type { LabelReading } from './labelReader';
 
@@ -95,5 +95,49 @@ describe('catalog lookup after a label snap', () => {
       'Touriga Nacional',
     ]);
     expect(cleanGrapes(['Carignan', 'Mourvedre', 'Carignane', 'Mourvèdre', 'Syrah'])).toEqual(['Carignan', 'Mourvedre', 'Syrah']);
+  });
+});
+
+describe('catalog photos for the photo finder', () => {
+  it("uses a sure match's bottle shot as is", async () => {
+    const out = await catalogPhotos('Bodegas Muga', 'Reserva', undefined, undefined, deps([muga]));
+    expect(out.sure).toMatchObject({ siteName: 'willowpark.net' });
+    expect(out.sure?.url).toContain('images.weserv.nl');
+    expect(out.sure?.thumbUrl).toContain('w=400');
+    expect(out.maybe).toEqual([]);
+  });
+
+  it("offers the same producer's likely entries when the catalog isn't sure, never another producer's", async () => {
+    const entry = (wine_id: string, producer: string, cuvee: string, img: string) => ({
+      ...muga,
+      wine_id,
+      producer,
+      cuvee,
+      display_name: `${producer} ${cuvee}`,
+      aliases: [],
+      region: null,
+      appellation: null,
+      wine_type: 'red',
+      grapes: null,
+      image_url: `https://cdn.example.com/${img}.png`,
+      image_source_domain: 'shop.example.com',
+    });
+    const results = [
+      entry('a', 'Caiarossa', 'Toscane', 'toscane'),
+      entry('b', 'Caiarossa', 'Rosso di Toscana IGT', 'rosso'),
+      entry('c', 'Caiarossa', 'Aria di Caiarossa', 'aria'),
+      entry('d', 'Antinori', 'Tignanello', 'tignanello'),
+    ];
+    // No clean bottle shot on the best entry (or no sure match): Claude gets to pick.
+    const out = await catalogPhotos('Caiarossa', 'Caiarossa', undefined, undefined, deps(results, false));
+    expect(out.sure).toBeNull();
+    expect(out.maybe.map((p) => p.title)).toEqual(expect.arrayContaining(['Caiarossa Toscane', 'Caiarossa Aria di Caiarossa']));
+    expect(out.maybe.some((p) => p.title.includes('Antinori'))).toBe(false);
+  });
+
+  it('offers nothing when no entry is from the same producer', async () => {
+    const jobard = { ...muga, wine_id: 'j', producer: 'Antoine Jobard', cuvee: "Beaune 1er Cru 'Montrevenots'", display_name: "Antoine Jobard Beaune 1er Cru 'Montrevenots'", aliases: [] };
+    const out = await catalogPhotos('Domaine Jean Monnier & Fils', 'Beaune-Montrevenots Premier Cru', undefined, undefined, deps([jobard]));
+    expect(out).toEqual({ sure: null, maybe: [] });
   });
 });
