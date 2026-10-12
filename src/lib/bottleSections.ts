@@ -4,7 +4,7 @@ import type { CatalogFacts } from './catalogFacts';
 import { CRISP_PLACES, glassFor, type Glass } from './glass';
 import { grapeTraits, guideName } from './grapeGuide';
 import type { PalateProfile } from './profile';
-import { regionLines } from './regionGuide';
+import { regionLines, regionPhoto, type RegionPhoto } from './regionGuide';
 import type { TasteProfile } from './taste';
 
 /**
@@ -151,6 +151,8 @@ export interface RegionCard {
   forYou: string;
   /** The longer description from the wine's lesson, behind "Read more". */
   more: string;
+  /** A real photo of the place, credited; null when there isn't a checked one. */
+  photo: RegionPhoto | null;
 }
 
 export function regionCard(wine: Wine, all: Wine[], taste: TasteProfile | null, facts: CatalogFacts | null = null): RegionCard | null {
@@ -185,5 +187,6 @@ export function regionCard(wine: Wine, all: Wine[], taste: TasteProfile | null, 
     taste: lines.taste,
     forYou,
     more: wine.lesson?.place?.trim() ?? '',
+    photo: regionPhoto(app?.name ?? null, area),
   };
 }
