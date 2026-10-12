@@ -21,6 +21,9 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
+  // The shared Loved list (loved/) is its own page: leave it to the network, so it never replaces the app's shell.
+  if (req.mode === 'navigate' && /\/loved\/?$/.test(url.pathname)) return;
+
   // Pages: network first, fall back to the cached shell.
   if (req.mode === 'navigate') {
     event.respondWith(

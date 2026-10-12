@@ -16,6 +16,7 @@ It works on its own in the browser. Signing in to Palate's online storage (Supab
   - **Price watch** — the bell on Loved and Want to try bottles (see below).
 - **Photos** — take one, upload one, or let Palate find one: Claude searches the web for pages about the wine and picks bottle shots of this wine, or you search Open Food Facts / Wikimedia Commons, or paste an image address. Every candidate goes through an "Is this your bottle?" check. Photos are downscaled and stored on the device.
 - **Ask your wines** — the chat button at the top of My wines opens a chat that answers from your own wines ("What did I love from Spain?", "What should I open tonight with steak?"), plus general wine questions and what to try next. Wines it names appear as rows you can tap; recommendations offer "Find at Total Wine / Pogo's", which opens that store's list in In store. It only reads your wines, never changes them, and the conversation lasts for the session.
+- **Share your loved wines** — with the Loved filter on in My wines, **Share** makes a read-only page at `<app>/loved/` (for example `rustypatty.github.io/palate/loved/`) that anyone with the link can open, with a proper preview card in Messages and WhatsApp. It shows each loved wine with its photo and Palate's description; your own notes, prices and bottle counts are never included. **Update** refreshes it, **Stop sharing** takes it down. Needs online storage (sign-in).
 - **Want to try** — bottles saved for later, grouped by where they were suggested. Imported wishlists show as their own groups, your priorities first, then by tier and price.
 - **Tonight** — pick what you're cooking (pasta, steak, fish, spicy…) and Palate picks a bottle from your cellar, from a pairing table and your ratings. Free and on the device.
 - **Passport** — the places and grapes you've tasted, which ones you loved, the classics you haven't tried, and where to go next (starting with bottles you already have).
@@ -68,6 +69,7 @@ Optional; the app works without it. [`supabase/README.md`](supabase/README.md) c
 | `catalog_notes.sql` | Shared written descriptions in the wine catalog. (The catalog itself, the `catalog_wines` table of about 167,000 wines, is loaded separately; see `docs/catalog/`.) |
 | `push.sql` | Price-drop alert subscriptions and the server's push keys. |
 | `totalwine.sql`, `totalwine_refresh.sql` | Total Wine stock and the refresh job queue the extension works through. |
+| `share.sql` | The shared Loved list (`shared_lists`) and the public `shared` photo bucket. Anyone can read; only the owner can write. |
 | `price_check_cron.sql` | The Monday price check schedule (pg_cron), after deploying `price-check`. |
 | `functions/claude` | Forwards Claude requests with the server-held key. |
 | `functions/signin-code` | One-time sign-in codes for another device. |
