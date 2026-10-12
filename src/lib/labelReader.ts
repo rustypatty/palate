@@ -59,6 +59,8 @@ export interface LabelReading {
   region: string;
   grapes: string[];
   style: WineStyle | 'unknown';
+  /** Alcohol by volume as printed ("14.5"), or empty. Absent on readings from before it was read. */
+  abv?: string;
   confidence: 'high' | 'medium' | 'low';
   uncertain: string;
 }
@@ -117,7 +119,14 @@ export function readingToDraft(r: LabelReading): Partial<WineDraft> {
     region: r.region.trim(),
     grapes: r.grapes.map((g) => g.trim()).filter(Boolean),
     style: r.style === 'unknown' ? null : (r.style as WineStyle),
+    abv: abvFrom(r.abv ?? ''),
   };
+}
+
+/** "14.5", "14,5 % vol" → 14.5; anything outside a wine's range → null. */
+export function abvFrom(text: string): number | null {
+  const n = Number(text.replace(',', '.').match(/\d+(\.\d+)?/)?.[0]);
+  return n >= 5 && n <= 25 ? n : null;
 }
 
 /** Text for the in-store search box: what you'd have typed from the label. */

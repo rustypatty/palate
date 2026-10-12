@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { MoreLikeThis, SuggestionNote } from '../components/MoreLikeThis';
 import { BottleImage } from '../components/BottleImage';
+import { BottleSections } from '../components/BottleSections';
 import { Stepper } from '../components/Inputs';
 import { WatchBell } from '../components/PriceWatch';
 import { RatingPicker } from '../components/Rating';
@@ -207,6 +208,8 @@ export function WineDetailPage() {
           )}
           {tastedLine && <p className="tasted-line">{tastedLine}</p>}
         </section>
+
+        <BottleSections wine={wine} />
 
         <div className="detail-footer">
           <Link to={`/wine/${wine.id}/edit`} className="btn btn-dark btn-lg">
