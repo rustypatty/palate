@@ -158,14 +158,14 @@ const dealPrice = (deal: string): number | null => {
 };
 
 /**
- * Only bottles within budget, whatever Claude wrote: none over it and none whose price wasn't
- * read, except at most one over-budget bottle among "also good", and only if its sale or mix-6
- * price fits.
+ * Only bottles within budget, whatever Claude wrote: none whose read price is over it, except at
+ * most one over-budget bottle among "also good", and only if its sale or mix-6 price fits.
+ * Bottles with no price read are kept: a missing tag never hides a recommendation.
  */
 export function withinBudget(bottles: ShelfBottle[], budget: number | null): ShelfBottle[] {
   if (budget === null) return bottles;
-  // A price that wasn't read can't be shown to fit, so it's left out too.
-  const fits = (b: ShelfBottle) => b.price_usd > 0 && b.price_usd <= budget;
+  // A price tag is a bonus, never a requirement: a bottle whose price wasn't read stays in.
+  const fits = (b: ShelfBottle) => b.price_usd <= budget;
   const over = (b: ShelfBottle) => b.price_usd > budget;
   const top = bottles.filter((b) => b.verdict === 'top' && fits(b));
   const good = bottles.filter((b) => b.verdict === 'good' && fits(b));

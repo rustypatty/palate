@@ -188,7 +188,7 @@ export function ShelfSnap({ ref, onIdle }: { ref?: Ref<SnapHandle>; onIdle?: (id
         return;
       }
       if (!out.report.bottles.length) {
-        setError(out.report.unreadable || 'No bottles could be read. Try closer photos, straight on, with the price tags in view.');
+        setError(out.report.unreadable || 'No bottles could be read. Try closer photos, straight on, with the labels in view.');
         return;
       }
       // The photos were only for reading the labels: they're let go here, never saved.
@@ -485,7 +485,7 @@ function ShelfCard({
         <h3 className="pr-name">{[b.wine || b.producer, b.vintage].filter(Boolean).join(' ')}</h3>
         {facts && <div className="sc-facts">{facts}</div>}
         <div className="sc-price">
-          {b.price_usd > 0 ? <strong>{formatPrice(b.price_usd)}</strong> : <span className="muted">Price not read</span>}
+          {b.price_usd > 0 && <strong>{formatPrice(b.price_usd)}</strong>}
           {call && <span className={`price-call ${b.price_call}`}>{call}</span>}
         </div>
         {(b.deal || b.score) && <div className="sc-note">{[b.deal, b.score].filter(Boolean).join(' · ')}</div>}
