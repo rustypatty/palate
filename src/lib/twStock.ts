@@ -12,8 +12,8 @@ import type { SuggestedItem } from './stores';
  * bottles that were on the shelf when you imported, with their aisle.
  */
 
-/** An import older than this isn't used for lists: stock moves. The weekly refresh keeps it newer. */
-export const STOCK_FRESH = 10 * 24 * 3600 * 1000;
+/** An import older than this isn’t used for lists: stock moves. The refresh every other Monday keeps it newer (with a few days’ slack). */
+export const STOCK_FRESH = 18 * 24 * 3600 * 1000;
 
 const STYLES: WineStyle[] = ['red', 'white', 'rose', 'sparkling', 'orange', 'dessert', 'fortified'];
 
@@ -215,7 +215,7 @@ export function whereAmI(timeout = 8000): Promise<{ lat: number; lng: number } |
   });
 }
 
-/** Total Wine stores with stock imported in the last 10 days, newest first. */
+/** Total Wine stores with stock imported in the last 18 days, newest first. */
 export async function loadTwStores(now = Date.now()): Promise<TwStoreInfo[]> {
   const sb = await signedInClient();
   if (!sb) return [];

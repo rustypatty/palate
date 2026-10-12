@@ -15,7 +15,7 @@ export function refreshLine(job: RefreshJob): string {
 /**
  * Total Wine stock: how old it is, a Refresh button that asks the extension on your computer to
  * import your lists again, and the refresh's progress while it runs (the extension also refreshes
- * every Monday at 10am).
+ * every other Monday at 10am).
  */
 export function StockRefresh({ stock }: { stock: TwStock | null }) {
   const [state, setState] = useState<{ lists: number; job: RefreshJob | null } | null | undefined>(undefined);
@@ -66,7 +66,7 @@ export function StockRefresh({ stock }: { stock: TwStock | null }) {
       ) : (
         <>
           <span>
-            {stock ? `Stock from ${ago(stock.importedAt)}` : 'No stock from the last 10 days'}
+            {stock ? `Stock from ${ago(stock.importedAt)}` : 'No recent stock'}
             {failed ? ' · last refresh didn’t finish' : ''}
           </span>
           <button type="button" className="text-link" disabled={busy} onClick={ask}>

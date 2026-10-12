@@ -1,6 +1,6 @@
 -- Keeping imported Total Wine stock fresh without clicking: a small job queue.
 -- Every list you import with the extension is remembered (tw_sources). A refresh is a job
--- (tw_jobs): one every Monday at 10am Dallas time, or one you ask for from your phone. The
+-- (tw_jobs): one every other Monday at 10am Dallas time, or one you ask for from your phone. The
 -- extension checks for jobs every few minutes while Chrome is open, works through the pages
 -- in a minimized window, and carries on from the page it reached if it's interrupted.
 -- Only the tw-import function writes jobs' progress; the app reads them and can ask for a refresh.
@@ -46,7 +46,10 @@ create policy "read" on public.tw_sources for select to authenticated using (tru
 drop policy if exists "read" on public.tw_jobs;
 create policy "read" on public.tw_jobs for select to authenticated using (true);
 
--- Queue a refresh of every list (skipping lists that already have one open).
+-- Queue a refresh of every list (skipping lists that already have one open). The scheduled one
+-- runs every Monday but skips lists refreshed in the last 10 days, so each list is refreshed every
+-- other week; a list whose refresh didn't finish (or one you refreshed by hand a while ago) is
+-- picked up the next Monday.
 create or replace function public.queue_tw_refresh(job_kind text)
 returns int
 language sql
@@ -57,6 +60,8 @@ as $$
     insert into public.tw_jobs (source_id, kind)
     select s.id, job_kind from public.tw_sources s
     where s.active and not exists (select 1 from public.tw_jobs j where j.source_id = s.id and j.status in ('queued', 'running', 'needs_you'))
+      and (job_kind <> 'weekly' or not exists (
+        select 1 from public.tw_jobs j where j.source_id = s.id and j.status = 'done' and j.finished_at > now() - interval '10 days'))
     returning 1
   )
   select count(*)::int from added;
@@ -75,7 +80,7 @@ $$;
 revoke execute on function public.request_tw_refresh() from public, anon;
 grant execute on function public.request_tw_refresh() to authenticated;
 
--- Mondays at 10am in Dallas: cron runs in UTC, so try at 15:00 and 16:00 UTC and only act at 10 local.
+-- Mondays at 10am in Dallas (lists refreshed in the last 10 days are skipped, see above): cron runs in UTC, so try at 15:00 and 16:00 UTC and only act at 10 local.
 create extension if not exists pg_cron;
 select cron.unschedule('palate-tw-refresh') where exists (select 1 from cron.job where jobname = 'palate-tw-refresh');
 select cron.schedule(
