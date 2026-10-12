@@ -7540,8 +7540,11 @@ body.ask-open .bottomnav {
 }
 
 /* ---------- Wine page: Structure, Grapes, Region (after your notes) ---------- */
-.detail-body > .bottle-section {
-  margin-top: 30px;
+.take-section > .bottle-section {
+  margin-top: 6px;
+}
+.take-section .bottle-head {
+  padding: 0;
 }
 .bottle-section {
   display: grid;

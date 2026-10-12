@@ -186,6 +186,7 @@ export function WineDetailPage() {
         </div>
 
         <WineTake wine={wine}>
+          <BottleSections wine={wine} />
           <WineLearn wine={wine} />
         </WineTake>
 
@@ -209,7 +210,6 @@ export function WineDetailPage() {
           {tastedLine && <p className="tasted-line">{tastedLine}</p>}
         </section>
 
-        <BottleSections wine={wine} />
 
         <div className="detail-footer">
           <Link to={`/wine/${wine.id}/edit`} className="btn btn-dark btn-lg">

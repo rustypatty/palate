@@ -23,7 +23,7 @@ function Head({ text }: { text: string }) {
 /**
  * "Palate's take" on a wine page: what the wine is, how it tastes, how it fits you and how to
  * serve it. Written automatically the first time a wine is opened (about 3¢), then kept.
- * `children` (the Learn tile) sits after "Serve it".
+ * `children` (Structure, Grapes, Region and the Learn tile) sit after "Serve it".
  */
 export function WineTake({ wine, children }: { wine: Wine; children?: ReactNode }) {
   const wines = useWines();
