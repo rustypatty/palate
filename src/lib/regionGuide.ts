@@ -61,21 +61,3 @@ const APPELLATIONS: Record<string, RegionLines> = {
 export function regionLines(appellation: string | null, area: string): RegionLines | null {
   return (appellation ? APPELLATIONS[appellation] : undefined) ?? AREAS[area] ?? null;
 }
-
-/** A real photo of a region from Wikimedia Commons, kept with the app (public/regions/), and its credit. */
-export interface RegionPhoto {
-  /** Path under the app, e.g. "regions/barolo.jpg". */
-  src: string;
-  alt: string;
-  /** "Photo: Name · CC BY-SA 4.0" */
-  credit: string;
-  /** The photo's page on Wikimedia Commons (author and licence). */
-  page: string;
-}
-
-/** Checked by eye: each is the place it's named for. Regions without one show text only. */
-const PHOTOS: Record<string, RegionPhoto> = {};
-
-export function regionPhoto(appellation: string | null, area: string): RegionPhoto | null {
-  return (appellation ? PHOTOS[appellation] : undefined) ?? PHOTOS[area] ?? null;
-}
