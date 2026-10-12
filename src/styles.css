@@ -7538,3 +7538,195 @@ body.ask-open .bottomnav {
   font-weight: 600;
   color: var(--ink);
 }
+
+/* ---------- Wine page: Structure, Grapes, Region (after your notes) ---------- */
+.detail-body > .bottle-section {
+  margin-top: 30px;
+}
+.bottle-section {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.bottle-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 0 var(--text-in);
+}
+.bottle-head h2 {
+  margin: 0;
+  font: 400 26px/1.1 var(--font-display);
+}
+.bottle-match {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--wine);
+  white-space: nowrap;
+}
+.bottle-card {
+  background: var(--tone);
+  border-radius: 28px;
+  min-width: 0;
+}
+.structure-card {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+.structure-grid {
+  display: grid;
+  grid-template-columns: 1fr 92px;
+  gap: 14px;
+  align-items: center;
+}
+.structure-rows {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.structure-line {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.structure-row {
+  display: grid;
+  gap: 7px;
+}
+.structure-label {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 500;
+  font-size: 14px;
+}
+.structure-label span {
+  color: var(--ink-2);
+}
+.structure-label strong {
+  font-weight: 600;
+}
+.structure-bar {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.structure-bar span {
+  height: 7px;
+  border-radius: 4px;
+  background: #e2d9cd;
+}
+.structure-bar span.on {
+  background: var(--wine);
+}
+.structure-glass {
+  display: flex;
+  justify-content: center;
+}
+.structure-fit {
+  margin: 0;
+  padding-top: 14px;
+  border-top: 1px solid #e2d9cd;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.grape-card {
+  display: grid;
+  gap: 6px;
+  padding: 18px 20px;
+}
+.grape-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.grape-name {
+  font: 400 20px/1.2 var(--font-display);
+}
+.grape-share {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.grape-taste {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.grape-more {
+  margin: 0;
+  padding: 0 var(--text-in);
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.bottle-link {
+  justify-self: start;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--wine);
+  cursor: pointer;
+  text-align: left;
+}
+.bottle-link.muted {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.region-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px 20px;
+  overflow: hidden;
+}
+.region-title {
+  display: grid;
+  gap: 2px;
+}
+.region-name {
+  font: 400 20px/1.25 var(--font-display);
+}
+.region-country {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.region-rows {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 6px 12px;
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.region-rows dt {
+  font-weight: 600;
+  font-size: 10.5px;
+  line-height: 20px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.region-rows dd {
+  margin: 0;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+.region-rows dd.region-you {
+  color: var(--wine);
+  font-weight: 600;
+}
+.region-more {
+  margin: 0;
+  line-height: 1.55;
+  white-space: pre-line;
+}
