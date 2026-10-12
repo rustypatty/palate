@@ -73,6 +73,29 @@ export interface CatalogDeps {
 const DEFAULT_DEPS: CatalogDeps = { search, isBottle: (url) => isBottleShot(url).catch(() => false) };
 
 /**
+ * Total Wine's product photos (the bottles your imported stock lists) and photos the finder
+ * confirmed before, in the catalog's shape. Signed in only; empty otherwise.
+ */
+async function photoSourcesSearch(text: string, signal?: AbortSignal): Promise<CatalogWine[]> {
+  const { signedInClient } = await import('./cloud');
+  const sb = await signedInClient();
+  if (!sb) return [];
+  let call = sb.rpc('photo_sources_search', { q: text, lim: 15 });
+  if (signal) call = call.abortSignal(signal);
+  const { data, error } = await call;
+  return error ? [] : ((data ?? []) as CatalogWine[]);
+}
+
+/** For the photo finder: the catalog, Total Wine's photos and earlier finds, searched together. */
+const PHOTO_DEPS: CatalogDeps = {
+  search: async (text, signal) => {
+    const [extra, catalog] = await Promise.all([photoSourcesSearch(text, signal).catch(() => []), catalogConfigured ? search(text, signal) : Promise.resolve([])]);
+    return [...extra, ...catalog];
+  },
+  isBottle: DEFAULT_DEPS.isBottle,
+};
+
+/**
  * The snapped wine from the catalog, as the same details the web lookup gives. Null when the
  * catalog isn't sure (or can't be reached). Without a clean bottle shot the details still come
  * back, with no photo: the bottle photo is found later, not by a paid web lookup now.
@@ -137,7 +160,8 @@ export interface CatalogPhoto {
 }
 
 /**
- * Photos of a wine in your cellar from the catalog, for the photo finder (any vintage). `sure`: a
+ * Photos of a wine in your cellar from the catalog (with Total Wine's photos and earlier finds),
+ * for the photo finder (any vintage). `sure`: a
  * sure match with a clean bottle shot, used as is. `maybe`: when the catalog isn't sure, the photos
  * of its likely entries from the same producer, for Claude to pick from (or turn down).
  */
@@ -146,10 +170,9 @@ export async function catalogPhotos(
   name: string,
   style?: string,
   signal?: AbortSignal,
-  deps: CatalogDeps = DEFAULT_DEPS,
+  deps: CatalogDeps = PHOTO_DEPS,
 ): Promise<{ sure: CatalogPhoto | null; maybe: CatalogPhoto[] }> {
   const none = { sure: null, maybe: [] };
-  if (!catalogConfigured && deps === DEFAULT_DEPS) return none;
   if (!(producer.trim() || name.trim())) return none;
   const { match, candidates } = await lookupCatalog({ producer, name, style }, (text) => deps.search(text, signal));
   if (match.status === 'match') {
