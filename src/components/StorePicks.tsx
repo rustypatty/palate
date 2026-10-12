@@ -5,6 +5,7 @@ import { useAllWines, useLists, useWines } from '../hooks';
 import { getApiKey } from '../lib/labelReader';
 import { markNotForMe, saveToWant } from '../lib/lists';
 import { asSuggestion, clearStoreList, LIST_TTL, possessive, refreshPogos, requestStockList, requestStoreList, storeById, STORES, type StoreId } from '../lib/stores';
+import { recentlyShown, shuffled } from '../lib/shownPicks';
 import { nearestStore, shortlist, whereAmI } from '../lib/twStock';
 import { loadProfile, whiteFavourites } from '../lib/profile';
 import { StockRefresh } from './StockRefresh';
@@ -229,6 +230,8 @@ export function StorePicksPanel() {
       {
         const rated = (wines ?? []).filter((w) => w.rating);
         const label = (w: { producer: string; name: string; region: string }) => [w.producer, w.name, w.region && `(${w.region})`].filter(Boolean).join(' ');
+        // What this store's recent lists already showed: not offered again.
+        const shown = recentlyShown(store.id);
         const req = {
           store,
           taste: taste?.summary ?? [],
@@ -236,7 +239,7 @@ export function StorePicksPanel() {
           liked: rated.filter((w) => w.rating === 'liked').map(label),
           disliked: rated.filter((w) => w.rating === 'wouldnt').map(label),
           // Your collection first (tried or at home), then saved and dismissed; a long list costs little.
-          skip: [...(wines ?? []), ...(lists?.want ?? []), ...(lists?.passed ?? [])].map(label).slice(0, 150),
+          skip: [...shown.map((p) => p.title), ...[...(wines ?? []), ...(lists?.want ?? []), ...(lists?.passed ?? [])].map(label)].slice(0, 150),
           budget,
           style: listStyle === 'any' ? null : listStyle,
         };
@@ -257,6 +260,7 @@ export function StorePicksPanel() {
           const style = listStyle === 'any' ? null : listStyle;
           const short = shortlist(advisor, src.bottles, {
             passed: lists?.passed,
+            avoid: new Set(shown.map((p) => p.key)),
             budget,
             usual: taste?.price ?? null,
             have: wines ?? [],
@@ -268,7 +272,7 @@ export function StorePicksPanel() {
             return;
           }
           setBusy(`Choosing from ${src.bottles.length} bottles in stock at ${src.storeName}…`);
-          out = await requestStockList(req, { storeName: src.storeName, importedAt: src.importedAt, count: src.bottles.length }, short, ctl.signal);
+          out = await requestStockList(req, { storeName: src.storeName, importedAt: src.importedAt, count: src.bottles.length }, shuffled(short), ctl.signal);
         } else {
           setBusy(`Searching ${possessive(store.name)} website for bottles you’d like — about a minute…`);
           out = await requestStoreList(req, ctl.signal);

@@ -149,14 +149,17 @@ function prepared(w: Wine) {
 export function shortlist(
   advisor: ReturnType<typeof makeAdvisor>,
   bottles: SuggestedItem[],
-  opts: RankOptions & { have?: Wine[]; style?: WineStyle | null; prefer?: string[] },
+  opts: RankOptions & { have?: Wine[]; style?: WineStyle | null; prefer?: string[]; avoid?: Set<string> },
   n = 50,
 ): SuggestedItem[] {
   const budget = opts.budget ?? null;
   const fits = (b: SuggestedItem) => b.sizeMl === null || b.sizeMl === 750;
-  const pool = bottles.filter(
+  const eligible = bottles.filter(
     (b) => fits(b) && (!opts.style || b.style === opts.style) && (budget === null || (b.price !== null && b.price <= budget)) && !alreadyHave(b, opts.have ?? []),
   );
+  // Bottles recent lists already showed are left out, so each list is fresh: unless that would leave too few.
+  const fresh = opts.avoid?.size ? eligible.filter((b) => !opts.avoid!.has(b.key)) : eligible;
+  const pool = fresh.length >= Math.min(n, 20) ? fresh : eligible;
   const out = new Map<string, SuggestedItem>();
   for (const p of rankCandidates(advisor, pool, opts, Math.round(n * 0.7), 4)) out.set(p.item.key, p.item);
   const passed = new Set((opts.passed ?? []).map((w) => w.suggestion?.key).filter(Boolean));

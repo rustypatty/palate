@@ -145,6 +145,15 @@ describe('imported stock in the app', () => {
     expect(shortlist(advisor, bottles, { budget: null })).toHaveLength(2);
   });
 
+  it('leaves out bottles recent lists showed, unless that would leave too few', () => {
+    const advisor = makeAdvisor([wine({ producer: 'Fèlsina', name: 'Chianti Classico', region: 'Chianti Classico', grapes: ['Sangiovese'], rating: 'loved', country: 'Italy' })]);
+    const bottles = [stockBottle(row(renieri))!, stockBottle(row(castelgiocondo))!];
+    const shownBefore = new Set([bottles[0].key]);
+    expect(shortlist(advisor, bottles, { avoid: shownBefore }, 1).map((b) => b.key)).toEqual([bottles[1].key]);
+    // Both shown before: nothing fresh is left, so they come back rather than an empty list.
+    expect(shortlist(advisor, bottles, { avoid: new Set(bottles.map((b) => b.key)) }, 1)).toHaveLength(1);
+  });
+
   it('takes Claude’s picks by number only, within budget', () => {
     const bottles = [stockBottle(row(renieri))!, stockBottle(row(castelgiocondo))!];
     expect(stockLine(bottles[0], 0)).toBe('1. Tenuta di Renieri Chianti Classico 2023 — Tuscany, Sangiovese — $21.99 — Mix 6 for $19.79 each — 92 pts (James Suckling)');
