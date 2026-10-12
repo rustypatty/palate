@@ -7,9 +7,11 @@ import { relayedImageUrl } from './labelClient';
  * Every bottle should show a real photo, without you having to look for one. Wines showing the
  * silhouette (no photo, only a camera snap, or a link to a shop's photo that's gone) are looked up
  * in the background, one at a time:
- *  1. Palate's wine catalog: a sure match's photo is used straight away (free, a second). When the
- *     catalog isn't sure, Claude picks from its likely entries' photos (about 2¢, a few seconds).
+ *  1. Palate's wine catalog, Total Wine's product photos (the bottles in your imported stock) and
+ *     photos found before: a sure match's photo is used straight away (free, a second). When it
+ *     isn't sure, Claude picks from the likely entries' photos (about 2¢, a few seconds).
  *  2. Only then the web search (about 5¢, half a minute).
+ * A photo Claude confirmed is saved for next time (learned_photos), so it's then a sure match.
  * A search that finds nothing is tried again after two weeks (or when the name changes); one that
  * was interrupted (app closed, no connection) is tried again soon.
  * Photos still linked to a shop's site are saved as your own copy, so they can't disappear.
@@ -98,18 +100,49 @@ export function subscribeFinding(l: () => void): () => void {
 }
 export const isFinding = (id: string) => finding.has(id);
 
-/** The wine's photo from Palate's catalog: a sure match, or Claude's pick of its likely entries. */
+/**
+ * The wine's photo from Palate's catalog (with Total Wine's photos and earlier finds): a sure
+ * match, or Claude's pick of its likely entries. `confirmed` when Claude picked it.
+ */
 async function fromCatalog(wine: Wine, snap: Blob | null, signal?: AbortSignal) {
   const { catalogPhotos } = await import('./catalog');
   const found = await catalogPhotos(wine.producer, wine.name, wine.style || undefined, signal).catch(() => null);
   if (!found) return null;
-  if (found.sure) return found.sure;
+  if (found.sure) return { pick: found.sure, confirmed: false };
   if (!found.maybe.length) return null;
   const { getApiKey } = await import('./labelReader');
   const apiKey = getApiKey();
   if (!apiKey) return null;
   const out = await (await import('./bottlePhotoClient')).pickBottlePhoto(apiKey, wineQuery(wine), found.maybe, snap, signal);
-  return out.ok && out.matched ? out.photos[0] : null;
+  return out.ok && out.matched ? { pick: out.photos[0], confirmed: true } : null;
+}
+
+/** The image's own address, from an image-relay link. */
+function originalImage(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.hostname === 'images.weserv.nl' ? (u.searchParams.get('url') ?? url) : url;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * A photo Claude confirmed for this wine, saved for next time: the photo finder (and anyone
+ * looking up the same wine) then finds it straight away, for free.
+ */
+async function learnPhoto(wine: Wine, pick: { url: string; pageUrl: string; siteName: string }): Promise<void> {
+  const { signedInClient } = await import('./cloud');
+  const sb = await signedInClient();
+  if (!sb) return;
+  await sb.from('learned_photos').insert({
+    producer: wine.producer.trim(),
+    name: wine.name.trim(),
+    style: wine.style || null,
+    image_url: originalImage(pick.url),
+    page_url: pick.pageUrl,
+    site: pick.siteName,
+  }); // a photo already saved for this wine is turned down, which is fine
 }
 
 /** Look one wine up and put the photo in place. True if a photo was found. */
@@ -120,8 +153,11 @@ export async function findPhotoFor(wine: Wine, signal?: AbortSignal): Promise<bo
   try {
     // Your own snap, if there is one, is only used to check the photo is the same bottle.
     const snap = wine.photo?.kind === 'local' ? ((await db.photos.get(wine.photo.blobId))?.blob ?? null) : null;
-    let pick = await fromCatalog(wine, snap, signal).catch(() => null);
+    const catalog = await fromCatalog(wine, snap, signal).catch(() => null);
     if (signal?.aborted) return false;
+    let pick = catalog?.pick ?? null;
+    // Confirmed by Claude (not a sure catalog match, which is found again anyway): learn it.
+    let learn = Boolean(catalog?.confirmed);
     if (!pick) {
       const outcome = await findBottlePhotos(wineQuery(wine), snap, signal);
       if (signal?.aborted) return false;
@@ -131,7 +167,9 @@ export async function findPhotoFor(wine: Wine, signal?: AbortSignal): Promise<bo
         return false;
       }
       pick = outcome.photos[0];
+      learn = true;
     }
+    if (learn) void learnPhoto(wine, pick).catch(() => {});
     const photo = await photoFromUrl(pick.url, { name: pick.siteName, pageUrl: pick.pageUrl, title: pick.title });
     saveTry(wine.id, signature(wine));
     // Only if it still needs one (you may have changed it meanwhile).
