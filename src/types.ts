@@ -122,6 +122,8 @@ export interface Wine {
   tastedOn: string | null;
   barcode: string;
   photo: Photo | null;
+  /** Alcohol by volume (%), as read from the label. */
+  abv?: number | null;
   /** Published tasting notes (winery/shop), summarised — kept apart from the user's own notes. */
   about?: AboutWine | null;
   /** Palate's written description of this wine for you, kept so reopening the page is free. */

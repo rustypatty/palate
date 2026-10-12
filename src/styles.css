@@ -7660,10 +7660,9 @@ body.ask-open .bottomnav {
   text-wrap: pretty;
 }
 .grape-more {
-  margin: 0;
-  padding: 0 var(--text-in);
-  font-size: 13px;
+  font: 500 13px var(--font);
   color: var(--ink-3);
+  white-space: nowrap;
 }
 .bottle-link {
   justify-self: start;

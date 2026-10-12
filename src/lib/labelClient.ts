@@ -20,6 +20,7 @@ const LabelSchema = z.object({
   style: z
     .enum(['red', 'white', 'rose', 'sparkling', 'orange', 'dessert', 'fortified', 'unknown'])
     .describe('Only if the label states it (rouge/blanc/rosé, "red wine", a sparkling term) or the appellation allows just one style. Otherwise "unknown".'),
+  abv: z.string().describe('Alcohol by volume as printed, digits only, e.g. "14.5". Empty if not visible.'),
   confidence: z.enum(['high', 'medium', 'low']).describe('How sure you are about producer and wine name.'),
   uncertain: z.string().describe('One short sentence about anything unreadable or guessed; empty if nothing.'),
 });

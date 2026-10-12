@@ -35,7 +35,7 @@ refosco timorasso ruche pecorino passerina garganega rondinella molinara corvino
 clairette bourboulenc counoise aligote savagnin trousseau poulsard mondeuse jacquere chasselas manseng gros courbu cot auxerrois meunier
 petit petite welschriesling muskateller zierfandler rotgipfler loureiro arinto encruzado baga castelao alfrocheiro trincadeira aragonez
 sousao malvasia verdelho moscatel bobal cencibel mazuelo carignane muscadelle sciaccerellu nielluccio vermentinu listan perricone
-susumaniello primitivo cserszegi harslevelu kekfrankos plavac mali vranec rkatsiteli saperavi`.split(/\s+/),
+susumaniello primitivo crljenak kastelanski tribidrag durif alicante bouschet cserszegi harslevelu kekfrankos plavac mali vranec rkatsiteli saperavi`.split(/\s+/),
 );
 
 // Words that only appear inside a grape's name ("Pinot Noir", "Nero d'Avola", "Touriga Nacional").

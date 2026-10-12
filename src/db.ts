@@ -60,6 +60,7 @@ export function emptyDraft(): WineDraft {
     notes: '',
     about: null,
     tastedOn: null,
+    abv: null,
     barcode: '',
     photo: null,
   };

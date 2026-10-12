@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { emptyDraft } from '../db';
 import type { Wine } from '../types';
-import { grapeCards, regionCard, structureOf } from './bottleSections';
+import { grapeCard, regionCard, structureOf } from './bottleSections';
+import { votedGrapes } from './catalogFacts';
+import { abvFrom } from './labelReader';
 import { glassFor } from './glass';
 import type { PalateProfile } from './profile';
 import { buildTaste } from './taste';
@@ -42,7 +44,7 @@ describe('Structure', () => {
 
   it('uses the place’s usual grapes when none are named, and hides tannin for whites', () => {
     const cdp = structureOf(wine({ name: 'Châteauneuf-du-Pape', style: 'red' }), null)!;
-    expect(cdp.line).toBe('Red · typical for Grenache and Syrah');
+    expect(cdp.line).toBe('Red · typical for a Grenache blend');
     expect(cdp.fit).toBe('');
     const albarino = structureOf(wine({ name: 'Rías Baixas', style: 'white', grapes: ['Albariño'] }), profile)!;
     expect(albarino.rows.map((r) => r.label)).not.toContain('Tannin');
@@ -80,19 +82,47 @@ describe('Grapes and Region', () => {
     wine({ producer: 'E', region: 'Rioja', style: 'red', grapes: ['Tempranillo'], rating: 'wouldnt' }),
   ];
 
-  it('gives each grape a line and how many of it you loved; blends stop at three', () => {
-    const g = grapeCards(barolo, loved)!;
-    expect(g.cards).toEqual([{ name: 'Nebbiolo', share: '100%', taste: expect.stringContaining('roses, tar'), loved: 3 }]);
-    const blend = grapeCards(wine({ grapes: ['Cabernet Sauvignon', 'Merlot', 'Cabernet Franc', 'Petit Verdot', 'Malbec'] }), [])!;
-    expect(blend.cards).toHaveLength(3);
-    expect(blend.more).toBe(2);
-    expect(blend.cards[0].share).toBe('');
-    expect(grapeCards(wine({ name: 'Gigondas' }), [])!.cards[0].share).toBe('Usually');
+  it('shows all the grapes on one card, with the lead grape’s line and the one you loved most', () => {
+    const g = grapeCard(barolo, loved)!;
+    expect(g).toMatchObject({ names: ['Nebbiolo'], more: 0, share: '100%', loved: { grape: 'Nebbiolo', n: 3 } });
+    expect(g.taste).toContain('roses, tar');
+    const blend = grapeCard(wine({ grapes: ['Cabernet Sauvignon', 'Merlot', 'Cabernet Franc', 'Petit Verdot', 'Malbec'] }), loved)!;
+    expect(blend).toMatchObject({ names: ['Cabernet Sauvignon', 'Merlot', 'Cabernet Franc'], more: 2, share: '', loved: null });
+    expect(blend.taste).toMatch(/^Cabernet Sauvignon leads: blackcurrant/);
+    expect(grapeCard(wine({ name: 'Gigondas' }), [])!.share).toBe('Usually');
+  });
+
+  it('uses the catalog’s grapes when the wine has none, before the place’s usual ones', () => {
+    const facts = { grapes: ['Tempranillo', 'Garnacha'], subregion: '' };
+    const w = wine({ producer: 'X', name: 'Rioja Reserva', region: 'Rioja', style: 'red' });
+    expect(grapeCard(w, [], facts)).toMatchObject({ names: ['Tempranillo', 'Grenache'], share: '' });
+    expect(structureOf(w, null, facts)!.line).toBe('Red · typical for a Tempranillo blend');
+    expect(structureOf({ ...w, abv: 14.5 }, null, facts)!.line).toBe('Red · 14.5% ABV · typical for a Tempranillo blend');
+    expect(grapeCard(w, [], facts)!.taste).toMatch(/^Tempranillo: cherry/);
+    // Shops' names for grapes, and the grape most of them list first.
+    expect(
+      votedGrapes([
+        { grapes: ['Carignan', 'Mourvedre', 'Crljenak kaštelanski', 'Durif', 'Region'], source_count: 13 },
+        { grapes: ['Crljenak kaštelanski', 'Durif'], source_count: 2 },
+        { grapes: ['Crljenak kaštelanski'], source_count: 1 },
+      ]),
+    ).toEqual(['Zinfandel', 'Petite Sirah', 'Carignan', 'Mourvèdre']);
+  });
+
+  it('reads the alcohol from the label as a number', () => {
+    expect(abvFrom('14.5')).toBe(14.5);
+    expect(abvFrom('13,5 % vol')).toBe(13.5);
+    expect(abvFrom('')).toBeNull();
+    expect(abvFrom('750')).toBeNull();
   });
 
   it('describes the place and what it means for you', () => {
     const r = regionCard(barolo, loved, buildTaste(loved))!;
-    expect(r).toMatchObject({ name: 'Barolo', area: 'Piedmont', country: 'Italy', knownFor: expect.stringContaining('Nebbiolo') });
+    expect(r).toMatchObject({ name: 'Barolo', area: 'Piedmont', sub: 'Italy', knownFor: expect.stringContaining('Nebbiolo') });
+    // The catalog's sub-region shows when it adds something.
+    expect(regionCard(barolo, [], null, { grapes: [], subregion: 'Barolo' })!.sub).toBe('Italy');
+    const sonoma = wine({ region: 'Sonoma Coast', country: 'United States', name: 'Pinot Noir' });
+    expect(regionCard(sonoma, [], null, { grapes: [], subregion: 'Russian River Valley' })?.sub).toBe('Russian River Valley · United States');
     expect(r.forYou).toMatch(/2 loved|loved 2/);
     expect(regionCard(wine({ region: 'Somewhere new' }), [], null)).toBeNull();
   });

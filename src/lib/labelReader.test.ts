@@ -24,7 +24,9 @@ describe('label readings', () => {
       region: 'Dry Creek Valley',
       grapes: ['Zinfandel', 'Petite Sirah'],
       style: 'red',
+      abv: null,
     });
+    expect(readingToDraft({ ...base, abv: '14.5' }).abv).toBe(14.5);
   });
 
   it('handles NV, unreadable vintages and unknown style', () => {

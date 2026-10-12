@@ -1,5 +1,6 @@
 import type { Wine, WineStyle } from '../types';
 import { canonicalGrape, factsFromText, findAppellation } from './appellations';
+import type { CatalogFacts } from './catalogFacts';
 import { CRISP_PLACES, glassFor, type Glass } from './glass';
 import { grapeTraits, guideName } from './grapeGuide';
 import type { PalateProfile } from './profile';
@@ -7,8 +8,9 @@ import { regionLines } from './regionGuide';
 import type { TasteProfile } from './taste';
 
 /**
- * The Structure, Grapes and Region sections at the end of a wine page. All from Palate's own
- * grape and region guides and your ratings: nothing is asked of Claude, so they cost nothing.
+ * The Structure, Grapes and Region sections at the end of a wine page. From the wine itself,
+ * Palate's wine catalog (grapes, sub-region), Palate's own grape and region guides and your
+ * ratings: nothing is asked of Claude, so they cost nothing.
  * Each returns null when there's nothing reliable to show, and the section is left out.
  */
 
@@ -32,12 +34,16 @@ export interface Structure {
 const STYLE_WORD: Record<WineStyle, string> = { red: 'Red', white: 'White', rose: 'Rosé', sparkling: 'Sparkling', orange: 'Orange', dessert: 'Dessert', fortified: 'Fortified' };
 const placeText = (w: Wine) => `${w.region} ${w.name}`;
 
-/** The wine's grapes as the guide names them; the place's usual grapes when the wine names none. */
-function grapesOf(wine: Wine): { grapes: string[]; usual: boolean } {
-  const own = [...new Set(wine.grapes.map(canonicalGrape).filter(Boolean))];
+const uniq = (gs: string[]) => [...new Set(gs.map(canonicalGrape).filter(Boolean))];
+
+/** The wine's grapes; else the catalog's for it; else the place's usual grapes ("usual"). */
+function grapesOf(wine: Wine, facts: CatalogFacts | null): { grapes: string[]; usual: boolean; catalog?: boolean } {
+  const own = uniq(wine.grapes);
   if (own.length) return { grapes: own, usual: false };
-  const facts = factsFromText(placeText(wine));
-  return { grapes: facts.grapes, usual: facts.grapes.length > 0 };
+  const catalog = uniq(facts?.grapes ?? []);
+  if (catalog.length) return { grapes: catalog, usual: false, catalog: true };
+  const usual = factsFromText(placeText(wine)).grapes;
+  return { grapes: usual, usual: usual.length > 0 };
 }
 
 const level3 = (n: number, words: [string, string, string]) => (n <= 2 ? words[0] : n === 3 ? words[1] : words[2]);
@@ -47,8 +53,8 @@ function prefText(p: PalateProfile | null, key: string): string {
   return p?.preferences.find((x) => (x.key ?? x.dimension.replace(/ /g, '_')) === key)?.value.toLowerCase() ?? '';
 }
 
-export function structureOf(wine: Wine, profile: PalateProfile | null): Structure | null {
-  const { grapes } = grapesOf(wine);
+export function structureOf(wine: Wine, profile: PalateProfile | null, facts: CatalogFacts | null = null): Structure | null {
+  const { grapes } = grapesOf(wine, facts);
   const known = grapes.map((g) => ({ g, t: grapeTraits(g) })).filter((x): x is { g: string; t: NonNullable<typeof x.t> } => Boolean(x.t));
   if (!known.length) return null;
   const style: WineStyle = wine.style ?? (known[0].t.red ? 'red' : 'white');
@@ -70,8 +76,9 @@ export function structureOf(wine: Wine, profile: PalateProfile | null): Structur
     { label: 'Acidity', value: level3(acidity, ['Low', 'Medium', 'High']), level: acidity },
     { label: 'Sweetness', value: sweetness === 1 ? 'Dry' : sweetness < 4 ? 'Off-dry' : 'Sweet', level: sweetness },
   ];
-  const names = known.map((x) => guideName(x.g)!).slice(0, 2);
-  const line = `${STYLE_WORD[style]} · typical for ${names.join(' and ')}`;
+  const lead = guideName(known[0].g)!;
+  const abv = wine.abv ? `${wine.abv}% ABV` : '';
+  const line = [STYLE_WORD[style], abv, grapes.length > 1 ? `typical for a ${lead} blend` : `typical for ${lead}`].filter(Boolean).join(' · ');
   const { fit, matches } = fitFor(style, { body, tannin, acidity, sweetness }, profile);
   return { line, rows, glass: glassFor(style, known.map((x) => x.g), placeText(wine)), fit, matches };
 }
@@ -97,32 +104,48 @@ export function fitFor(style: WineStyle, s: { body: number; tannin: number; acid
 }
 
 export interface GrapeCard {
-  name: string;
-  /** "100%" when it's the only grape, "Usually" when it's the place's usual grape; else ''. */
+  /** The grapes, most important first (up to three). */
+  names: string[];
+  /** How many more grapes there are beyond those. */
+  more: number;
+  /** "100%" when it's the only grape, "Usually" when they're the place's usual grapes; else ''. */
   share: string;
+  /** How the lead grape tastes. */
   taste: string;
-  loved: number;
+  /** The grape of these you've loved most often, and how many. */
+  loved: { grape: string; n: number } | null;
 }
 
 const lovedWith = (all: Wine[], grape: string) => all.filter((w) => w.rating === 'loved' && w.list !== 'passed' && w.grapes.some((g) => canonicalGrape(g) === grape)).length;
 
-export function grapeCards(wine: Wine, all: Wine[]): { cards: GrapeCard[]; more: number } | null {
-  const { grapes, usual } = grapesOf(wine);
+/** One card for all the wine's grapes, so a blend doesn't stretch the page. */
+export function grapeCard(wine: Wine, all: Wine[], facts: CatalogFacts | null = null): GrapeCard | null {
+  const { grapes, usual, catalog } = grapesOf(wine, facts);
   if (!grapes.length) return null;
-  const cards = grapes.slice(0, 3).map((g) => ({
-    name: guideName(g) ?? g,
+  const names = grapes.slice(0, 3).map((g) => guideName(g) ?? g);
+  const lead = grapes.map(grapeTraits).find(Boolean);
+  const best = grapes
+    .map((g) => ({ grape: guideName(g) ?? g, n: lovedWith(all, canonicalGrape(g)) }))
+    .sort((a, b) => b.n - a.n)[0];
+  return {
+    names,
+    more: Math.max(0, grapes.length - 3),
     share: usual ? 'Usually' : grapes.length === 1 ? '100%' : '',
-    taste: grapeTraits(g)?.taste ?? '',
-    loved: lovedWith(all, canonicalGrape(g)),
-  }));
-  return { cards, more: Math.max(0, grapes.length - 3) };
+    // The label's order is by share, so the first grape "leads"; the catalog's is only how often shops list it.
+    taste:
+      lead && grapes.length > 1 && guideName(grapes[0])
+        ? `${guideName(grapes[0])}${catalog ? ':' : ' leads:'} ${lead.taste[0].toLowerCase()}${lead.taste.slice(1)}`
+        : (lead?.taste ?? ''),
+    loved: best.n > 0 ? best : null,
+  };
 }
 
 export interface RegionCard {
   /** "Barolo" and "Piedmont" ("Barolo, *Piedmont*"); place empty when they're the same. */
   name: string;
   area: string;
-  country: string;
+  /** "Russian River Valley · United States", or just the country. */
+  sub: string;
   knownFor: string;
   taste: string;
   forYou: string;
@@ -130,7 +153,7 @@ export interface RegionCard {
   more: string;
 }
 
-export function regionCard(wine: Wine, all: Wine[], taste: TasteProfile | null): RegionCard | null {
+export function regionCard(wine: Wine, all: Wine[], taste: TasteProfile | null, facts: CatalogFacts | null = null): RegionCard | null {
   const app = findAppellation(placeText(wine));
   const area = app?.area ?? wine.region.trim();
   const lines = regionLines(app?.name ?? null, area);
@@ -148,10 +171,16 @@ export function regionCard(wine: Wine, all: Wine[], taste: TasteProfile | null):
     : loved.length
       ? `You’ve loved ${loved.length} ${loved.length === 1 ? 'wine' : 'wines'} from here.`
       : '';
+  const name = app?.name ?? area;
+  const shownArea = app && app.area !== app.name ? app.area : '';
+  // The catalog's sub-region, when it adds something ("Barolo" for a Barolo doesn't).
+  const fold = (x: string) => x.toLowerCase().normalize('NFD').replace(/[^a-z]/g, '');
+  const subregion = facts?.subregion ?? '';
+  const adds = subregion && ![name, shownArea, wine.region, wine.country].some((x) => x && fold(x) === fold(subregion));
   return {
-    name: app?.name ?? area,
-    area: app && app.area !== app.name ? app.area : '',
-    country: app?.country ?? wine.country,
+    name,
+    area: shownArea,
+    sub: [adds ? subregion : '', app?.country ?? wine.country].filter(Boolean).join(' · '),
     knownFor: lines.knownFor,
     taste: lines.taste,
     forYou,

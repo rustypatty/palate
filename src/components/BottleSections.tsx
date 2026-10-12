@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWines } from '../hooks';
-import { grapeCards, regionCard, structureOf } from '../lib/bottleSections';
+import { grapeCard, regionCard, structureOf } from '../lib/bottleSections';
+import { cachedFacts, catalogFacts, type CatalogFacts } from '../lib/catalogFacts';
 import { DEFAULT_FILTERS } from '../lib/filters';
 import { buildTaste } from '../lib/taste';
 import type { Wine } from '../types';
@@ -21,20 +22,33 @@ function Bar({ level }: { level: number }) {
 }
 
 /**
- * Structure, Grapes and Region, after your notes on a wine page. Built from Palate's own grape
- * and region guides and your ratings (no Claude call). A section with nothing reliable to say is
- * left out.
+ * Structure, Grapes and Region, after your notes on a wine page. Built from the wine, Palate's
+ * catalog, Palate's own grape and region guides and your ratings (no Claude call). A section with
+ * nothing reliable to say is left out.
  */
 export function BottleSections({ wine }: { wine: Wine }) {
   const wines = useWines();
   const profile = useProfile();
   const navigate = useNavigate();
   const [reading, setReading] = useState(false);
+  // The catalog's grapes and sub-region (free; kept on this device once asked).
+  const [facts, setFacts] = useState<CatalogFacts | null>(() => cachedFacts(wine.producer, wine.name));
+  useEffect(() => {
+    setFacts(cachedFacts(wine.producer, wine.name));
+    if (!navigator.onLine || cachedFacts(wine.producer, wine.name)) return;
+    let live = true;
+    void catalogFacts(wine.producer, wine.name)
+      .then((f) => live && setFacts(f))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [wine.producer, wine.name]);
   const all = wines ?? [];
   const taste = useMemo(() => (wines ? buildTaste(wines) : null), [wines]);
-  const structure = useMemo(() => structureOf(wine, profile), [wine, profile]);
-  const grapes = useMemo(() => grapeCards(wine, all), [wine, wines]);
-  const region = useMemo(() => regionCard(wine, all, taste), [wine, wines, taste]);
+  const structure = useMemo(() => structureOf(wine, profile, facts), [wine, profile, facts]);
+  const grapes = useMemo(() => grapeCard(wine, all, facts), [wine, wines, facts]);
+  const region = useMemo(() => regionCard(wine, all, taste, facts), [wine, wines, taste, facts]);
 
   if (wine.list === 'passed') return null;
 
@@ -84,21 +98,21 @@ export function BottleSections({ wine }: { wine: Wine }) {
           <div className="bottle-head">
             <h2>Grapes</h2>
           </div>
-          {grapes.cards.map((g) => (
-            <div key={g.name} className="bottle-card grape-card">
-              <div className="grape-top">
-                <span className="grape-name">{g.name}</span>
-                {g.share && <span className="grape-share">{g.share}</span>}
-              </div>
-              {g.taste && <p className="grape-taste">{g.taste}</p>}
-              {g.loved > 0 && (
-                <button type="button" className="bottle-link" onClick={() => showLoved(g.name)}>
-                  You’ve loved {g.loved} {g.name} {g.loved === 1 ? 'wine' : 'wines'} ›
-                </button>
-              )}
+          <div className="bottle-card grape-card">
+            <div className="grape-top">
+              <span className="grape-name">
+                {grapes.names.join(', ')}
+                {grapes.more > 0 && <span className="grape-more"> + {grapes.more} more</span>}
+              </span>
+              {grapes.share && <span className="grape-share">{grapes.share}</span>}
             </div>
-          ))}
-          {grapes.more > 0 && <p className="grape-more">+ {grapes.more} more</p>}
+            {grapes.taste && <p className="grape-taste">{grapes.taste}</p>}
+            {grapes.loved && (
+              <button type="button" className="bottle-link" onClick={() => showLoved(grapes.loved!.grape)}>
+                You’ve loved {grapes.loved.n} {grapes.loved.grape} {grapes.loved.n === 1 ? 'wine' : 'wines'} ›
+              </button>
+            )}
+          </div>
         </section>
       )}
 
@@ -117,7 +131,7 @@ export function BottleSections({ wine }: { wine: Wine }) {
                   </>
                 )}
               </span>
-              {region.country && <span className="region-country">{region.country}</span>}
+              {region.sub && <span className="region-country">{region.sub}</span>}
             </div>
             <dl className="region-rows">
               <dt>Known for</dt>
