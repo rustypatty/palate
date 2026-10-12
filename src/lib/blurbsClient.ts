@@ -21,7 +21,7 @@ const BlurbsSchema = z.object({
 /** Tags, plain lines and foods for several wines in one request (a few cents, no web search). */
 export async function writeBlurbsWithClaude(apiKey: string, asks: BlurbAsk[], signal?: AbortSignal): Promise<{ ok: true; blurbs: (ShareBlurb | null)[] } | { ok: false; reason: string }> {
   // Browser use is intentional: the key is the user's own. No automatic retries: a retry would be billed twice.
-  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 120_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 120_000, defaultHeaders: { 'x-palate-feature': 'blurbs' } });
   const lines = asks.map((a, i) => {
     const what = [a.producer, a.name, a.vintage].filter(Boolean).join(' ');
     const more = [a.style, a.place, a.grapes.join('/')].filter(Boolean).join(', ');

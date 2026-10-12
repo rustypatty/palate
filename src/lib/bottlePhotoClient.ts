@@ -181,7 +181,7 @@ async function pickPhotos(client: Anthropic, wine: string, bottles: BottlePhoto[
 
 /** Claude picks which of these photos (e.g. from Palate's catalog) is this wine, if any (about 2¢, a few seconds). */
 export async function pickBottlePhoto(apiKey: string, wine: string, photos: BottlePhoto[], snap: Blob | null, signal?: AbortSignal): Promise<BottlePhotoOutcome> {
-  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 120_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 120_000, defaultHeaders: { 'x-palate-feature': 'photo-pick' } });
   try {
     return await pickPhotos(client, wine, photos, snap, signal);
   } catch (e) {
@@ -205,7 +205,7 @@ export async function findBottlePhotosWithClaude(
   known: { url: string; site: string }[] = [],
 ): Promise<BottlePhotoOutcome> {
   // No automatic retries: a retry would be billed twice.
-  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 300_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 300_000, defaultHeaders: { 'x-palate-feature': 'photo-search' } });
   try {
     if (known.length) {
       const onKnown = await bottleImages(known, wine, signal);

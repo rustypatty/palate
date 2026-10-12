@@ -28,7 +28,7 @@ const ExplainSchema = z.object({
 /** The lesson after a blind tasting (about 2–3¢, no web search). */
 export async function explainBlindWithClaude(apiKey: string, r: ExplainRequest, signal?: AbortSignal): Promise<ExplainOutcome> {
   // Browser use is intentional: the key is the user's own. No automatic retries: a retry would be billed twice.
-  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 120_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 120_000, defaultHeaders: { 'x-palate-feature': 'blind' } });
   const content = [
     `I just tasted this wine blind: ${r.wine}.`,
     `My guesses:\n${r.checks.map((c) => `- ${c}`).join('\n')}`,

@@ -78,7 +78,7 @@ export async function askWinesWithClaude(
   onPartial?: (a: Partial<AskAnswer>) => void,
 ): Promise<{ ok: true; answer: AskAnswer } | { ok: false; reason: string }> {
   // Browser use is intentional: the key is the user's own. No automatic retries: a retry would be billed twice.
-  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 300_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 300_000, defaultHeaders: { 'x-palate-feature': 'ask' } });
   const messages: Anthropic.Beta.BetaMessageParam[] = [];
   for (const t of turns) if (t.a) messages.push({ role: 'user', content: t.q }, { role: 'assistant', content: answerText(t.a) });
   messages.push({ role: 'user', content: question });

@@ -170,7 +170,7 @@ function failure(e: unknown): string {
 export async function findStoreListWithClaude(apiKey: string, req: StoreListRequest, signal?: AbortSignal): Promise<StoreListOutcome> {
   // No automatic retries (a retry is billed twice); searching can take a minute or two.
   // Always Anthropic's own address, whatever the environment says.
-  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 600_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 600_000, defaultHeaders: { 'x-palate-feature': 'store-list' } });
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: prompt(req) }];
   const seen = new Set<string>();
   let report: z.infer<typeof ReportSchema> | null = null;
@@ -267,7 +267,7 @@ export async function pickFromStockWithClaude(
   bottles: SuggestedItem[],
   signal?: AbortSignal,
 ): Promise<StoreListOutcome> {
-  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 300_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 300_000, defaultHeaders: { 'x-palate-feature': 'store-stock-pick' } });
   const text =
     `Help me choose wine at ${stock.storeName === req.store.name ? req.store.name : `${req.store.name} ${stock.storeName}`}. These bottles are in stock there now:\n\n` +
     bottles.map(stockLine).join('\n') +

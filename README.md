@@ -34,7 +34,7 @@ It works on its own in the browser. Signing in to Palate's online storage (Supab
 
 ### Price watch
 
-Loved wines and Want to try bottles have their prices checked at your stores about once a week (switch a bottle off with its bell). Signed in, the check runs on the server every Monday even when the app isn't open, prices land on each wine's history, and a price drop sends a phone alert to the devices that turned alerts on (on iPhone, Palate must be on the Home Screen). *Check now* runs it from the app.
+Loved wines and Want to try bottles have their prices checked at your stores about every other week (switch a bottle off with its bell). Signed in, the check runs on the server every Monday even when the app isn't open, prices land on each wine's history, and a price drop sends a phone alert to the devices that turned alerts on (on iPhone, Palate must be on the Home Screen). *Check now* runs it from the app.
 
 ### Your wine profile
 

@@ -57,7 +57,7 @@ function reason(e: unknown): string | null {
 
 export async function lessonWithClaude(apiKey: string, r: LessonRequest, signal?: AbortSignal): Promise<LessonOutcome> {
   // No automatic retries: a retry would be billed twice.
-  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 120_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 120_000, defaultHeaders: { 'x-palate-feature': 'lesson' } });
   const system =
     'You are teaching me about wine through the bottles I own and want to try. I am learning, so explain why the wine tastes the way it does ' +
     'in plain words, and explain any wine term the first time you use it. Be specific to this wine and place rather than generic. ' +

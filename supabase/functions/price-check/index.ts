@@ -1,10 +1,11 @@
 import { admin, cors, json, owner } from '../_shared/owner.ts';
 import { notify, type Note } from '../_shared/push.ts';
+import { logUsage } from '../_shared/usage.ts';
 
 /**
  * The Monday price check, run by pg_cron (see supabase/price_check_cron.sql) so it happens even
  * when the app isn't opened. Each run checks a few watched bottles not checked in the last few
- * days, which keeps every run short; the schedule repeats through Monday so all of them get done.
+ * days, which keeps every run short (and, every other week, cheap); the schedule repeats through Monday so all of them get done.
  * The prices land on the wines (priceHistory) and reach your devices with the next sync; a drop
  * also sends a phone alert to the devices that turned alerts on.
  *
@@ -12,9 +13,11 @@ import { notify, type Note } from '../_shared/push.ts';
  * your stores, only keeping product pages that turned up in the search, the cheapest per bottle.
  */
 
-const MODEL = 'claude-opus-5-5';
+// Sonnet: this is a search-and-report job, not advice, and costs half of Opus.
+const MODEL = 'claude-sonnet-5-5';
 const PER_RUN = 4;
-const RECHECK_MS = 3 * 24 * 3600 * 1000;
+// Runs every Monday, so 10 days means each bottle is checked every other week.
+const RECHECK_MS = 10 * 24 * 3600 * 1000;
 const KEEP_POINTS = 60;
 const STORES = [
   { name: 'Total Wine', domain: 'totalwine.com' },
@@ -160,8 +163,10 @@ async function searchPrices(wines: Wine[]): Promise<{ report: Report | null; see
         messages,
       }),
     });
-    if (!res.ok) return { report: null, seen, note: `Anthropic ${res.status}: ${(await res.text()).slice(0, 300)}` };
-    const msg = await res.json();
+    const text = await res.text();
+    await logUsage('price-check-auto', res.status, text);
+    if (!res.ok) return { report: null, seen, note: `Anthropic ${res.status}: ${text.slice(0, 300)}` };
+    const msg = JSON.parse(text);
     for (const block of msg.content as Block[]) {
       if (block.type === 'web_search_tool_result' && Array.isArray(block.content)) {
         for (const r of block.content) if (r.type === 'web_search_result') seen.add(normalizeUrl(r.url));

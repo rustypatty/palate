@@ -10,7 +10,20 @@ type Options = Omit<NonNullable<ConstructorParameters<typeof Anthropic>[0]>, 'ap
  */
 export function claudeClient(apiKey: string, options: Options = {}): Anthropic {
   // Browser use is intentional: a device key is the user's own and only ever sent to Anthropic.
-  if (apiKey !== SERVER_KEY) return new Anthropic({ apiKey, baseURL: 'https://api.anthropic.com', dangerouslyAllowBrowser: true, ...options });
+  // The feature tag is for Palate's own server (cost tracking); Anthropic never sees it.
+  if (apiKey !== SERVER_KEY) {
+    return new Anthropic({
+      apiKey,
+      baseURL: 'https://api.anthropic.com',
+      dangerouslyAllowBrowser: true,
+      ...options,
+      fetch: async (url, init) => {
+        const headers = new Headers(init?.headers);
+        headers.delete('x-palate-feature');
+        return fetch(url, { ...init, headers });
+      },
+    });
+  }
   return new Anthropic({
     apiKey: 'held-by-server',
     dangerouslyAllowBrowser: true,

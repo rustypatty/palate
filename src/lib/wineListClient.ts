@@ -144,7 +144,7 @@ export function reason(e: unknown): string | null {
 // Browser use is intentional: the key is the user's own and only ever sent to Anthropic.
 // No automatic retries: a retry would be billed twice.
 const clientFor = (apiKey: string) =>
-  claudeClient(apiKey, { maxRetries: 0, timeout: 300_000 });
+  claudeClient(apiKey, { maxRetries: 0, timeout: 300_000, defaultHeaders: { 'x-palate-feature': 'wine-list' } });
 
 export async function readWineListWithClaude(apiKey: string, photos: Blob[], signal?: AbortSignal, onProgress?: (wines: number) => void): Promise<ReadListOutcome> {
   const client = clientFor(apiKey);

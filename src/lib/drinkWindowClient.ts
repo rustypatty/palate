@@ -32,7 +32,7 @@ const WindowsSchema = z.object({
 /** Drinking windows for several bottles in one request (about 1–3¢, no web search). */
 export async function estimateWindowsWithClaude(apiKey: string, asks: WindowAsk[], year: number, signal?: AbortSignal): Promise<WindowsOutcome> {
   // Browser use is intentional: the key is the user's own. No automatic retries: a retry would be billed twice.
-  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 120_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 120_000, defaultHeaders: { 'x-palate-feature': 'drink-window' } });
   const lines = asks.map((a, i) => {
     const what = [a.producer, a.name, a.vintage || 'vintage unknown'].filter(Boolean).join(' ');
     const more = [a.region, a.country, a.style, a.grapes.join('/')].filter(Boolean).join(', ');
