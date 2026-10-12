@@ -14,7 +14,20 @@ function emphasise(line: string, words: string[]): ReactNode {
  * The golden header of My palate: your favourite (or what your ratings say most), one short
  * summary line, and whatever goes under it (the numbers row).
  */
-export function TasteHeader({ taste, favouriteRed = '', summary = '', children }: { taste: TasteProfile; favouriteRed?: string; summary?: string; children?: ReactNode }) {
+export function TasteHeader({
+  taste,
+  favouriteRed = '',
+  headline: given,
+  summary = '',
+  children,
+}: {
+  taste: TasteProfile;
+  favouriteRed?: string;
+  /** In place of the default line, with the words to set in italics. */
+  headline?: { text: string; em: string[] } | null;
+  summary?: string;
+  children?: ReactNode;
+}) {
   const eyebrow = `My palate · ${taste.rated} rated ${taste.rated === 1 ? 'wine' : 'wines'}`;
   if (!taste.enough && !favouriteRed) {
     const left = MIN_RATED - taste.rated;
@@ -31,12 +44,12 @@ export function TasteHeader({ taste, favouriteRed = '', summary = '', children }
   }
   // What you said is your favourite leads; otherwise the strongest pattern counted from your ratings.
   const counted = taste.enough ? taste.summary.filter((l) => !l.startsWith('In your words')) : [];
-  const headline = favouriteRed ? `${favouriteRed} is your favourite red.` : counted[0];
   const places = taste.likes.filter((a) => a.kind === 'region' || a.kind === 'area').map((a) => a.value);
+  const headline = given ?? (favouriteRed ? { text: `${favouriteRed} is your favourite red.`, em: [favouriteRed] } : counted[0] ? { text: counted[0], em: places } : null);
   return (
     <header className="palate-hero">
       <div className="eyebrow">{eyebrow}</div>
-      {headline && <h1 className="palate-summary">{emphasise(headline, favouriteRed ? [favouriteRed] : places)}</h1>}
+      {headline && <h1 className={`palate-summary${headline.text.length > 42 ? ' long' : ''}`}>{emphasise(headline.text, headline.em)}</h1>}
       {summary && <p className="palate-more">{summary}</p>}
       {children}
     </header>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyDraft } from '../db';
 import type { Wine } from '../types';
-import { budgetLine, exploreCards, heroSummary, loveChips, redsLine, skipsLine, usualPrice, whitesLine } from './palatePage';
+import { budgetLine, exploreCards, heroHeadline, heroSummary, loveChips, redsLine, skipsLine, usualPrice, whitesLine } from './palatePage';
 import type { PalateProfile } from './profile';
 import { buildTaste } from './taste';
 
@@ -96,5 +96,30 @@ describe('My palate wording', () => {
     expect(firstGrape).toBeGreaterThan(0);
     expect(chips.slice(0, firstGrape)).toContain('Rioja');
     expect(chips.slice(firstGrape)).not.toContain('Rioja');
+  });
+
+  it('adds sweetness to Skips when the profile says to avoid it, and never counts a denied word', () => {
+    const wines = [
+      wine({ producer: 'A', rating: 'wouldnt', style: 'red', notes: 'Light body. No hint of fruit forward.' }),
+      wine({ producer: 'B', rating: 'wouldnt', style: 'red', notes: 'No gripping tannins.' }),
+      wine({ producer: 'C', rating: 'loved', style: 'red' }),
+      wine({ producer: 'D', rating: 'loved', style: 'red' }),
+      wine({ producer: 'E', rating: 'liked', style: 'red' }),
+    ];
+    const avoidsSweet = { ...profile, preferences: [...profile.preferences, { key: 'fruit', dimension: 'fruit', value: 'Some fruit; avoid excessive sweetness', confidence: 'high' }] };
+    expect(skipsLine(buildTaste(wines), wines, avoidsSweet)).toBe('Sweet wines, and light reds with no tannin grip.');
+    expect(skipsLine(buildTaste(wines), wines, null)).toBe('Light reds with no tannin grip.');
+  });
+
+  it('heads the page with your favourite and the places that follow it', () => {
+    const wines = ['Rioja', 'Rioja', 'Mercurey', 'Volnay', 'Châteauneuf-du-Pape', 'Gigondas'].map((region, i) =>
+      wine({ producer: `P${i}`, rating: 'loved', region, country: region === 'Rioja' ? 'Spain' : 'France', style: 'red' }),
+    );
+    const h = heroHeadline('Barolo', buildTaste(wines));
+    expect(h?.text).toMatch(/^Barolo first, then /);
+    expect(h?.em[0]).toBe('Barolo');
+    expect(h?.em.length).toBeGreaterThan(2);
+    expect(heroHeadline('Barolo', null)).toEqual({ text: 'Barolo is your favourite red.', em: ['Barolo'] });
+    expect(heroHeadline('', buildTaste(wines))).toBeNull();
   });
 });

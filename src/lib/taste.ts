@@ -83,14 +83,19 @@ export function noteWishes(notes: string): string[] {
   return sentences(notes).filter((x) => WISH.test(x));
 }
 
+// "No hint of fruit forward", "not sweet", "without oak": the word is denied, not described.
+const NEGATED = /\b(no|not|never|without|lacks?|lacking|zero|hardly)\b(\s+[\w-]+){0,3}\s*$/;
+
 export function noteWords(notes: string): string[] {
   let text = fold(sentences(notes).filter((x) => !WISH.test(x)).join(' '));
   const out: string[] = [];
   for (const [word, re] of NOTE_WORDS) {
-    if (re.test(text)) {
-      out.push(word);
-      text = text.replace(new RegExp(re.source, 'g'), ' ');
-    }
+    const all = new RegExp(re.source, 'g');
+    // Counts if it's said at least once without a "no"/"not" just before it, in the same clause.
+    const said = [...text.matchAll(all)].some((m) => !NEGATED.test(text.slice(Math.max(0, m.index - 40), m.index).split(/[.;:!?,]/).pop() ?? ''));
+    if (said) out.push(word);
+    // Either way, gone from the text so a shorter word can't match inside it ("fruity" in "fruit forward").
+    text = text.replace(all, ' ');
   }
   return out;
 }

@@ -3191,6 +3191,11 @@ details.more[open] > .more-body {
   font-style: italic;
 }
 
+/* A longer headline (your favourite and the places that follow it) a size down. */
+.palate-summary.long {
+  font-size: 32px;
+}
+
 .palate-more {
   margin: 14px 0 0;
   font-size: 15px;

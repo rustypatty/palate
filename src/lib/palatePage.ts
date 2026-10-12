@@ -48,16 +48,43 @@ export function whitesLine(profile: PalateProfile | null): string {
   return `${cap(/whites?\b/i.test(base) ? base : `${base} whites`)}${over ? ` over ${over[1].toLowerCase()} ones` : ''}.`;
 }
 
-/** What your "Wouldn't buy again" notes have in common: "Fruit-forward, light reds with no tannin grip." */
-export function skipsLine(taste: TasteProfile | null, wines: Wine[]): string {
+/**
+ * What you skip: sweetness when your profile says to avoid it, then what your "Wouldn't buy
+ * again" notes have in common. "Sweet wines, and light reds with no tannin grip."
+ */
+export function skipsLine(taste: TasteProfile | null, wines: Wine[], profile: PalateProfile | null = null): string {
   const words = taste?.notesDisliked.slice(0, 4) ?? [];
-  if (!words.length) return '';
-  const lacks = words.filter((w) => /^(no|little|not)\b/.test(w));
-  const traits = words.filter((w) => !lacks.includes(w));
-  const styles = new Set(wines.filter((w) => w.rating === 'wouldnt' && w.style).map((w) => w.style));
-  const noun = styles.size === 1 ? ({ red: 'reds', white: 'whites', rose: 'rosés', sparkling: 'sparkling wines' } as Record<string, string>)[[...styles][0]!] ?? 'wines' : 'wines';
-  const head = traits.length ? `${traits.join(', ')} ${noun}` : noun;
-  return `${cap(head)}${lacks.length ? ` with ${listJoin(lacks)}` : ''}.`;
+  const said = profile?.preferences.map((x) => x.value).join(' ') ?? '';
+  const sweet = /avoid[^.;]*sweet/i.test(said) && !words.includes('sweet');
+  let fromNotes = '';
+  if (words.length) {
+    const lacks = words.filter((w) => /^(no|little|not)\b/.test(w));
+    const traits = words.filter((w) => !lacks.includes(w));
+    const styles = new Set(wines.filter((w) => w.rating === 'wouldnt' && w.style).map((w) => w.style));
+    const noun = styles.size === 1 ? ({ red: 'reds', white: 'whites', rose: 'rosés', sparkling: 'sparkling wines' } as Record<string, string>)[[...styles][0]!] ?? 'wines' : 'wines';
+    fromNotes = `${traits.length ? `${traits.join(', ')} ${noun}` : noun}${lacks.length ? ` with ${listJoin(lacks)}` : ''}`;
+  }
+  const parts = [sweet ? 'sweet wines' : '', fromNotes].filter(Boolean);
+  return parts.length ? `${cap(parts.join(', and '))}.` : '';
+}
+
+/**
+ * The headline: your favourite and the other places you love, so it doesn't read as one wine.
+ * "Barolo first, then Rioja, Burgundy and Southern Rhône." `em`: the names, set in italics.
+ */
+export function heroHeadline(favourite: string, taste: TasteProfile | null): { text: string; em: string[] } | null {
+  const fav = fold(favourite);
+  // Broad areas read best ("Burgundy", not "Mercurey"); regions when there are no areas.
+  const likes = taste?.enough ? taste.likes : [];
+  const areas = likes.filter((a) => a.kind === 'area').map((a) => a.value);
+  const pool = areas.length >= 2 ? areas : likes.filter((a) => a.kind === 'region' || a.kind === 'area').map((a) => a.value);
+  const seen = new Set<string>(fav ? [fav] : []);
+  const places = pool.filter((v) => !seen.has(fold(v)) && seen.add(fold(v))).slice(0, 3);
+  if (favourite) {
+    if (!places.length) return { text: `${favourite} is your favourite red.`, em: [favourite] };
+    return { text: `${favourite} first, then ${listJoin(places)}.`, em: [favourite, ...places] };
+  }
+  return null;
 }
 
 /** A value between two sorted prices (linear, like a spreadsheet's PERCENTILE). */
@@ -114,11 +141,11 @@ export function exploreCards(profile: PalateProfile | null, n = 3): { title: str
 }
 
 /** Your favourites and the places and grapes you rate well, once each: places first, then grapes. `headline`: already shown above. */
-export function loveChips(profile: PalateProfile | null, taste: TasteProfile | null, fallback: string[] = [], headline = ''): string[] {
+export function loveChips(profile: PalateProfile | null, taste: TasteProfile | null, fallback: string[] = [], headline: string | string[] = ''): string[] {
   const named = profileFavourites(profile);
   const counted = taste?.enough ? taste.likes.filter((a) => a.kind === 'region' || a.kind === 'area' || a.kind === 'grape').map((a) => a.value) : fallback;
-  // The headline's favourite isn't repeated here.
-  const seen = new Set<string>(headline ? [fold(headline)] : []);
+  // What the headline already names isn't repeated here.
+  const seen = new Set<string>((Array.isArray(headline) ? headline : [headline]).filter(Boolean).map(fold));
   const all = [...named, ...counted].filter((v) => {
     const k = fold(v);
     return v && !seen.has(k) && seen.add(k);

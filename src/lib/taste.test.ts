@@ -47,6 +47,10 @@ describe('taste profile', () => {
 
   it('picks tasting words out of your own notes', () => {
     expect(noteWords('Disliked: very dry, very dark, little fruit.')).toEqual(['little fruit', 'very dry']);
+    // A word that's denied doesn't count; one that's a denial itself does.
+    expect(noteWords('Light to medium body. No hint of fruit forward.')).toEqual(['light']);
+    expect(noteWords('Not sweet at all, but no gripping tannins.')).toEqual(['no tannin grip']);
+    expect(noteWords('Without oak, fruity and bright.')).toEqual(['fruity', 'bright']);
     expect(t.notesLiked).toEqual(['earthy', 'peppery']);
     expect(t.notesDisliked).toEqual(expect.arrayContaining(['no tannin grip', 'very dry', 'little fruit']));
   });
