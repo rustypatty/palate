@@ -7200,3 +7200,140 @@ body.ask-open .bottomnav {
 .ask-error {
   color: var(--warn);
 }
+
+/* ---------- Sharing your Loved wines ---------- */
+.toolbar-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.chip.share-chip {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+.share-body {
+  display: grid;
+  gap: 14px;
+}
+.share-lede {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.share-link {
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: var(--tone);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.share-stop {
+  justify-self: start;
+  color: var(--warn);
+}
+
+/* The shared page (loved/): a friend's view, without the app around it */
+.shared-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: calc(env(safe-area-inset-top, 0px) + 20px) 16px calc(env(safe-area-inset-bottom, 0px) + 32px);
+  display: grid;
+  gap: 26px;
+}
+.shared-intro {
+  display: grid;
+  gap: 10px;
+  padding: 0 var(--text-in);
+}
+.shared-intro .lede {
+  margin: 0;
+}
+.shared-status {
+  margin: 0;
+  padding: 0 var(--text-in);
+  color: var(--ink-2);
+}
+.shared-list {
+  display: grid;
+  gap: 12px;
+}
+.shared-wine {
+  display: flex;
+  gap: 16px;
+  padding: 12px 16px 14px 12px;
+  border-radius: var(--r-tone);
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-sm);
+}
+.tile.shared-stage {
+  flex: none;
+  width: 92px;
+  height: 124px;
+  aspect-ratio: auto;
+  border-radius: 18px;
+}
+.shared-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+.shared-producer {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.shared-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 21px;
+  line-height: 1.2;
+}
+.shared-meta {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.shared-loved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--wine);
+}
+.shared-about {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.shared-about.clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.shared-more {
+  justify-self: start;
+  font-size: 13px;
+}
+.shared-foot {
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+@media (min-width: 760px) {
+  .shared-list {
+    grid-template-columns: 1fr 1fr;
+  }
+}

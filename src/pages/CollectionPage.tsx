@@ -1,7 +1,8 @@
-import { Bookmark, MessageSquare, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Bookmark, MessageSquare, Plus, Search, Share, SlidersHorizontal, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AskSheet } from '../components/AskSheet';
+import { ShareSheet } from '../components/ShareSheet';
 import { BottleImage, BottlePlaceholder } from '../components/BottleImage';
 import { FilterSheet, SORTS } from '../components/FilterSheet';
 import { FillerTile, MiniWineCard, ShelfRow } from '../components/Shelf';
@@ -329,6 +330,7 @@ export function CollectionPage() {
   const [showFilters, setShowFilters] = useState(false);
   const query = useDebounced(filters.query, 120);
   const [asking, setAsking] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     try {
@@ -409,6 +411,7 @@ export function CollectionPage() {
     <>
       {header}
       {askSheet}
+      {sharing && <ShareSheet onClose={() => setSharing(false)} />}
       <Hero wines={wines} />
 
       <div className="search-row home-search mobile-only">
@@ -466,8 +469,13 @@ export function CollectionPage() {
           )}
 
           <div className="toolbar">
-            <span>
+            <span className="toolbar-count">
               {results.length} {results.length === 1 ? 'wine' : 'wines'}
+              {filters.shelf === 'loved' && (
+                <button type="button" className="chip outline share-chip" onClick={() => setSharing(true)}>
+                  <Share size={15} /> Share
+                </button>
+              )}
             </span>
             <label className="sort">
               <span className="sr-only">Sort by</span>
