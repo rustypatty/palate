@@ -406,6 +406,11 @@ export function relayedImageUrl(url: string): string {
   return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=1400&h=1400&fit=inside&we&bg=white&output=jpg&q=88`;
 }
 
+/** A small copy of an image through the same relay, for Claude to look at. */
+export function relayedThumbUrl(url: string): string {
+  return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=400&h=400&fit=inside&bg=white&output=jpg&q=80`;
+}
+
 async function imageAsBase64(url: string, signal?: AbortSignal): Promise<string | null> {
   try {
     const res = await fetch(url, { signal });

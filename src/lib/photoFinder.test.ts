@@ -21,4 +21,12 @@ describe('photo finder', () => {
     expect(photoQueue([{ ...w, name: 'Volnay Clos des Chênes' }], 1000, { a: { at: 900, sig } })).toHaveLength(1);
     expect(photoQueue([w], 900 + 15 * 86_400_000, { a: { at: 900, sig } })).toHaveLength(1);
   });
+
+  it('tries an interrupted search again soon, a real miss only after two weeks', () => {
+    const w = wine({ id: 'a', producer: 'Caiarossa', name: 'Caiarossa' });
+    const sig = 'caiarossa|caiarossa||';
+    const later = 900 + 31 * 60_000;
+    expect(photoQueue([w], later, { a: { at: 900, sig, why: 'no connection', soon: true } })).toHaveLength(1);
+    expect(photoQueue([w], later, { a: { at: 900, sig, why: 'no photo of this exact wine was found' } })).toHaveLength(0);
+  });
 });

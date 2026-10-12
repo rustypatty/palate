@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { claudeClient } from './claude';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
-import { relayedImageUrl } from './labelClient';
+import { relayedImageUrl, relayedThumbUrl } from './labelClient';
 import { resizeImage } from './image';
 
 /**
@@ -93,7 +93,7 @@ async function imageSize(url: string, signal?: AbortSignal): Promise<{ width: nu
   }
 }
 
-const thumbUrl = (url: string) => `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=400&h=400&fit=inside&bg=white&output=jpg&q=80`;
+const thumbUrl = relayedThumbUrl;
 
 async function blobBase64(blob: Blob): Promise<string> {
   const bytes = new Uint8Array(await blob.arrayBuffer());
@@ -158,7 +158,7 @@ async function pickPhotos(client: Anthropic, wine: string, bottles: BottlePhoto[
         ]
       : []),
     ...shown.flatMap((x, i) => [
-      { type: 'text' as const, text: `Image ${i + 1}:` },
+      { type: 'text' as const, text: `Image ${i + 1}${x.b.title ? ` (listed as “${x.b.title}”)` : ''}:` },
       { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: x.data } },
     ]),
     {
@@ -177,6 +177,19 @@ async function pickPhotos(client: Anthropic, wine: string, bottles: BottlePhoto[
   const order = (pick.parsed_output?.matches ?? []).map((n) => n - 1).filter((i, k, all) => i >= 0 && i < shown.length && all.indexOf(i) === k);
   const ranked = [...order.map((i) => shown[i].b), ...shown.map((x) => x.b).filter((_, i) => !order.includes(i))];
   return { ok: true, photos: ranked, matched: order.length > 0 };
+}
+
+/** Claude picks which of these photos (e.g. from Palate's catalog) is this wine, if any (about 2¢, a few seconds). */
+export async function pickBottlePhoto(apiKey: string, wine: string, photos: BottlePhoto[], snap: Blob | null, signal?: AbortSignal): Promise<BottlePhotoOutcome> {
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 120_000 });
+  try {
+    return await pickPhotos(client, wine, photos, snap, signal);
+  } catch (e) {
+    if (signal?.aborted) return { ok: false, reason: 'cancelled' };
+    const r = reason(e);
+    if (r) return { ok: false, reason: r };
+    throw e;
+  }
 }
 
 /**
