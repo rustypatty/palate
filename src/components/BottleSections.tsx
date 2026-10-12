@@ -8,6 +8,7 @@ import { buildTaste } from '../lib/taste';
 import type { Wine } from '../types';
 import { GlassArt } from './GlassArt';
 import { useProfile } from './ProfileImport';
+import RegionMap from './RegionMap';
 import { Sheet } from './Sheet';
 
 /** Five segments, the first `level` filled. */
@@ -122,16 +123,7 @@ export function BottleSections({ wine }: { wine: Wine }) {
             <h2>Region</h2>
           </div>
           <div className="bottle-card region-card">
-            {region.photo && (
-              <figure className="region-photo">
-                <img src={`${import.meta.env.BASE_URL}${region.photo.src}`} alt={region.photo.alt} loading="lazy" decoding="async" />
-                <figcaption>
-                  <a href={region.photo.page} target="_blank" rel="noreferrer">
-                    {region.photo.credit}
-                  </a>
-                </figcaption>
-              </figure>
-            )}
+            {region.place && <RegionMap place={region.place} name={region.name} />}
             <div className="region-body">
             <div className="region-title">
               <span className="region-name">

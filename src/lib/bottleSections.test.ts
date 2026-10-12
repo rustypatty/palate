@@ -123,6 +123,7 @@ describe('Grapes and Region', () => {
     expect(regionCard(barolo, [], null, { grapes: [], subregion: 'Barolo' })!.sub).toBe('Italy');
     const sonoma = wine({ region: 'Sonoma Coast', country: 'United States', name: 'Pinot Noir' });
     expect(regionCard(sonoma, [], null, { grapes: [], subregion: 'Russian River Valley' })?.sub).toBe('Russian River Valley · United States');
+    expect(r.place).toMatchObject({ country: 'Italy' });
     expect(r.forYou).toMatch(/2 loved|loved 2/);
     expect(regionCard(wine({ region: 'Somewhere new' }), [], null)).toBeNull();
   });
