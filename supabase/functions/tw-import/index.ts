@@ -63,8 +63,10 @@ async function progress(body: Record<string, unknown>) {
     if (v !== null) patch[col] = v;
   }
   if (status === 'done' || status === 'failed') patch.finished_at = now;
-  const { error } = await admin.from('tw_jobs').update(patch).eq('id', body.jobId).in('status', ['running', 'needs_you']);
-  return error ? json({ error: error.message }, 500) : json({ ok: true });
+  const { data, error } = await admin.from('tw_jobs').update(patch).eq('id', body.jobId).in('status', ['running', 'needs_you']).select('id');
+  if (error) return json({ error: error.message }, 500);
+  // Cancelled, expired or finished: the extension stops instead of carrying on.
+  return data?.length ? json({ ok: true }) : json({ ok: false, gone: true });
 }
 
 Deno.serve(async (req) => {

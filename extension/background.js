@@ -150,12 +150,16 @@ async function importAll(tabId, startUrl, key) {
 
 // ---------- Refresh jobs (weekly, or asked for from your phone) ----------
 
-/** Report a job's progress; quietly ignore a lost connection (the job is picked up again later). */
+/**
+ * Report a job's progress; quietly ignore a lost connection (the job is picked up again later).
+ * True when the job is gone (cancelled, expired or already finished): stop working on it.
+ */
 async function report(key, body) {
   try {
-    await post('/progress', key, body);
+    const { out } = await post('/progress', key, body);
+    return Boolean(out && out.gone);
   } catch {
-    /* offline: the job goes quiet and is handed out again */
+    return false; /* offline: the job goes quiet and is handed out again */
   }
 }
 
@@ -221,6 +225,7 @@ async function restoreStore(tabId, listUrl) {
 
 async function runJob(job, key, resume) {
   stopAsked = false;
+  let gone = false;
   busy = true;
   let saved = job.saved || 0;
   let inStock = job.inStock || 0;
@@ -244,10 +249,16 @@ async function runJob(job, key, resume) {
       onPage: async (p) => {
         saved += p.saved;
         inStock += p.inStock;
-        await report(key, { jobId: job.id, nextPage: p.page + 1, totalPages: p.totalPages, saved, inStock });
+        // Cancelled in Palate (or expired): stop after this page.
+        if (await report(key, { jobId: job.id, nextPage: p.page + 1, totalPages: p.totalPages, saved, inStock })) gone = stopAsked = true;
         return progress({ page: p.page, totalPages: p.totalPages, saved, inStock, store: p.store });
       },
     });
+    if (gone) {
+      await chrome.storage.local.remove('paused');
+      await restoreStore(tabId, job.url);
+      return progress({ running: false, error: 'This refresh was cancelled in Palate, so it stopped.' });
+    }
     if (r.end === 'done') {
       await report(key, { jobId: job.id, status: 'done', nextPage: r.page + 1, totalPages: r.totalPages, saved, inStock });
       await chrome.storage.local.remove('paused');
@@ -304,7 +315,8 @@ async function poll() {
       const result = await read(tab.id);
       if (!result || !result.payload) return;
       await chrome.storage.local.remove('paused');
-      await report(key, { jobId: paused.job.id, status: 'running', nextPage: paused.job.nextPage });
+      // Cancelled (or expired) while it waited: drop it rather than carry on.
+      if (await report(key, { jobId: paused.job.id, status: 'running', nextPage: paused.job.nextPage })) return restoreStore(tab.id, paused.job.url);
       return runJob(paused.job, key, { tabId: tab.id });
     }
     // The window was closed: the job is handed out again and carries on from its page.
