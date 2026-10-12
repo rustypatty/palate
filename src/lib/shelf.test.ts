@@ -48,12 +48,13 @@ describe('Snap a shelf', () => {
     const b = (wine: string, price: number, verdict: 'top' | 'good', deal = ''): ShelfBottle => ({
       producer: 'P', wine, vintage: '', region: '', country: '', grapes: [], style: 'red', price_usd: price, deal, score: '', where: '', verdict, taste: [], why: '', price_call: 'unknown', tip: '',
     });
-    // As in a real read: a $154.99 Brunello as No. 1 with its price left unread, and three more over $100 below.
+    // A bottle whose price wasn't read stays in; the ones with a read price over $100 go.
     const out = withinBudget(
       [b('Tenuta Nuova', 0, 'top'), b('Paganico', 59.99, 'top'), b('Rosso', 27.99, 'top'), b('Argiano', 109.99, 'good', '$98.99 in a mix of 6'), b('I Sodi', 119.99, 'good', '$107.99 in a mix of 6'), b('Saffredi', 149.99, 'good'), b('Casalino', 49.99, 'good')],
       100,
     );
     expect(out.map((x) => [x.wine, x.verdict])).toEqual([
+      ['Tenuta Nuova', 'top'],
       ['Paganico', 'top'],
       ['Rosso', 'top'],
       ['Casalino', 'good'],

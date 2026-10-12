@@ -68,11 +68,11 @@ const alsoToBottle = ({ line, ...a }: z.infer<typeof AlsoSchema>): ShelfBottle =
 
 function prompt(context: string, store: string, photos: number, lookingFor: string, budget: number | null): string {
   return (
-    `I'm in ${store || 'a wine store'} and took ${photos === 1 ? 'a photo' : `${photos} photos`} of the shelf. Help me choose what to buy.\n\n` +
+    `I'm in ${store || 'a wine store'} and took ${photos === 1 ? 'a photo' : `${photos} photos`} of wine bottles (a shelf, or individual bottles). Help me choose what to buy.\n\n` +
     `${context}\n\n` +
     (lookingFor.trim() ? `What I'm looking for: ${lookingFor.trim()}\n\n` : '') +
-    (budget ? `My budget: up to $${budget} a bottle. Where a bottle's price tag is in view, choose all your picks (the 3 and the extras) from bottles whose single-bottle tag price is at or under that, and copy the tag price exactly. If a bottle has no price tag in the photo, you can still rank it: set its price to 0 and say so.\n\n` : '') +
-    'Read the bottles and match each to the price tag directly below or beside it. Only consider bottles you can identify, and skip any marked out of stock. ' +
+    (budget ? `My budget: up to $${budget} a bottle. Where a bottle's price tag is in view, choose all your picks (the 3 and the extras) from bottles whose single-bottle tag price is at or under that, and copy the tag price exactly.\n\n` : '') +
+    'Read the bottles. Price tags are optional: if one is directly below or beside a bottle, use it; if not, still rank the bottle from its label and set its price to 0. A missing price must never keep a bottle off the list. Only consider bottles you can identify, and skip any marked out of stock. ' +
     'If the same wine is in several photos, list it once. Never invent a bottle, vintage, price or score — use scores only as printed on tags. ' +
     'Pick the 3 best buys for me and label them (best match, best value, something new), then up to 3 more worth a look. Do not mention bottles I should skip. ' +
     'Be brief and specific: short words, no filler.'
