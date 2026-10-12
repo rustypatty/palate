@@ -3182,7 +3182,7 @@ details.more[open] > .more-body {
   margin: 16px 0 0;
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: 34px;
+  font-size: 38px;
   line-height: 1.12;
   letter-spacing: -0.01em;
 }
@@ -3191,64 +3191,206 @@ details.more[open] > .more-body {
   font-style: italic;
 }
 
+/* A longer headline (your favourite and the places that follow it) a size down. */
+.palate-summary.long {
+  font-size: 32px;
+}
+
 .palate-more {
-  margin: 18px 0 0;
-  font-size: 15.5px;
-  line-height: 1.6;
+  margin: 14px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
   color: var(--ink-2);
 }
 
-.pull-quote {
+/* Wines · Loved · At home · To try, in one slim row inside the hero. */
+.palate-numbers {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  column-gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 26px;
+  padding: 14px 4px 12px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.palate-numbers > * {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.palate-numbers b {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.palate-numbers .loved b {
+  color: var(--wine);
+}
+
+.palate-numbers span {
+  font-size: 11px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.palate-h {
+  margin: 0;
+  padding: 0 var(--text-in);
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.palate-h em {
+  font-style: italic;
+}
+
+.palate-h em.wine {
+  color: var(--wine);
+}
+
+.taste-rows {
+  display: grid;
+  gap: 16px;
   margin: 0;
   padding: 0 var(--text-in);
 }
 
-.pull-quote .mark {
-  grid-row: span 2;
-  font-family: var(--font-display);
-  font-size: 64px;
-  line-height: 0.9;
-  color: var(--wine);
+.taste-rows > div {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
 }
 
-.pull-quote blockquote {
+.taste-rows dd {
   margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.explore-cards {
+  display: grid;
+  gap: 12px;
+}
+
+.explore-card {
+  display: grid;
+  gap: 6px;
+  padding: 18px 20px 19px;
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: var(--sh-card);
+}
+
+.explore-card strong {
   font-family: var(--font-display);
-  font-style: italic;
-  font-size: 22px;
-  line-height: 1.35;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1.25;
 }
 
-.pull-quote figcaption {
-  margin-top: 8px;
+.explore-card span {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-3);
 }
 
-.stats {
+.palate-learn {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
-.stat {
+.palate-learn-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
+  min-height: 130px;
+  padding: 18px;
+  border-radius: 26px;
   background: var(--tone);
-  border-radius: var(--r-tone);
-  padding: 22px 20px 20px;
+  color: var(--ink);
+  text-decoration: none;
 }
 
-.stat .n {
+.palate-learn-tile svg {
+  color: var(--wine);
+  margin-bottom: auto;
+}
+
+.palate-learn-tile strong {
   font-family: var(--font-display);
-  font-size: 44px;
-  line-height: 1;
+  font-weight: 400;
+  font-size: 19px;
+  line-height: 1.15;
 }
 
-.stat .l {
-  margin-top: 10px;
+.palate-learn-tile em {
+  font-style: italic;
+}
+
+.palate-learn-tile span {
   font-size: 13px;
-  color: var(--ink-2);
   line-height: 1.35;
+  color: var(--ink-3);
+}
+
+/* Settings: one tone card, rows split by inset lines. */
+.settings-card {
+  border-radius: var(--r-tone);
+  background: var(--tone);
+  overflow: hidden;
+}
+
+.setting-row {
+  position: relative;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 18px 12px 20px;
+  border: 0;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  color: var(--ink);
+}
+
+.setting-row + .setting-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20px;
+  right: 20px;
+  height: 1px;
+  background: #e9e1d6;
+}
+
+.setting-row svg {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.setting-title {
+  display: block;
+  font-size: 15.5px;
+  font-weight: 600;
+}
+
+.setting-status {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--ink-3);
 }
 
 .palate-section {
@@ -3291,6 +3433,15 @@ details.more[open] > .more-body {
   overflow: hidden;
 }
 
+.bars.compact {
+  gap: 12px;
+}
+
+.bars.compact .track {
+  height: 8px;
+  border-radius: 4px;
+}
+
 .bar-row .track i {
   display: block;
   height: 100%;
@@ -3319,8 +3470,8 @@ details.more[open] > .more-body {
 }
 
 .love-pill {
-  background: #f3e3e3;
-  color: var(--wine-deep);
+  background: #f3e3e6;
+  color: #5f1628;
 }
 
 .skip-pill {
@@ -3433,8 +3584,8 @@ details.more[open] > .more-body {
   .palate-summary {
     font-size: 46px;
   }
-  .stats {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .explore-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -4309,7 +4460,7 @@ details.more[open] > .more-body {
 
 /* Bodoni's hairlines vanish on standard-resolution screens: a touch heavier there. */
 @media (max-resolution: 1.5dppx) {
-  .stat .n,
+  .palate-numbers b,
   .reason,
   .wc-reason,
   .hero-caption-name,

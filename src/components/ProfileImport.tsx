@@ -12,7 +12,7 @@ export function useProfile(): PalateProfile | null {
   return useSyncExternalStore(subscribeProfile, loadProfile);
 }
 
-/** "What Palate knows about you": the imported profile in plain words, near the top of My palate. */
+/** The imported profile in plain words, in My palate › Settings › Wine profile. */
 export function ProfileSummary({ profile }: { profile: PalateProfile }) {
   const favs = profileFavourites(profile);
   const prefs = shownPreferences(profile);
@@ -45,11 +45,9 @@ export function ProfileSummary({ profile }: { profile: PalateProfile }) {
         <>
           <div className="eyebrow">Worth exploring</div>
           <ul className="bullets small">
+            {/* The caveats ("limits") are notes for Claude: still sent with every request, not shown. */}
             {profile.inferences.map((x) => (
-              <li key={x.hypothesis}>
-                {x.hypothesis}
-                {x.limits && <span className="muted"> {x.limits}</span>}
-              </li>
+              <li key={x.hypothesis}>{x.hypothesis}</li>
             ))}
           </ul>
         </>
@@ -75,7 +73,7 @@ export function ProfileSummary({ profile }: { profile: PalateProfile }) {
 }
 
 /**
- * "Your wine profile" on My palate: import a history file (from earlier wine conversations),
+ * My palate › Settings › Wine profile: import a history file (from earlier wine conversations),
  * check what will be added, then add it. The profile is what every Claude answer reads.
  */
 export function ProfileImport() {
