@@ -115,7 +115,7 @@ function prompt(r: LikeRequest): string {
 export async function findLikeThisWithClaude(apiKey: string, req: LikeRequest, signal?: AbortSignal): Promise<LikeOutcome> {
   // No automatic retries (a retry is billed twice).
   // Always Anthropic's own address, whatever the environment says.
-  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 600_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 600_000, defaultHeaders: { 'x-palate-feature': 'like-this' } });
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: prompt(req) }];
   const seen = new Set<string>();
   let report: z.infer<typeof ReportSchema> | null = null;

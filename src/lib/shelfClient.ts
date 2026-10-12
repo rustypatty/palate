@@ -123,7 +123,7 @@ export async function readShelfImagesWithClaude(
 ): Promise<ShelfOutcome> {
   // Browser use is intentional: the key is the user's own and only ever sent to Anthropic.
   // No automatic retries: a retry would be billed twice.
-  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 300_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 300_000, defaultHeaders: { 'x-palate-feature': 'shelf-read' } });
   const budget = shelfBudget(lookingFor, loadProfile()?.budget ?? null);
   try {
     const content: Anthropic.Beta.BetaContentBlockParam[] = [
@@ -235,7 +235,7 @@ const PRICE_TOOL = {
 
 /** Look up current US prices online for a few bottles, to back up (or correct) the price calls. */
 export async function checkPricesWithClaude(apiKey: string, report: ShelfReport, indexes: number[], signal?: AbortSignal): Promise<PriceCheckOutcome> {
-  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 600_000 });
+  const client = claudeClient(apiKey, { maxRetries: 0, timeout: 600_000, defaultHeaders: { 'x-palate-feature': 'shelf-prices' } });
   const list = indexes
     .map((i) => {
       const b = report.bottles[i];

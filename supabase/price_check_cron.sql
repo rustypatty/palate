@@ -2,7 +2,7 @@
 -- Run once in the Supabase SQL Editor. Safe to run again: it replaces the schedule and keeps the secret.
 --
 -- Mondays at 07 past the hour, 13:00–17:00 UTC (8am–noon in Texas). Each run checks up to 4 watched bottles
--- not checked in the last 3 days, so a few runs cover them all; runs with nothing to do cost nothing.
+-- not checked in the last 10 days (every other week), so a few runs cover them all; runs with nothing to do cost nothing.
 
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
