@@ -54,8 +54,8 @@ const AlsoSchema = z.object({
 
 // Picks first, so they can be shown while the rest is still being written.
 const ShelfSchema = z.object({
-  picks: z.array(PickSchema).describe('The 3 best buys for me here, best first.'),
-  also_good: z.array(AlsoSchema).describe('Up to 3 more worth a look. Leave out anything I should skip.'),
+  picks: z.array(PickSchema).describe('The 3 best buys for me here, best first (fewer only if fewer bottles were identified).'),
+  also_good: z.array(AlsoSchema).describe('Up to 3 more, best first. With only a few bottles photographed, include every remaining bottle, even a weak fit; on a crowded shelf leave out the clear skips.'),
   decision: z.string().describe('The call, under 35 words: "If you get one: <wine>." plus one alternative for a budget, tonight, or exploring.'),
   lesson: z.string().describe('One sentence (under 25 words) on what trying the picks side by side would teach me. Empty if nothing useful.'),
   unreadable: z.string().describe('Under 20 words on tags you could not read; empty if none.'),
@@ -74,7 +74,8 @@ function prompt(context: string, store: string, photos: number, lookingFor: stri
     (budget ? `My budget: up to $${budget} a bottle. Where a bottle's price tag is in view, choose all your picks (the 3 and the extras) from bottles whose single-bottle tag price is at or under that, and copy the tag price exactly.\n\n` : '') +
     'Read the bottles. Price tags are optional: if one is directly below or beside a bottle, use it; if not, still rank the bottle from its label and set its price to 0. A missing price must never keep a bottle off the list. Only consider bottles you can identify, and skip any marked out of stock. ' +
     'If the same wine is in several photos, list it once. Never invent a bottle, vintage, price or score — use scores only as printed on tags. ' +
-    'Pick the 3 best buys for me and label them (best match, best value, something new), then up to 3 more worth a look. Do not mention bottles I should skip. ' +
+    'Pick the 3 best buys for me and label them (best match, best value, something new), then list the rest of the bottles you identified (up to 3 more), best first, each with a short honest line on how it fits me, even a weak fit. ' +
+    'If I only photographed a few bottles, rank every one of them so I can compare. If there are many on a shelf, leave out the clear skips. ' +
     'Be brief and specific: short words, no filler.'
   );
 }
