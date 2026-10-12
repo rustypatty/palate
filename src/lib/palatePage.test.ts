@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyDraft } from '../db';
 import type { Wine } from '../types';
-import { budgetLine, exploreCards, heroHeadline, heroSummary, loveChips, redsLine, skipsLine, usualPrice, whitesLine } from './palatePage';
+import { budgetLine, exploreCards, heroSummary, loveChips, mentions, redsLine, skipsLine, usualPrice, whitesLine } from './palatePage';
 import type { PalateProfile } from './profile';
 import { buildTaste } from './taste';
 
@@ -34,13 +34,20 @@ const profile: PalateProfile = {
 };
 
 describe('My palate wording', () => {
-  it('trims the imported summary to a short line under the headline', () => {
-    const s = heroSummary(profile, null, false);
-    expect(s).toBe('Bold, structured reds with firm tannins and ripe fruit. Whites tend toward crisp, saline styles.');
-    expect(s.length).toBeLessThanOrEqual(120);
-    // Too long for two lines: the first sentence only.
-    const long = { ...profile, summary: `${profile.summary.split('.')[0]}. Whites lean toward crisp, saline, mineral, lightly aromatic coastal styles from Galicia, the Loire and Liguria.` };
-    expect(heroSummary(long, null, false)).toBe('Bold, structured reds with firm tannins and ripe fruit.');
+  it('writes one paragraph from your ratings and your profile, in your voice', () => {
+    const wines = [
+      ...['Rioja', 'Rioja', 'Ribera del Duero', 'Toro', 'Priorat'].map((region, i) => wine({ producer: `L${i}`, rating: 'loved', region, country: 'Spain', grapes: ['Tempranillo'], style: 'red' })),
+      wine({ producer: 'W', rating: 'wouldnt', region: 'Beaujolais', country: 'France', grapes: ['Gamay'], style: 'red', notes: 'Thin.' }),
+    ];
+    const s = heroSummary(profile, buildTaste(wines), false);
+    expect(s).toMatch(/^You lean toward reds from /);
+    expect(s).toContain('You prefer bold, structured reds with firm tannins and ripe fruit, and also enjoy Rioja.');
+    expect(s).toContain('Whites tend toward crisp, saline styles, with Albariño often chosen.');
+    expect(s).toMatch(/You tend to pass on [^.]*Beaujolais/);
+    expect(s).not.toMatch(/wouldn’t buy again/); // left to the Skips row
+    expect(s.indexOf('You prefer')).toBeLessThan(s.indexOf('You tend to pass on'));
+    // No ratings yet: the profile alone.
+    expect(heroSummary(profile, null, false)).toMatch(/^You prefer bold/);
   });
 
   it('condenses tannin, fruit and whites into one sentence each', () => {
@@ -111,15 +118,9 @@ describe('My palate wording', () => {
     expect(skipsLine(buildTaste(wines), wines, null)).toBe('Light reds with no tannin grip.');
   });
 
-  it('heads the page with your favourite and the places that follow it', () => {
-    const wines = ['Rioja', 'Rioja', 'Mercurey', 'Volnay', 'Châteauneuf-du-Pape', 'Gigondas'].map((region, i) =>
-      wine({ producer: `P${i}`, rating: 'loved', region, country: region === 'Rioja' ? 'Spain' : 'France', style: 'red' }),
-    );
-    const h = heroHeadline('Barolo', buildTaste(wines));
-    expect(h?.text).toMatch(/^Barolo first, then /);
-    expect(h?.em[0]).toBe('Barolo');
-    expect(h?.em.length).toBeGreaterThan(2);
-    expect(heroHeadline('Barolo', null)).toEqual({ text: 'Barolo is your favourite red.', em: ['Barolo'] });
-    expect(heroHeadline('', buildTaste(wines))).toBeNull();
+  it('finds names already said in the header, as whole words', () => {
+    expect(mentions('You lean toward reds from Rioja, Burgundy and Southern Rhône.', 'Southern Rhône')).toBe(true);
+    expect(mentions('You lean toward reds from Rioja.', 'Rio')).toBe(false);
+    expect(loveChips(profile, null, ['Rioja', 'Priorat'], 'reds from Rioja')).not.toContain('Rioja');
   });
 });

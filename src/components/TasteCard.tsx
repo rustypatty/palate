@@ -17,14 +17,11 @@ function emphasise(line: string, words: string[]): ReactNode {
 export function TasteHeader({
   taste,
   favouriteRed = '',
-  headline: given,
   summary = '',
   children,
 }: {
   taste: TasteProfile;
   favouriteRed?: string;
-  /** In place of the default line, with the words to set in italics. */
-  headline?: { text: string; em: string[] } | null;
   summary?: string;
   children?: ReactNode;
 }) {
@@ -45,7 +42,7 @@ export function TasteHeader({
   // What you said is your favourite leads; otherwise the strongest pattern counted from your ratings.
   const counted = taste.enough ? taste.summary.filter((l) => !l.startsWith('In your words')) : [];
   const places = taste.likes.filter((a) => a.kind === 'region' || a.kind === 'area').map((a) => a.value);
-  const headline = given ?? (favouriteRed ? { text: `${favouriteRed} is your favourite red.`, em: [favouriteRed] } : counted[0] ? { text: counted[0], em: places } : null);
+  const headline = favouriteRed ? { text: `${favouriteRed} is your favourite red.`, em: [favouriteRed] } : counted[0] ? { text: counted[0], em: places } : null;
   return (
     <header className="palate-hero">
       <div className="eyebrow">{eyebrow}</div>

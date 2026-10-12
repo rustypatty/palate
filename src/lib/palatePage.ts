@@ -14,18 +14,25 @@ const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const pref = (p: PalateProfile | null, key: string) => p?.preferences.find((x) => (x.key ?? x.dimension.replace(/ /g, '_')) === key)?.value.replace(/\s*\([^()]*\)$/, '') ?? '';
 const listJoin = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
 
-/** One or two short sentences under the headline: the imported summary, trimmed. */
+/**
+ * The paragraph under the headline: what your ratings show (where you lean, what you pass on)
+ * and what your imported profile says, in your voice, as one read. The "wouldn't buy again"
+ * notes are left to the Skips row.
+ */
 export function heroSummary(profile: PalateProfile | null, taste: TasteProfile | null, headlineFromTaste: boolean): string {
-  if (profile?.summary) {
-    const sentences = profile.summary.match(/[^.]+\./g) ?? [profile.summary];
-    // "Prefers structured reds …; also enjoys …" → "Structured reds …."
-    const short = sentences.map((s) => cap(s.trim().replace(/^prefers\s+/i, '').replace(/[;,]\s*(also|with)\b.*$/i, '').replace(/\.?$/, '.')));
-    const two = short.slice(0, 2).join(' ');
-    return two.length <= 120 ? two : short[0];
-  }
-  // No profile: the next thing your ratings say (the first is the headline when there's no favourite).
-  const counted = taste?.enough ? taste.summary.filter((l) => !l.startsWith('In your words')) : [];
-  return counted[headlineFromTaste ? 1 : 0] ?? '';
+  const counted = taste?.enough ? taste.summary.filter((l) => !l.startsWith('In your words') && !l.startsWith('On the ones')) : [];
+  const fromRatings = headlineFromTaste ? counted.slice(1) : counted;
+  const lean = fromRatings.filter((l) => !l.startsWith('You tend to pass on'));
+  const pass = fromRatings.filter((l) => l.startsWith('You tend to pass on'));
+  // "Prefers …; also enjoys …." → "You prefer …, and also enjoy …."
+  const said = (profile?.summary.match(/[^.]+\./g) ?? []).map((x) =>
+    x
+      .trim()
+      .replace(/^prefers\b/i, 'You prefer')
+      .replace(/;\s*also enjoys\b/i, ', and also enjoy')
+      .replace(/^enjoys\b/i, 'You enjoy'),
+  );
+  return [...lean, ...said, ...pass].join(' ');
 }
 
 /** "Noticeable, gripping tannin with some clear fruit." */
@@ -66,25 +73,6 @@ export function skipsLine(taste: TasteProfile | null, wines: Wine[], profile: Pa
   }
   const parts = [sweet ? 'sweet wines' : '', fromNotes].filter(Boolean);
   return parts.length ? `${cap(parts.join(', and '))}.` : '';
-}
-
-/**
- * The headline: your favourite and the other places you love, so it doesn't read as one wine.
- * "Barolo first, then Rioja, Burgundy and Southern Rhône." `em`: the names, set in italics.
- */
-export function heroHeadline(favourite: string, taste: TasteProfile | null): { text: string; em: string[] } | null {
-  const fav = fold(favourite);
-  // Broad areas read best ("Burgundy", not "Mercurey"); regions when there are no areas.
-  const likes = taste?.enough ? taste.likes : [];
-  const areas = likes.filter((a) => a.kind === 'area').map((a) => a.value);
-  const pool = areas.length >= 2 ? areas : likes.filter((a) => a.kind === 'region' || a.kind === 'area').map((a) => a.value);
-  const seen = new Set<string>(fav ? [fav] : []);
-  const places = pool.filter((v) => !seen.has(fold(v)) && seen.add(fold(v))).slice(0, 3);
-  if (favourite) {
-    if (!places.length) return { text: `${favourite} is your favourite red.`, em: [favourite] };
-    return { text: `${favourite} first, then ${listJoin(places)}.`, em: [favourite, ...places] };
-  }
-  return null;
 }
 
 /** A value between two sorted prices (linear, like a spreadsheet's PERCENTILE). */
@@ -140,17 +128,22 @@ export function exploreCards(profile: PalateProfile | null, n = 3): { title: str
     });
 }
 
-/** Your favourites and the places and grapes you rate well, once each: places first, then grapes. `headline`: already shown above. */
-export function loveChips(profile: PalateProfile | null, taste: TasteProfile | null, fallback: string[] = [], headline: string | string[] = ''): string[] {
+/** Your favourites and the places and grapes you rate well, once each: places first, then grapes. `shown`: the header's text; names in it aren't repeated. */
+export function loveChips(profile: PalateProfile | null, taste: TasteProfile | null, fallback: string[] = [], shown = ''): string[] {
   const named = profileFavourites(profile);
   const counted = taste?.enough ? taste.likes.filter((a) => a.kind === 'region' || a.kind === 'area' || a.kind === 'grape').map((a) => a.value) : fallback;
-  // What the headline already names isn't repeated here.
-  const seen = new Set<string>((Array.isArray(headline) ? headline : [headline]).filter(Boolean).map(fold));
+  const seen = new Set<string>();
   const all = [...named, ...counted].filter((v) => {
     const k = fold(v);
-    return v && !seen.has(k) && seen.add(k);
+    return v && !mentions(shown, v) && !seen.has(k) && seen.add(k);
   });
   const isGrape = (v: string) => norm(v).split(' ').every((t) => GRAPES.has(t) || t === 'noir' || t === 'blanc' || t === 'gris');
   return [...all.filter((v) => !isGrape(v)).slice(0, 7), ...all.filter(isGrape).slice(0, 6)];
 }
 
+/** Whether a name appears in a text, as whole words ("Rioja" in "…from Rioja, Burgundy…"). */
+export function mentions(text: string, name: string): boolean {
+  const t = ` ${fold(text).replace(/[^a-z0-9]+/g, ' ')} `;
+  const n = fold(name).replace(/[^a-z0-9]+/g, ' ').trim();
+  return Boolean(n) && t.includes(` ${n} `);
+}

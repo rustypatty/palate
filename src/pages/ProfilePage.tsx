@@ -16,7 +16,7 @@ import { useServerKey } from '../lib/serverKey';
 import { buildPassport } from '../lib/passport';
 import { disablePush, enablePush, pushEnabled, pushSupport, sendTestPush } from '../lib/push';
 import { favouriteRed } from '../lib/profile';
-import { budgetLine, exploreCards, heroHeadline, heroSummary, loveChips, redsLine, skipsLine, whitesLine } from '../lib/palatePage';
+import { budgetLine, exploreCards, heroSummary, loveChips, mentions, redsLine, skipsLine, whitesLine } from '../lib/palatePage';
 import { buildTaste } from '../lib/taste';
 import { lastCheckedAt, priceDrops, watchedWines } from '../lib/priceWatch';
 import { usePriceAuto, usePriceCheckedAt, useTwStock } from '../lib/usePicks';
@@ -273,9 +273,10 @@ export function ProfilePage() {
     { label: 'Skips', text: skipsLine(taste, wines, profile) },
     { label: 'Budget', text: budgetLine(wines, profile) },
   ].filter((r) => r.text);
-  const headline = heroHeadline(fav, taste);
-  const chips = loveChips(profile, taste, stats.places, headline?.em ?? fav);
-  const skips = [...new Set(taste?.dislikes.map((a) => a.value) ?? [])].slice(0, 8);
+  // Names the header already says (the favourite, the places in the paragraph) aren't repeated below.
+  const shown = `${fav} ${summary}`;
+  const chips = loveChips(profile, taste, stats.places, shown);
+  const skips = [...new Set(taste?.dislikes.map((a) => a.value) ?? [])].filter((v) => !mentions(shown, v)).slice(0, 8);
   const explore = exploreCards(profile);
   const maxCountry = Math.max(1, ...stats.countries.map((c) => c.count));
   const toTry = lists?.want.length ?? 0;
@@ -290,7 +291,7 @@ export function ProfilePage() {
   return (
     <div className="palate-page">
       {taste && (
-        <TasteHeader taste={taste} favouriteRed={fav} headline={headline} summary={summary}>
+        <TasteHeader taste={taste} favouriteRed={fav} summary={summary}>
           <div className="palate-numbers">
             <div>
               <b>{stats.total}</b>
