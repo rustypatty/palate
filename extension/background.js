@@ -73,6 +73,7 @@ const pageUrl = (base, page) => {
  */
 async function walk({ tabId, base, page, key, onPage, store }) {
   let totalPages = null;
+  let retried = false;
   for (;;) {
     if (stopAsked) return { end: 'stopped', page };
     let result = await read(tabId);
@@ -82,8 +83,15 @@ async function walk({ tabId, base, page, key, onPage, store }) {
       result = await read(tabId);
     }
     if (!result || result.error || !result.payload) return { end: 'blocked', page };
-    // A refresh is for one store: never save another store's stock under its list.
+    // A refresh is for one store: never save another store's stock under its list. After a
+    // Total Wine check the page can come back at your own store: open the list's link once more.
+    if (store && result.payload.store.id !== store && !retried) {
+      retried = true;
+      if (!(await open(tabId, pageUrl(base, page)))) return { end: 'slow', page };
+      continue;
+    }
     if (store && result.payload.store.id !== store) return { end: 'store', page, found: result.payload.store.name };
+    retried = false;
     const { ok, status, out } = await post('', key, result.payload);
     if (status === 401) return { end: 'key', page, message: out.error };
     if (!ok) return { end: 'error', page, message: out.error || `error ${status}` };

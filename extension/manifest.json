@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Palate · Total Wine import",
-  "version": "1.5",
+  "version": "1.6",
   "description": "Saves the Total Wine page you're looking at (what's in stock at your store) to Palate.",
   "background": { "service_worker": "background.js" },
   "action": {
