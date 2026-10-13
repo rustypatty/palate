@@ -39,11 +39,61 @@ export interface ShopRow {
 // Words in a question that say nothing about which bottles it means.
 const NOISE = new Set(
   tokens(
-    'a an the and or of for to in on at with without is are do does did have has had any there their i me my we you what which who how about tell show find list recommend suggest give get buy under over below above max up less than more cheap cheaper good great best nice some something anything wine wines bottle bottles store stores shop pogo pogos total totalwine they can could would should please tonight today now like want need looking look try next',
+    'a an the and or of for to in on at with without is are do does did have has had any there their i me my we you what which who how about tell show find list recommend suggest give get buy under over below above max up less than more cheap cheaper good great best nice some something anything wine wines bottle bottles store stores shop pogo pogos total totalwine they can could would should please tonight today now like want need looking look try next from near by made between into',
   ),
 );
 
 const STYLE_WORDS: Record<string, string> = { red: 'red', reds: 'red', white: 'white', whites: 'white', rose: 'rose', sparkling: 'sparkling', orange: 'orange', dessert: 'dessert' };
+
+/** "French" and "France" are the same country: a bottle from another one is out, not just ranked lower. */
+const COUNTRY: Record<string, string> = {
+  french: 'france',
+  france: 'france',
+  italian: 'italy',
+  italy: 'italy',
+  spanish: 'spain',
+  spain: 'spain',
+  portuguese: 'portugal',
+  portugal: 'portugal',
+  german: 'germany',
+  germany: 'germany',
+  austrian: 'austria',
+  austria: 'austria',
+  chilean: 'chile',
+  chile: 'chile',
+  argentinian: 'argentina',
+  argentine: 'argentina',
+  argentina: 'argentina',
+  australian: 'australia',
+  australia: 'australia',
+  zealand: 'zealand',
+  african: 'africa',
+  africa: 'africa',
+  greek: 'greece',
+  greece: 'greece',
+};
+
+/**
+ * A grape or style is often not in a bottle's name: red Burgundy is Pinot Noir, Barolo is Nebbiolo.
+ * Asking for the grape also finds the places that make it (all in one spelling, as `tokens` gives them).
+ */
+const PLACES: Record<string, string[]> = {
+  pinot: ['burgundy', 'bourgogne', 'mercurey', 'gevrey', 'chambertin', 'chambolle', 'musigny', 'vosne', 'romanee', 'nuits', 'morey', 'fixin', 'marsannay', 'volnay', 'pommard', 'beaune', 'savigny', 'aloxe', 'corton', 'santenay', 'givry', 'rully', 'chalonnaise', 'nuit', 'willamette'],
+  nebbiolo: ['barolo', 'barbaresco', 'langhe', 'roero', 'gattinara', 'ghemme', 'valtellina', 'piedmont', 'piemonte'],
+  sangiovese: ['chianti', 'brunello', 'montalcino', 'montepulciano', 'nobile', 'tuscany', 'toscana', 'morellino'],
+  tempranillo: ['rioja', 'ribera', 'duero', 'toro', 'crianza'],
+  garnacha: ['priorat', 'borja', 'calatayud'],
+  grenache: ['chateauneuf', 'gigondas', 'vacqueyras', 'rhone', 'priorat', 'garnacha'],
+  syrah: ['hermitage', 'crozes', 'rotie', 'cornas', 'joseph', 'rhone', 'shiraz'],
+  cabernet: ['bordeaux', 'medoc', 'pauillac', 'margaux', 'julien', 'estephe', 'napa', 'graves'],
+  merlot: ['bordeaux', 'pomerol', 'emilion', 'napa'],
+  chardonnay: ['chablis', 'meursault', 'montrachet', 'pouilly', 'fuisse', 'macon', 'puligny', 'chassagne', 'burgundy', 'bourgogne', 'sonoma'],
+  sauvignon: ['sancerre', 'pouilly', 'fume', 'marlborough', 'pessac'],
+  riesling: ['mosel', 'rheingau', 'kabinett', 'spatlese', 'alsace', 'pfalz'],
+  malbec: ['mendoza', 'cahors', 'uco'],
+  burgundy: ['bourgogne', 'pinot', 'chardonnay'],
+  bordeaux: ['medoc', 'pauillac', 'margaux', 'pomerol', 'emilion', 'graves', 'pessac'],
+};
 
 /** The most per bottle a question asks for ("under $40", "below 25"), or null. */
 export function priceCap(question: string): number | null {
@@ -62,13 +112,19 @@ const criticPoints = (b: StoreItem | SuggestedItem) => {
 /**
  * The bottles most likely meant by a question (and, for a follow-up, the one before it), from every
  * saved store list: matched on name, region, country, grapes and colour, within any price asked for.
- * A question with nothing to match on ("what should I try?") gets the best-reviewed bottles instead.
+ * A country in the question ("French", "Italy") keeps out every other country; a grape also finds
+ * the places that make it. A question with nothing to match on ("what should I try?") gets the
+ * best-reviewed bottles instead. `total` is how many bottles matched, of which the best `n` are returned.
  */
-export function searchStock(question: string, previous: string[], stocks: StoreStock[], n = 40): StoreHit[] {
+export function searchStock(question: string, previous: string[], stocks: StoreStock[], n = 40): { hits: StoreHit[]; total: number } {
   const words = (q: string) => tokens(q).filter((t) => !NOISE.has(t) && !/^\d+$/.test(t));
   const style = tokens(question).map((t) => STYLE_WORDS[t]).find(Boolean) ?? null;
-  const own = new Set(words(question).filter((t) => !STYLE_WORDS[t]).map(stem));
-  const before = new Set(words(previous.at(-1) ?? '').filter((t) => !STYLE_WORDS[t]).map(stem));
+  const asked = words(question).filter((t) => !STYLE_WORDS[t]);
+  const countries = new Set(asked.flatMap((t) => (COUNTRY[t] ? [COUNTRY[t]] : [])));
+  const own = new Set(asked.filter((t) => !COUNTRY[t]).map(stem));
+  const before = new Set(words(previous.at(-1) ?? '').filter((t) => !STYLE_WORDS[t] && !COUNTRY[t]).map(stem));
+  // Places that make a grape that was asked for (also from a country-less follow-up's earlier question).
+  const places = new Set([...own].flatMap((t) => PLACES[t] ?? []).map(stem));
   const cap = priceCap(question);
 
   const hits: { stock: StoreStock; item: StoreItem | SuggestedItem; score: number }[] = [];
@@ -77,11 +133,14 @@ export function searchStock(question: string, previous: string[], stocks: StoreS
       if (item.sizeMl !== null && item.sizeMl !== 750) continue;
       if (style && item.style !== style) continue;
       if (cap !== null && (item.price === null || item.price > cap)) continue;
+      const origin = new Set(tokens(`${item.country} ${item.context ?? ''}`));
+      if (countries.size && ![...countries].some((c) => origin.has(c))) continue;
       const hay = new Set(tokens([item.title, item.context ?? '', item.country, 'region' in item ? item.region : '', 'grapes' in item ? item.grapes.join(' ') : ''].join(' ')).map(stem));
       let score = 0;
       for (const t of own) if (hay.has(t)) score += 10;
+      for (const t of places) if (hay.has(t)) score += 8;
       for (const t of before) if (!own.has(t) && hay.has(t)) score += 4;
-      if (score === 0 && (own.size > 0 || (before.size > 0 && !style))) continue;
+      if (score === 0 && (own.size > 0 || (before.size > 0 && !style && countries.size === 0))) continue;
       hits.push({ stock, item, score: score + criticPoints(item) / 100 });
     }
   }
@@ -98,13 +157,13 @@ export function searchStock(question: string, previous: string[], stocks: StoreS
     taken.set(h.stock.store, k + 1);
     out.push({ id: `S${out.length + 1}`, stock: h.stock, item: h.item });
   }
-  return out;
+  return { hits: out, total: hits.length };
 }
 
 const day = (at: number) => new Date(at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
 /** What goes to Claude with the question: which lists exist, and the matching bottles, one line each. */
-export function stockBlock(stocks: StoreStock[], hits: StoreHit[]): string {
+export function stockBlock(stocks: StoreStock[], hits: StoreHit[], total = hits.length): string {
   if (!stocks.length) {
     return 'Store bottles: none. No Pogo’s or Total Wine list is saved on my phone, so you cannot see what any store has. If I ask about a store’s bottles, say so and suggest loading the list on the In store screen.';
   }
@@ -126,7 +185,8 @@ export function stockBlock(stocks: StoreStock[], hits: StoreHit[]): string {
       .filter(Boolean)
       .join(' | ');
   });
-  return `Store bottles matching this question, from lists saved on my phone: ${lists}. Only these are known; the stores may have more (id | store | bottle | colour | place | price | deal | critic score | aisle):\n${lines.join('\n')}`;
+  const shown = total > hits.length ? `the best ${hits.length} of ${total} matching bottles` : `all ${hits.length} matching bottles`;
+  return `Store bottles from lists saved on my phone: ${lists}. Here are ${shown}, best first, picked by a simple word search, so a bottle whose name doesn't show its grape or place may be missing. Never say these are the only ones the store has (id | store | bottle | colour | place | price | deal | critic score | aisle):\n${lines.join('\n')}`;
 }
 
 /** The rows under an answer: only ids that were really sent, in the answer's order, without repeats. */

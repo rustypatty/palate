@@ -136,8 +136,9 @@ export async function askWines(
   const shopping = wantsStore(question) || wantsStore(previous.at(-1) ?? '');
   const { searchStock, shopRows, stockBlock } = await import('./askStores');
   const stocks = shopping ? await savedStocks() : [];
-  const hits = shopping ? searchStock(question, previous, stocks) : [];
-  const stock = shopping ? stockBlock(stocks, hits) : undefined;
+  const found = shopping ? searchStock(question, previous, stocks) : { hits: [], total: 0 };
+  const hits = found.hits;
+  const stock = shopping ? stockBlock(stocks, hits, found.total) : undefined;
   const out = await askWinesWithClaude(apiKey, { lines: wineLines(wines), count: list.length, about, year: new Date().getFullYear(), stock }, turns, question, signal, onPartial);
   if (!out.ok) return out;
   return { ok: true, answer: { ...out.answer, wineIds: knownIds(out.answer.wineIds, wines), shop: shopRows(out.answer.storeIds ?? [], hits) } };
