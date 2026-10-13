@@ -14,6 +14,8 @@ export interface AskContext {
   /** Your wine profile and taste summary. */
   about: string;
   year: number;
+  /** The store bottles matching this question (from askStores.stockBlock); goes with the question, not the cached system prompt. */
+  stock?: string;
 }
 
 const AnswerSchema = z.object({
@@ -24,6 +26,7 @@ const AnswerSchema = z.object({
   wine_ids: z.array(z.string()).describe('The ids (in square brackets in my list) of every wine of mine the answer names, in the order named. Empty if none.'),
   store_actions: z.array(z.enum(['totalwine', 'pogos'])).describe('Only when the answer recommends buying something: the stores to look at, Total Wine first. Otherwise empty.'),
   colour: z.enum(['red', 'white', 'any']).describe('The colour of wine the answer is about, if one; else "any".'),
+  store_bottle_ids: z.array(z.string()).describe('The ids (like S3) of every store bottle the answer names, in the order named. Only ids from the "Store bottles" list sent with my question. Empty if none.'),
 });
 
 // Keep the schema and the app's shape in step.
@@ -35,6 +38,7 @@ const toAnswer = (o: z.infer<typeof AnswerSchema>): AskAnswer => ({
   wineIds: o.wine_ids,
   stores: o.store_actions,
   colour: o.colour,
+  storeIds: o.store_bottle_ids,
 });
 
 function system(c: AskContext): string {
@@ -44,6 +48,7 @@ function system(c: AskContext): string {
     '- Questions about my wines, from the list below only.',
     '- General wine questions (decanting, styles, pairing, regions) from your own knowledge, linked to one of my bottles when one fits.',
     '- "What should I try next?"-style recommendations from my ratings; then offer the stores.',
+    '- What Pogo’s or Total Wine has: answer only from the "Store bottles" list that comes with my question. Name bottles by producer and name with the store and price, put their ids in store_bottle_ids, and never invent a bottle, price or stock. If none fits, say what you looked at and that the store may have more. Prefer bottles that suit my taste, and say how they fit what I have rated.',
     '- Anything not about wine: answer only "I’m just for wine." (headline "I’m just for", italic "wine.", empty body).',
     'Rules:',
     '- Never invent facts about my bottles. Ratings, prices, notes, bottles at home, tasted dates and best years come only from the list. If the list doesn’t have the answer, say so.',
@@ -81,7 +86,7 @@ export async function askWinesWithClaude(
   const client = claudeClient(apiKey, { maxRetries: 0, timeout: 300_000, defaultHeaders: { 'x-palate-feature': 'ask' } });
   const messages: Anthropic.Beta.BetaMessageParam[] = [];
   for (const t of turns) if (t.a) messages.push({ role: 'user', content: t.q }, { role: 'assistant', content: answerText(t.a) });
-  messages.push({ role: 'user', content: question });
+  messages.push({ role: 'user', content: c.stock ? `${question}\n\n${c.stock}` : question });
   try {
     const { stop, parsed } = await streamParsed<z.infer<typeof AnswerSchema>>(
       client,

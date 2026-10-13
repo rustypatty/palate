@@ -1,6 +1,7 @@
 import type { Rating, Wine } from '../types';
 import { findAppellation } from './appellations';
 import { currentWindow } from './drinkWindow';
+import type { ShopRow, StoreStock } from './askStores';
 import type { StoreId } from './stores';
 import { fold } from './text';
 
@@ -24,6 +25,10 @@ export interface AskAnswer {
   stores: StoreId[];
   /** The colour the answer is about, for the store list's filter. */
   colour: 'red' | 'white' | 'any';
+  /** Ids of store bottles the answer names, as Claude wrote them. */
+  storeIds?: string[];
+  /** Those bottles, from the lists saved on this phone (missing in chats saved before this existed). */
+  shop?: ShopRow[];
 }
 
 export interface AskTurn {
@@ -126,7 +131,40 @@ export async function askWines(
   const list = askable(wines);
   const taste = buildTaste(list.filter((w) => !w.list));
   const about = [profileContext(loadProfile()), taste.summary.length ? `My taste, worked out from my ratings: ${taste.summary.join(' ')}` : ''].filter(Boolean).join('\n\n');
-  const out = await askWinesWithClaude(apiKey, { lines: wineLines(wines), count: list.length, about, year: new Date().getFullYear() }, turns, question, signal, onPartial);
+  // Questions about what to buy or what a store has: the matching bottles from the lists saved on this phone go along.
+  const previous = turns.map((t) => t.q);
+  const shopping = wantsStore(question) || wantsStore(previous.at(-1) ?? '');
+  const { searchStock, shopRows, stockBlock } = await import('./askStores');
+  const stocks = shopping ? await savedStocks() : [];
+  const hits = shopping ? searchStock(question, previous, stocks) : [];
+  const stock = shopping ? stockBlock(stocks, hits) : undefined;
+  const out = await askWinesWithClaude(apiKey, { lines: wineLines(wines), count: list.length, about, year: new Date().getFullYear(), stock }, turns, question, signal, onPartial);
   if (!out.ok) return out;
-  return { ok: true, answer: { ...out.answer, wineIds: knownIds(out.answer.wineIds, wines) } };
+  return { ok: true, answer: { ...out.answer, wineIds: knownIds(out.answer.wineIds, wines), shop: shopRows(out.answer.storeIds ?? [], hits) } };
+}
+
+/** Does a question look like it's about buying, or what a store has? (Otherwise no store bottles are sent.) */
+export function wantsStore(question: string): boolean {
+  return /pogo|total ?wine|\bstores?\b|\bshops?\b|\bbuy|\bget\b|stock|carry|sell|available|\bhave\b|\bhas\b|\bthere\b|price|cheap|\$|under \d|find|where|recommend|suggest|try next|should i (try|get|pick)|options?/i.test(question);
+}
+
+/** Pogo's downloaded wine list and the Total Wine store you use, as saved on this phone (empty if none). */
+async function savedStocks(): Promise<StoreStock[]> {
+  const out: StoreStock[] = [];
+  const [{ db }, { twStockFor }] = await Promise.all([import('../db'), import('./usePicks')]);
+  const pogos = await db.stores.get('pogos').catch(() => undefined);
+  if (pogos?.items?.length) out.push({ store: 'pogos', name: 'Pogo’s', at: pogos.fetchedAt, bottles: pogos.items });
+  // Total Wine comes from the cloud: don't hold up the answer for it.
+  const pick = (key: string) => {
+    try {
+      return JSON.parse(localStorage.getItem(key) ?? 'null') as string | null;
+    } catch {
+      return null;
+    }
+  };
+  const chosen = pick('palate.twStore');
+  const storeId = chosen && chosen !== 'nearest' ? chosen : pick('palate.twNearest');
+  const tw = await Promise.race([twStockFor(storeId).catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), 4000))]);
+  if (tw?.bottles.length) out.push({ store: 'totalwine', name: `Total Wine (${tw.storeName})`, at: tw.importedAt, bottles: tw.bottles });
+  return out;
 }

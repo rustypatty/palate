@@ -1,8 +1,10 @@
-import { ArrowUp, ChevronRight, Heart } from 'lucide-react';
+import { ArrowUp, ArrowUpRight, ChevronRight, Heart } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAllWines } from '../hooks';
 import { askable, askWines, loadTurns, saveTurns, suggestions, type AskAnswer, type AskTurn } from '../lib/ask';
+import type { ShopRow } from '../lib/askStores';
+import { formatPrice } from '../lib/format';
 import { hasApiKey } from '../lib/labelReader';
 import { storeById, type StoreId } from '../lib/stores';
 import type { Wine } from '../types';
@@ -43,6 +45,23 @@ function WineRow({ wine }: { wine: Wine }) {
   );
 }
 
+/** A bottle from a store's saved list: opens its page on the store's site. */
+function ShopBottle({ row }: { row: ShopRow }) {
+  return (
+    <a href={row.url} target="_blank" rel="noreferrer" className="ask-wine">
+      <span className="tile ask-wine-stage">
+        {row.image && <BottleImage photo={{ kind: 'remote', url: row.image, source: { name: row.storeName, pageUrl: row.url, title: '' } }} alt="" />}
+      </span>
+      <span className="ask-wine-text">
+        <span className="ask-wine-producer">{row.storeName}</span>
+        <span className="ask-wine-name">{row.title}</span>
+        <span className="ask-wine-rating">{[row.price !== null ? formatPrice(row.price) : '', row.deal, row.score].filter(Boolean).join(' · ')}</span>
+      </span>
+      <ArrowUpRight size={18} strokeWidth={1.7} className="ask-wine-chev" />
+    </a>
+  );
+}
+
 function Answer({ a, wines, count, onStore }: { a: Partial<AskAnswer>; wines: Map<string, Wine>; count: number; onStore: (id: StoreId, colour: AskAnswer['colour']) => void }) {
   const rows = (a.wineIds ?? []).flatMap((id) => (wines.has(id) ? [wines.get(id)!] : []));
   return (
@@ -57,6 +76,13 @@ function Answer({ a, wines, count, onStore }: { a: Partial<AskAnswer>; wines: Ma
         <div className="ask-wines">
           {rows.map((w) => (
             <WineRow key={w.id} wine={w} />
+          ))}
+        </div>
+      )}
+      {(a.shop ?? []).length > 0 && (
+        <div className="ask-wines">
+          {a.shop!.map((r) => (
+            <ShopBottle key={r.url} row={r} />
           ))}
         </div>
       )}
@@ -181,7 +207,7 @@ export function AskSheet({ onClose }: { onClose: () => void }) {
           <h3 className="ask-hello">
             What do you want to <em>know?</em>
           </h3>
-          <p className="ask-lede">Ask about your bottles, what to open or try next, or anything about wine.</p>
+          <p className="ask-lede">Ask about your bottles, what to open or try next, what Pogo’s or Total Wine has, or anything about wine.</p>
           {hasKey ? (
             <div className="ask-examples">
               {examples.map((q) => (
