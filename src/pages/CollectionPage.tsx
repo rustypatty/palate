@@ -435,6 +435,9 @@ export function CollectionPage() {
           <div className="search-row desktop-only">
             <SearchBox value={filters.query} onChange={(q) => set({ query: q })} />
             {filterButton}
+            <button type="button" className="btn btn-tone" onClick={() => setAsking(true)}>
+              <MessageSquare size={17} strokeWidth={1.6} /> Ask your wines
+            </button>
           </div>
         </div>
 
