@@ -2,6 +2,7 @@ import { isBottleShot } from './likePhotos';
 import { GRAPES, lookupCatalog, searchCatalogAt, type CatalogWine } from './catalogMatch';
 import { norm } from './catalogNorm';
 import { relayedImageUrl, relayedThumbUrl, type WineLookup } from './labelClient';
+import { preferVintage } from './photoVintage';
 import type { LabelReading } from './labelReader';
 import type { ShelfBottle, ShelfCatalog } from './shelf';
 import { SUPABASE_KEY, SUPABASE_URL } from './supabaseConfig';
@@ -111,7 +112,7 @@ export async function catalogLookup(
   const query = { producer: reading.producer, name: reading.wine_name, style: reading.style === 'unknown' ? undefined : reading.style };
   const { match } = await lookupCatalog(query, (text) => deps.search(text, signal));
   if (match.status !== 'match') return null;
-  return lookupFrom(match.wine, needPhoto, deps, match.others);
+  return lookupFrom(match.wine, needPhoto, deps, match.others, /^\d{4}$/.test(reading.vintage) ? Number(reading.vintage) : null);
 }
 
 /** Photos tried per wine: its own, then other shops' entries for the same wine. */
@@ -120,11 +121,18 @@ const PHOTO_TRIES = 4;
 const NOT_A_PHOTO = /placeholder|no[-_]?image|coming[-_]?soon|camera[-_]?shy|logo/i;
 
 /** A matched catalog wine as the details a lookup gives, with a clean bottle photo when one of its entries has it. */
-async function lookupFrom(w: CatalogWine, needPhoto: boolean, deps: CatalogDeps, others: CatalogWine[] = []): Promise<WineLookup> {
+async function lookupFrom(w: CatalogWine, needPhoto: boolean, deps: CatalogDeps, others: CatalogWine[] = [], vintage: number | null = null): Promise<WineLookup> {
   let photo: WineLookup['photo'] = null;
   // Shops also show labels, gift boxes, lifestyle and phone shots: only a whole bottle will do.
   const seen = new Set<string>();
-  const tries = [w, ...(needPhoto ? others : [])].filter((e) => e.image_url && !NOT_A_PHOTO.test(e.image_url.split('?')[0]) && !seen.has(e.image_url) && seen.add(e.image_url)).slice(0, PHOTO_TRIES);
+  const entries = [w, ...(needPhoto ? others : [])].filter((e) => e.image_url && !NOT_A_PHOTO.test(e.image_url.split('?')[0]) && !seen.has(e.image_url) && seen.add(e.image_url));
+  // Each shop lists its own year and size under the wine: the photo of the right vintage goes first, a 1993 magnum last.
+  const tries = preferVintage(
+    entries.map((e) => ({ e, title: e.display_name ?? '', url: e.image_url ?? '', pageUrl: e.image_source_page_url ?? '' })),
+    vintage,
+  )
+    .map((x) => x.e)
+    .slice(0, PHOTO_TRIES);
   for (const e of tries) {
     const url = relayedImageUrl(e.image_url!);
     if (await deps.isBottle(url)) {
@@ -171,12 +179,14 @@ export async function catalogPhotos(
   style?: string,
   signal?: AbortSignal,
   deps: CatalogDeps = PHOTO_DEPS,
+  /** The wine's vintage: photos of that year come first. */
+  vintage: number | 'NV' | null = null,
 ): Promise<{ sure: CatalogPhoto | null; maybe: CatalogPhoto[] }> {
   const none = { sure: null, maybe: [] };
   if (!(producer.trim() || name.trim())) return none;
   const { match, candidates } = await lookupCatalog({ producer, name, style }, (text) => deps.search(text, signal));
   if (match.status === 'match') {
-    const l = await lookupFrom(match.wine, true, deps, match.others);
+    const l = await lookupFrom(match.wine, true, deps, match.others, typeof vintage === 'number' ? vintage : null);
     if (l.photo) return { sure: { ...l.photo, thumbUrl: relayedThumbUrl(l.photo.url) }, maybe: [] };
   }
   // Not sure: the likely entries from the same producer ("Caiarossa Toscane", "Aria di Caiarossa"…).
@@ -189,7 +199,8 @@ export async function catalogPhotos(
   };
   const pool = [...(match.status === 'uncertain' ? match.options : []), ...(match.status === 'match' ? [match.wine, ...(match.others ?? [])] : []), ...candidates];
   const seen = new Set<string>();
-  const maybe = pool
+  const maybe = preferVintage(
+    pool
     .filter((c) => c.image_url && !NOT_A_PHOTO.test(c.image_url.split('?')[0]) && sameProducer(c) && !seen.has(c.image_url) && seen.add(c.image_url))
     .slice(0, 6)
     .map((c) => ({
@@ -198,7 +209,9 @@ export async function catalogPhotos(
       pageUrl: c.image_source_page_url ?? '',
       siteName: siteName(c.image_source_domain, c.image_source_page_url),
       title: c.display_name ?? '',
-    }));
+    })),
+    vintage,
+  );
   return { sure: null, maybe };
 }
 

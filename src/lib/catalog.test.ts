@@ -107,6 +107,21 @@ describe('catalog photos for the photo finder', () => {
     expect(out.maybe).toEqual([]);
   });
 
+  it("gives a 2023 bottle the 2023 photo, not the wine's first image, a 1993 magnum", async () => {
+    // As with Sassicaia: the matched entry's own image is a 1993 1.5 L; another shop's entry for the wine has the 2023.
+    const magnum = { ...muga, image_url: 'https://cdn.example.com/1993MugaReserva1.5L.png', image_source_page_url: 'https://shop1.example.com/products/1993-muga-reserva-1-5l', image_source_domain: 'shop1.example.com' };
+    const y2023 = { ...muga, wine_id: 'wn_2', display_name: 'Bodegas Muga Reserva Rioja', source_count: 1, similarity: 0.9, image_url: 'https://cdn.example.com/muga-reserva-2023.png', image_source_page_url: 'https://shop2.example.com/products/muga-reserva-2023', image_source_domain: 'shop2.example.com' };
+    const results = [magnum, y2023];
+    const right = await catalogPhotos('Bodegas Muga', 'Reserva', undefined, undefined, deps(results), 2023);
+    expect(right.sure).toMatchObject({ siteName: 'shop2.example.com', pageUrl: 'https://shop2.example.com/products/muga-reserva-2023' });
+    // No vintage known: a magnum still goes last.
+    const any = await catalogPhotos('Bodegas Muga', 'Reserva', undefined, undefined, deps(results));
+    expect(any.sure).toMatchObject({ siteName: 'shop2.example.com' });
+    // Only the magnum to be had: better than nothing.
+    const only = await catalogPhotos('Bodegas Muga', 'Reserva', undefined, undefined, deps([magnum]), 2023);
+    expect(only.sure).toMatchObject({ siteName: 'shop1.example.com' });
+  });
+
   it("offers the same producer's likely entries when the catalog isn't sure, never another producer's", async () => {
     const entry = (wine_id: string, producer: string, cuvee: string, img: string) => ({
       ...muga,

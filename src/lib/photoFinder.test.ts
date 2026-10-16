@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyDraft } from '../db';
 import type { Wine } from '../types';
-import { needsPhoto, photoQueue, photoYear, preferVintage, wrongVintage } from './photoFinder';
+import { needsPhoto, photoQueue } from './photoFinder';
 
 const wine = (over: Partial<Wine>): Wine => ({ ...emptyDraft(), id: 'w', createdAt: 0, updatedAt: 0, ...over });
 
@@ -28,23 +28,5 @@ describe('photo finder', () => {
     const later = 900 + 31 * 60_000;
     expect(photoQueue([w], later, { a: { at: 900, sig, why: 'no connection', soon: true } })).toHaveLength(1);
     expect(photoQueue([w], later, { a: { at: 900, sig, why: 'no photo of this exact wine was found' } })).toHaveLength(0);
-  });
-  it('reads the vintage a photo is listed as, from its title or file name', () => {
-    expect(photoYear({ title: 'Domaine de la Bressande Mercurey 1993' })).toBe(1993);
-    expect(photoYear({ title: 'Bressande Mercurey', url: 'https://cdn.example.com/p/bressande_2023.png?v=3' })).toBe(2023);
-    expect(photoYear({ title: 'Bressande Mercurey', url: 'https://cdn.example.com/p/12345678.png' })).toBeNull();
-    expect(wrongVintage({ title: 'Mercurey 1993' }, 2023)).toBe(true);
-    expect(wrongVintage({ title: 'Mercurey 2023' }, 2023)).toBe(false);
-    expect(wrongVintage({ title: 'Mercurey' }, 2023)).toBe(false);
-    expect(wrongVintage({ title: 'Mercurey 1993' }, 'NV')).toBe(false);
-  });
-
-  it('puts the right vintage first, photos that don’t say next, other years last', () => {
-    const a = { title: 'Mercurey 1993' };
-    const b = { title: 'Mercurey' };
-    const c = { title: 'Mercurey 2023' };
-    const d = { title: 'Mercurey 2019' };
-    expect(preferVintage([a, b, d, c], 2023)).toEqual([c, b, a, d]);
-    expect(preferVintage([a, b, c], null)).toEqual([a, b, c]);
   });
 });

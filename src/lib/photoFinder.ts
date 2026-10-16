@@ -2,6 +2,9 @@ import { db, updateWine } from '../db';
 import type { Wine } from '../types';
 import { photoFromFile, photoFromUrl, shownPhoto } from './image';
 import { relayedImageUrl } from './labelClient';
+import { originalImage, preferVintage, unsuitable } from './photoVintage';
+
+export { photoYear, preferVintage, unsuitable, wrongVintage } from './photoVintage';
 
 /**
  * Every bottle should show a real photo, without you having to look for one. Wines showing the
@@ -81,32 +84,6 @@ export function lastMiss(w: Wine): string | null {
   return t && t.sig === signature(w) && t.why ? t.why : null;
 }
 
-/** The vintage a photo is listed as, if its title or file name shows one ("… Mercurey 1993", "…_2023.jpg"). */
-export function photoYear(p: { title?: string; url?: string }): number | null {
-  const file = (() => {
-    try {
-      return decodeURIComponent(new URL(p.url ?? '', 'https://x.invalid').pathname.split('/').pop() ?? '');
-    } catch {
-      return '';
-    }
-  })();
-  const m = /(?<!\d)(19[5-9]\d|20[0-4]\d)(?!\d)/.exec(p.title ?? '') ?? /(?<!\d)(19[5-9]\d|20[0-4]\d)(?!\d)/.exec(file);
-  return m ? Number(m[1]) : null;
-}
-
-/** A photo that shows a different year from the wine's: worth using only if nothing better turns up. */
-export const wrongVintage = (p: { title?: string; url?: string }, vintage: number | 'NV' | null | undefined): boolean => {
-  const y = photoYear(p);
-  return typeof vintage === 'number' && y !== null && y !== vintage;
-};
-
-/** Photos with the right vintage first, then ones that don't say, then other years; otherwise in the order given. */
-export function preferVintage<T extends { title?: string; url?: string }>(photos: T[], vintage: number | 'NV' | null | undefined): T[] {
-  if (typeof vintage !== 'number') return photos;
-  const rank = (p: T) => (photoYear(p) === vintage ? 0 : wrongVintage(p, vintage) ? 2 : 1);
-  return photos.map((p, i) => ({ p, i })).sort((a, b) => rank(a.p) - rank(b.p) || a.i - b.i).map((x) => x.p);
-}
-
 /** Bottle photos of a wine from the web, best first (Claude searches; see bottlePhotoClient). */
 export async function findBottlePhotos(query: string, snap: Blob | null, signal?: AbortSignal, known: { url: string; site: string }[] = []) {
   const { getApiKey } = await import('./labelReader');
@@ -132,7 +109,7 @@ export const isFinding = (id: string) => finding.has(id);
  */
 async function fromCatalog(wine: Wine, snap: Blob | null, signal?: AbortSignal) {
   const { catalogPhotos } = await import('./catalog');
-  const found = await catalogPhotos(wine.producer, wine.name, wine.style || undefined, signal).catch(() => null);
+  const found = await catalogPhotos(wine.producer, wine.name, wine.style || undefined, signal, undefined, wine.vintage).catch(() => null);
   if (!found) return null;
   if (found.sure) return { pick: found.sure, confirmed: false };
   if (!found.maybe.length) return null;
@@ -141,16 +118,6 @@ async function fromCatalog(wine: Wine, snap: Blob | null, signal?: AbortSignal) 
   if (!apiKey) return null;
   const out = await (await import('./bottlePhotoClient')).pickBottlePhoto(apiKey, wineQuery(wine), found.maybe, snap, signal);
   return out.ok && out.matched ? { pick: out.photos[0], confirmed: true } : null;
-}
-
-/** The image's own address, from an image-relay link. */
-function originalImage(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.hostname === 'images.weserv.nl' ? (u.searchParams.get('url') ?? url) : url;
-  } catch {
-    return url;
-  }
 }
 
 /**
@@ -184,9 +151,9 @@ export async function findPhotoFor(wine: Wine, signal?: AbortSignal): Promise<bo
     let pick = catalog?.pick ?? null;
     // Confirmed by Claude (not a sure catalog match, which is found again anyway): learn it.
     let learn = Boolean(catalog?.confirmed);
-    // A catalog photo that shows another vintage ("… 1993" for your 2023) is kept for later; the web is tried first.
+    // A catalog photo of another vintage or a magnum ("… 1993 1.5L" for your 2023) is kept for later; the web is tried first.
     let other = null as typeof pick;
-    if (pick && wrongVintage(pick, wine.vintage)) {
+    if (pick && unsuitable(pick, wine.vintage)) {
       other = pick;
       pick = null;
     }
@@ -196,7 +163,7 @@ export async function findPhotoFor(wine: Wine, signal?: AbortSignal): Promise<bo
       if (outcome.ok && outcome.matched) {
         const best = preferVintage(outcome.photos, wine.vintage)[0];
         // The web's best is no better than the catalog's? Keep the catalog's (already known to be this wine).
-        if (!(other && wrongVintage(best, wine.vintage))) {
+        if (!(other && unsuitable(best, wine.vintage))) {
           pick = best;
           learn = true;
         }
