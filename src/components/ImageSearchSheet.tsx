@@ -2,16 +2,16 @@ import { AlertTriangle, ArrowLeft, Check, ExternalLink, Link2, Search } from 'lu
 import { useEffect, useState, type FormEvent } from 'react';
 import { isProbablyImageUrl } from '../lib/image';
 import { searchWikimediaCommons, webImageSearchUrl, type ImageCandidate } from '../lib/imageSearch';
-import { findBottlePhotos } from '../lib/photoFinder';
+import { findBottlePhotos, preferVintage } from '../lib/photoFinder';
 import { Sheet } from './Sheet';
 
 type SourceId = 'web' | 'page' | 'commons';
 
 /** Claude searches shops and wineries for this wine and lists the bottle photos found. */
-async function searchShops(q: string, signal: AbortSignal): Promise<ImageCandidate[]> {
+async function searchShops(q: string, signal: AbortSignal, vintage?: number | 'NV' | null): Promise<ImageCandidate[]> {
   const out = await findBottlePhotos(q, null, signal);
   if (!out.ok) throw new Error(out.reason);
-  return out.photos.map((p, i) => ({ id: `web-${i}`, url: p.url, thumbUrl: p.thumbUrl, title: p.title, subtitle: p.siteName, sourceName: p.siteName, pageUrl: p.pageUrl }));
+  return preferVintage(out.photos, vintage).map((p, i) => ({ id: `web-${i}`, url: p.url, thumbUrl: p.thumbUrl, title: p.title, subtitle: p.siteName, sourceName: p.siteName, pageUrl: p.pageUrl }));
 }
 
 /** The bottle photos on a page you paste the link of. */
@@ -20,7 +20,7 @@ async function searchPage(url: string, signal: AbortSignal): Promise<ImageCandid
   return (await bottleImagesOnPage(url, signal)).map((p, i) => ({ id: `page-${i}`, url: p.url, thumbUrl: p.thumbUrl, title: p.title, subtitle: p.siteName, sourceName: p.siteName, pageUrl: p.pageUrl }));
 }
 
-const SOURCES: { id: SourceId; label: string; run: (q: string, s: AbortSignal) => Promise<ImageCandidate[]> }[] = [
+const SOURCES: { id: SourceId; label: string; run: (q: string, s: AbortSignal, vintage?: number | 'NV' | null) => Promise<ImageCandidate[]> }[] = [
   { id: 'web', label: 'Shops & wineries', run: searchShops },
   { id: 'commons', label: 'Wikimedia Commons', run: searchWikimediaCommons },
 ];
@@ -73,7 +73,7 @@ export function ImageSearchSheet({
     const ctrl = new AbortController();
     setState({ status: 'loading', results: [] });
     (source === 'page' ? PAGE_SOURCE : SOURCES.find((s) => s.id === source)!)
-      .run(submitted.trim(), ctrl.signal)
+      .run(submitted.trim(), ctrl.signal, expected.vintage)
       .then((results) => setState({ status: 'done', results }))
       .catch((e: unknown) => {
         if (ctrl.signal.aborted) return;

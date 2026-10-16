@@ -70,6 +70,9 @@ export function Sheet({ title, onClose, children, footer, wide, tall, headerActi
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
+        // The sheet is drawn outside the page but still sits inside it as far as React goes: without this,
+        // pressing Search in a sheet opened from the edit form also submitted (saved) that form.
+        onSubmit={(e) => e.stopPropagation()}
       >
         <div className="sheet-grabber" {...swipe} />
         <div className="sheet-head" {...swipe}>

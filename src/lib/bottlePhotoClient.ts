@@ -164,7 +164,7 @@ async function pickPhotos(client: Anthropic, wine: string, bottles: BottlePhoto[
     {
       type: 'text',
       text:
-        `Which of these images show a whole bottle of ${wine}? Same producer and cuvée on the label; a different vintage is fine. ` +
+        `Which of these images show a whole bottle of ${wine}? Same producer and cuvée on the label. Put the vintage asked for first, judging by the label or its listing; a different vintage only after those, and only if no photo of the right one is here. ` +
         (snapData ? 'Prefer the one whose label matches my photo. ' : '') +
         'Only real photographs of a bottle count: leave out shop placeholders ("no image", "coming soon", "camera shy"), logos, illustrations and blank bottles, even on the right page. ' +
         'Rank the matches, the cleanest product shot (plain background, whole bottle, upright) first. Leave out anything else.',
@@ -220,7 +220,7 @@ export async function findBottlePhotosWithClaude(
         role: 'user',
         content:
           `Find web pages with a photo of this wine bottle: ${wine}\n\n` +
-          'Search the web, then report up to 6 pages about this exact wine (same producer and cuvée; any vintage is fine): the winery’s own page for it, its importer, Vivino, and wine shops. ' +
+          'Search the web, then report up to 6 pages about this exact wine (same producer and cuvée; prefer pages for the vintage asked for, other vintages only if there are none): the winery’s own page for it, its importer, Vivino, and wine shops. ' +
           'Only report URLs that appeared in your search results. Then call report_pages once.',
       },
     ];

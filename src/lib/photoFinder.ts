@@ -2,6 +2,9 @@ import { db, updateWine } from '../db';
 import type { Wine } from '../types';
 import { photoFromFile, photoFromUrl, shownPhoto } from './image';
 import { relayedImageUrl } from './labelClient';
+import { originalImage, preferVintage, unsuitable } from './photoVintage';
+
+export { photoYear, preferVintage, unsuitable, wrongVintage } from './photoVintage';
 
 /**
  * Every bottle should show a real photo, without you having to look for one. Wines showing the
@@ -106,7 +109,7 @@ export const isFinding = (id: string) => finding.has(id);
  */
 async function fromCatalog(wine: Wine, snap: Blob | null, signal?: AbortSignal) {
   const { catalogPhotos } = await import('./catalog');
-  const found = await catalogPhotos(wine.producer, wine.name, wine.style || undefined, signal).catch(() => null);
+  const found = await catalogPhotos(wine.producer, wine.name, wine.style || undefined, signal, undefined, wine.vintage).catch(() => null);
   if (!found) return null;
   if (found.sure) return { pick: found.sure, confirmed: false };
   if (!found.maybe.length) return null;
@@ -115,16 +118,6 @@ async function fromCatalog(wine: Wine, snap: Blob | null, signal?: AbortSignal) 
   if (!apiKey) return null;
   const out = await (await import('./bottlePhotoClient')).pickBottlePhoto(apiKey, wineQuery(wine), found.maybe, snap, signal);
   return out.ok && out.matched ? { pick: out.photos[0], confirmed: true } : null;
-}
-
-/** The image's own address, from an image-relay link. */
-function originalImage(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.hostname === 'images.weserv.nl' ? (u.searchParams.get('url') ?? url) : url;
-  } catch {
-    return url;
-  }
 }
 
 /**
@@ -158,16 +151,32 @@ export async function findPhotoFor(wine: Wine, signal?: AbortSignal): Promise<bo
     let pick = catalog?.pick ?? null;
     // Confirmed by Claude (not a sure catalog match, which is found again anyway): learn it.
     let learn = Boolean(catalog?.confirmed);
+    // A catalog photo of another vintage or a magnum ("… 1993 1.5L" for your 2023) is kept for later; the web is tried first.
+    let other = null as typeof pick;
+    if (pick && unsuitable(pick, wine.vintage)) {
+      other = pick;
+      pick = null;
+    }
     if (!pick) {
       const outcome = await findBottlePhotos(wineQuery(wine), snap, signal);
       if (signal?.aborted) return false;
-      if (!outcome.ok || !outcome.matched) {
+      if (outcome.ok && outcome.matched) {
+        const best = preferVintage(outcome.photos, wine.vintage)[0];
+        // The web's best is no better than the catalog's? Keep the catalog's (already known to be this wine).
+        if (!(other && unsuitable(best, wine.vintage))) {
+          pick = best;
+          learn = true;
+        }
+      }
+      if (!pick && other) {
+        pick = other;
+        learn = false;
+      }
+      if (!pick) {
         const why = outcome.ok ? 'no photo of this exact wine was found' : outcome.reason;
         saveTry(wine.id, signature(wine), why, !REAL_MISSES.includes(why));
         return false;
       }
-      pick = outcome.photos[0];
-      learn = true;
     }
     if (learn) void learnPhoto(wine, pick).catch(() => {});
     const photo = await photoFromUrl(pick.url, { name: pick.siteName, pageUrl: pick.pageUrl, title: pick.title });
