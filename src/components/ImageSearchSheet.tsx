@@ -5,13 +5,22 @@ import { searchWikimediaCommons, webImageSearchUrl, type ImageCandidate } from '
 import { findBottlePhotos, preferVintage } from '../lib/photoFinder';
 import { Sheet } from './Sheet';
 
-type SourceId = 'web' | 'page' | 'commons';
+type SourceId = 'catalog' | 'web' | 'page' | 'commons';
 
-/** Claude searches shops and wineries for this wine and lists the bottle photos found. */
-async function searchShops(q: string, signal: AbortSignal, vintage?: number | 'NV' | null): Promise<ImageCandidate[]> {
+/** Palate's catalog: the bottle photos shops already show for this wine. Free and quick. */
+async function searchCatalog(q: string, signal: AbortSignal, expected: ExpectedWine): Promise<ImageCandidate[]> {
+  // The wine's own producer and name as asked; anything else you typed, as a plain search.
+  const typed = !q.includes(expected.name);
+  const { catalogPhotoChoices } = await import('../lib/catalog');
+  const photos = await catalogPhotoChoices(typed ? '' : expected.producer, typed ? q : expected.name, expected.vintage, signal);
+  return photos.map((p, i) => ({ id: `cat-${i}`, url: p.url, thumbUrl: p.thumbUrl, title: p.title, subtitle: p.siteName, sourceName: p.siteName, pageUrl: p.pageUrl }));
+}
+
+/** Claude searches shops and wineries for this wine and lists the bottle photos found (a web search, a few cents). */
+async function searchShops(q: string, signal: AbortSignal, expected: ExpectedWine): Promise<ImageCandidate[]> {
   const out = await findBottlePhotos(q, null, signal);
   if (!out.ok) throw new Error(out.reason);
-  return preferVintage(out.photos, vintage).map((p, i) => ({ id: `web-${i}`, url: p.url, thumbUrl: p.thumbUrl, title: p.title, subtitle: p.siteName, sourceName: p.siteName, pageUrl: p.pageUrl }));
+  return preferVintage(out.photos, expected.vintage).map((p, i) => ({ id: `web-${i}`, url: p.url, thumbUrl: p.thumbUrl, title: p.title, subtitle: p.siteName, sourceName: p.siteName, pageUrl: p.pageUrl }));
 }
 
 /** The bottle photos on a page you paste the link of. */
@@ -20,8 +29,9 @@ async function searchPage(url: string, signal: AbortSignal): Promise<ImageCandid
   return (await bottleImagesOnPage(url, signal)).map((p, i) => ({ id: `page-${i}`, url: p.url, thumbUrl: p.thumbUrl, title: p.title, subtitle: p.siteName, sourceName: p.siteName, pageUrl: p.pageUrl }));
 }
 
-const SOURCES: { id: SourceId; label: string; run: (q: string, s: AbortSignal, vintage?: number | 'NV' | null) => Promise<ImageCandidate[]> }[] = [
-  { id: 'web', label: 'Shops & wineries', run: searchShops },
+const SOURCES: { id: SourceId; label: string; run: (q: string, s: AbortSignal, expected: ExpectedWine) => Promise<ImageCandidate[]> }[] = [
+  { id: 'catalog', label: 'Palate’s catalog', run: searchCatalog },
+  { id: 'web', label: 'Search the web', run: searchShops },
   { id: 'commons', label: 'Wikimedia Commons', run: searchWikimediaCommons },
 ];
 const PAGE_SOURCE = { id: 'page' as const, label: 'that page', run: searchPage };
@@ -57,7 +67,8 @@ export function ImageSearchSheet({
 }) {
   const [query, setQuery] = useState(initialQuery);
   const [submitted, setSubmitted] = useState(initialQuery);
-  const [source, setSource] = useState<SourceId>('web');
+  // The catalog first (free); the web search only when you ask for it.
+  const [source, setSource] = useState<SourceId>('catalog');
   const [state, setState] = useState<{ status: 'idle' | 'loading' | 'done' | 'error'; results: ImageCandidate[]; error?: string }>({
     status: 'idle',
     results: [],
@@ -73,7 +84,7 @@ export function ImageSearchSheet({
     const ctrl = new AbortController();
     setState({ status: 'loading', results: [] });
     (source === 'page' ? PAGE_SOURCE : SOURCES.find((s) => s.id === source)!)
-      .run(submitted.trim(), ctrl.signal, expected.vintage)
+      .run(submitted.trim(), ctrl.signal, expected)
       .then((results) => setState({ status: 'done', results }))
       .catch((e: unknown) => {
         if (ctrl.signal.aborted) return;
@@ -85,7 +96,7 @@ export function ImageSearchSheet({
   const onSearch = (e: FormEvent) => {
     e.preventDefault();
     (document.activeElement as HTMLElement | null)?.blur();
-    if (source === 'page') setSource('web');
+    if (source === 'page') setSource('catalog');
     setSubmitted(query);
   };
 
@@ -151,19 +162,21 @@ export function ImageSearchSheet({
       </div>
 
       {state.status === 'loading' && (
-        <div className="status-line">{source === 'web' ? 'Searching shops and wineries for this bottle (about 30 seconds)…' : 'Searching…'}</div>
+        <div className="status-line">{source === 'web' ? 'Searching shops and wineries for this bottle (about 30 seconds)…' : source === 'catalog' ? 'Looking in Palate’s catalog…' : 'Searching…'}</div>
       )}
       {state.status === 'error' && (
         <div className="callout">
           <AlertTriangle size={18} />
           <span>
-            {source === 'web' ? `No photos found: ${state.error}.` : `Couldn’t reach ${source === 'page' ? 'that page' : 'Wikimedia Commons'} (${state.error}).`} Try another source, or paste a link below.
+            {source === 'web' ? `No photos found: ${state.error}.` : `Couldn’t reach ${source === 'page' ? 'that page' : source === 'catalog' ? 'Palate’s catalog' : 'Wikimedia Commons'} (${state.error}).`} Try another source, or paste a link below.
           </span>
         </div>
       )}
       {state.status === 'done' && state.results.length === 0 && (
         <div className="status-line">
-          No photos found. Try fewer words (e.g. just producer and wine), another source, or paste a link below.
+          {source === 'catalog'
+            ? 'No photos of this wine in Palate’s catalog. Try “Search the web” (a few cents), or paste a link below.'
+            : 'No photos found. Try fewer words (e.g. just producer and wine), another source, or paste a link below.'}
         </div>
       )}
       {state.results.length > 0 && (
