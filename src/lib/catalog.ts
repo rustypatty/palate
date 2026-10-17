@@ -290,3 +290,41 @@ export async function catalogIdentify(full: string, deps?: CatalogDeps): Promise
     },
   };
 }
+
+/**
+ * Every bottle photo the catalog has for a wine (its entry, other shops' entries for it, and
+ * close matches from the same producer), for you to choose from when looking for a better photo.
+ * Free; no web search. The wine's own vintage first, magnums and other sizes last. With no
+ * producer, any entry the search turns up is shown.
+ */
+export async function catalogPhotoChoices(
+  producer: string,
+  name: string,
+  vintage: number | 'NV' | null,
+  signal?: AbortSignal,
+  deps: CatalogDeps = PHOTO_DEPS,
+): Promise<CatalogPhoto[]> {
+  if (!(producer.trim() || name.trim())) return [];
+  const { match, candidates } = await lookupCatalog({ producer, name }, (text) => deps.search(text, signal));
+  const want = norm(producer)
+    .split(' ')
+    .filter((t) => t.length > 1 && !PRODUCER_FILLER.has(t));
+  const keep = (c: CatalogWine) => {
+    if (!want.length) return true;
+    const have = new Set(norm(`${c.producer ?? ''} ${c.display_name ?? ''}`).split(' '));
+    return want.every((t) => have.has(t));
+  };
+  const pool = [...(match.status === 'match' ? [match.wine, ...(match.others ?? [])] : []), ...(match.status === 'uncertain' ? match.options : []), ...candidates];
+  const seen = new Set<string>();
+  const photos = pool
+    .filter((c) => c.image_url && !NOT_A_PHOTO.test(c.image_url.split('?')[0]) && keep(c) && !seen.has(c.image_url) && seen.add(c.image_url))
+    .slice(0, 12)
+    .map((c) => ({
+      url: relayedImageUrl(c.image_url!),
+      thumbUrl: relayedThumbUrl(c.image_url!),
+      pageUrl: c.image_source_page_url ?? '',
+      siteName: siteName(c.image_source_domain, c.image_source_page_url),
+      title: c.display_name ?? '',
+    }));
+  return preferVintage(photos, vintage);
+}
