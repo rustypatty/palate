@@ -1,5 +1,5 @@
 import type { Rating, Wine } from '../types';
-import { findAppellation } from './appellations';
+import { canonicalGrape, findAppellation, findGrapes } from './appellations';
 import { currentWindow } from './drinkWindow';
 import type { ShopRow, StoreStock } from './askStores';
 import type { StoreId } from './stores';
@@ -141,7 +141,19 @@ export async function askWines(
   const stock = shopping ? stockBlock(stocks, hits, found.total) : undefined;
   const out = await askWinesWithClaude(apiKey, { lines: wineLines(wines), count: list.length, about, year: new Date().getFullYear(), stock }, turns, question, signal, onPartial);
   if (!out.ok) return out;
-  return { ok: true, answer: { ...out.answer, wineIds: knownIds(out.answer.wineIds, wines), shop: shopRows(out.answer.storeIds ?? [], hits) } };
+  const wineIds = onTopic(question, knownIds(out.answer.wineIds, wines), wines);
+  return { ok: true, answer: { ...out.answer, wineIds, shop: shopRows(out.answer.storeIds ?? [], hits) } };
+}
+
+/**
+ * When the question names a grape ("Pinot recommendations"), only my wines of that grape are shown
+ * with the answer: a loved Barolo isn't an answer to a Pinot question.
+ */
+export function onTopic(question: string, ids: string[], wines: Wine[]): string[] {
+  const asked = findGrapes(question.replace(/\bpinots?\b(?! (gris|grigio|blanc|bianco))/gi, 'Pinot Noir'));
+  if (!asked.length) return ids;
+  const byId = new Map(wines.map((w) => [w.id, w]));
+  return ids.filter((id) => byId.get(id)?.grapes.some((g) => asked.includes(canonicalGrape(g))));
 }
 
 /** Does a question look like it's about buying, or what a store has? (Otherwise no store bottles are sent.) */

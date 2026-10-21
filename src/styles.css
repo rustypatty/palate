@@ -7281,6 +7281,24 @@ body.ask-open .bottomnav {
   display: grid;
   gap: 8px;
 }
+.ask-card {
+  display: grid;
+  gap: 8px;
+}
+.ask-own {
+  margin-top: 6px;
+}
+.ask-more {
+  justify-self: start;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--wine);
+  cursor: pointer;
+}
 .ask-wine {
   display: flex;
   align-items: center;

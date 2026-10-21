@@ -1,5 +1,8 @@
 import { ArrowUp, ArrowUpRight, ChevronRight, Heart } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+
+/** Bottles shown with an answer before "Show more". */
+const FIRST = 3;
 import { Link, useNavigate } from 'react-router-dom';
 import { useAllWines } from '../hooks';
 import { askable, askWines, loadTurns, saveTurns, suggestions, type AskAnswer, type AskTurn } from '../lib/ask';
@@ -63,30 +66,37 @@ function ShopBottle({ row }: { row: ShopRow }) {
 }
 
 function Answer({ a, wines, count, onStore }: { a: Partial<AskAnswer>; wines: Map<string, Wine>; count: number; onStore: (id: StoreId, colour: AskAnswer['colour']) => void }) {
+  const [all, setAll] = useState(false);
   const rows = (a.wineIds ?? []).flatMap((id) => (wines.has(id) ? [wines.get(id)!] : []));
+  const shop = a.shop ?? [];
+  // Store picks come first when there are any; your own wines follow under their own label.
+  const cards = [...shop.map((r) => ({ key: r.url, el: <ShopBottle key={r.url} row={r} /> })), ...rows.map((w) => ({ key: w.id, el: <WineRow key={w.id} wine={w} /> }))];
+  const shown = all ? cards : cards.slice(0, FIRST);
+  const firstOwn = shop.length;
   return (
     <div className="ask-answer">
-      {a.fromList && <div className="eyebrow ask-from">From your {count} wines</div>}
+      {a.fromList && !shop.length && <div className="eyebrow ask-from">From your {count} wines</div>}
       {(a.headline || a.italic) && (
         <h3 className="ask-headline">
           {a.headline} {a.italic && <em>{a.italic}</em>}
         </h3>
       )}
-      {rows.length > 0 && (
-        <div className="ask-wines">
-          {rows.map((w) => (
-            <WineRow key={w.id} wine={w} />
-          ))}
-        </div>
-      )}
-      {(a.shop ?? []).length > 0 && (
-        <div className="ask-wines">
-          {a.shop!.map((r) => (
-            <ShopBottle key={r.url} row={r} />
-          ))}
-        </div>
-      )}
       {a.body && <p className="ask-body">{a.body}</p>}
+      {shown.length > 0 && (
+        <div className="ask-wines">
+          {shown.map((c, i) => (
+            <div key={c.key} className="ask-card">
+              {shop.length > 0 && rows.length > 0 && i === firstOwn && <div className="eyebrow ask-own">From your wines</div>}
+              {c.el}
+            </div>
+          ))}
+          {cards.length > FIRST && (
+            <button type="button" className="ask-more" onClick={() => setAll((v) => !v)}>
+              {all ? 'Show fewer' : `Show ${cards.length - FIRST} more`}
+            </button>
+          )}
+        </div>
+      )}
       {(a.stores ?? []).length > 0 && (
         <div className="ask-stores">
           {a.stores!.map((id) => (
