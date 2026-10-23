@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { wine } from '../test/fixtures';
-import { askable, knownIds, loadTurns, saveTurns, suggestions, wineLines } from './ask';
+import { askable, knownIds, loadTurns, onTopic, saveTurns, suggestions, wineLines } from './ask';
 
 const muga = wine({ id: 'muga', producer: 'Bodegas Muga', name: 'Rioja Reserva', vintage: 2019, style: 'red', country: 'Spain', region: 'Rioja', grapes: ['Tempranillo'], price: 28, rating: 'loved', owned: 1, notes: 'Silky,  smooth tannins.\nLovely.', createdAt: 2 });
 const petalos = wine({ id: 'petalos', producer: 'Descendientes de J. Palacios', name: 'Pétalos', vintage: 2020, style: 'red', country: 'Spain', region: 'Bierzo', grapes: ['Mencía'], price: 26, rating: 'loved', createdAt: 1 });
@@ -36,5 +36,20 @@ describe('what the chat knows', () => {
     expect(loadTurns()).toEqual([{ q: 'Hi?', a: null, error: 'no connection' }]);
     saveTurns([]);
     expect(loadTurns()).toEqual([]);
+  });
+});
+
+describe('onTopic', () => {
+  const w = (id: string, grapes: string[]) => wine({ id, producer: id, grapes });
+  const mine = [w('barolo', ['Nebbiolo']), w('cristom', ['Pinot Noir']), w('rioja', ['Tempranillo'])];
+
+  it('keeps only my wines of the grape I asked about', () => {
+    expect(onTopic('Pinot recommendations under $60', ['barolo', 'cristom', 'rioja'], mine)).toEqual(['cristom']);
+    expect(onTopic('any good Nebbiolo at Pogo’s?', ['barolo', 'cristom'], mine)).toEqual(['barolo']);
+  });
+
+  it('leaves the answer alone when no grape is named', () => {
+    expect(onTopic('what should I open tonight?', ['barolo', 'rioja'], mine)).toEqual(['barolo', 'rioja']);
+    expect(onTopic('Pinot Grigio for a party', ['cristom'], mine)).toEqual([]);
   });
 });
