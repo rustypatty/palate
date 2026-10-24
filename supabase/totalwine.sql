@@ -23,6 +23,8 @@ create table if not exists public.tw_products (
   reviews_count int,
   updated_at timestamptz not null default now()
 );
+-- Total Wine's own imports ("Winery Direct", "Premium Selection"): some deals only count these.
+alter table public.tw_products add column if not exists program text not null default '';
 
 -- What a store had of each bottle when it was last imported.
 create table if not exists public.tw_stock (
