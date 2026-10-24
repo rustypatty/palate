@@ -55,6 +55,8 @@ export interface SuggestedItem extends StoreItem {
   /** A conditional price, e.g. "Mix 6 for $19.79 each", and a critic score as the store shows it. */
   deal?: string;
   score?: string;
+  /** Total Wine's own imports, "Winery Direct" or "Premium Selection": some deals only count these. Not shown; for picking. */
+  program?: string;
 }
 
 export interface StoreList {

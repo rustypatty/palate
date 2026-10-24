@@ -35,6 +35,14 @@ const tw: StoreStock = {
 };
 
 describe('Asking the chat about store bottles', () => {
+  it('finds Winery Direct bottles for a deal that only counts those, and tells Claude which they are', () => {
+    const direct = { ...item('t3', 'Mauro Veglio Barolo 2021', { price: 52 }), program: 'Winery Direct' } as StoreItem;
+    const stock = { ...tw, bottles: [...tw.bottles, direct] };
+    const { hits } = searchStock('Winery Direct reds for the mix 9 deal', [], [stock]);
+    expect(hits.map((h) => h.item.key)).toEqual(['t3']);
+    expect(stockBlock([stock], hits)).toContain('Mauro Veglio Barolo 2021 | red | Italy | $52.00 | Winery Direct');
+  });
+
   it('finds bottles by name, region or grape in both stores', () => {
     const { hits } = searchStock('What Rioja do you have?', [], [pogos, tw]);
     expect(hits.map((h) => h.item.key).sort()).toEqual(['p2', 't2']);

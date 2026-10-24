@@ -15,6 +15,8 @@ export interface TwProduct {
   categories?: { name: string; type: string }[];
   price?: { price: number; type: string }[];
   promoBadges?: { badgeSubType?: string; badgePromotionDescription?: string }[];
+  /** Total Wine's own buying programme, e.g. { name: "Winery Direct", type: "WD" }. */
+  salesStrategy?: { name?: string; type?: string };
   customerAverageRating?: number;
   customerReviewsCount?: number;
   rating?: number;
@@ -47,6 +49,8 @@ export interface ProductRow {
   rating_source: string;
   customer_rating: number | null;
   reviews_count: number | null;
+  /** "Winery Direct" or "Premium Selection" (Total Wine's own imports, which some deals are limited to), else "". */
+  program: string;
 }
 
 export interface CheckRow {
@@ -100,6 +104,14 @@ export function pickupStatus(message: string): StockStatus {
   return 'unknown';
 }
 
+/** Total Wine's buying programme, kept only when it's one a deal can be limited to. */
+export function programOf(p: TwProduct): string {
+  const name = p.salesStrategy?.name ?? '';
+  if (/winery\s*direct/i.test(name)) return 'Winery Direct';
+  if (/premium\s*selection/i.test(name)) return 'Premium Selection';
+  return '';
+}
+
 const num = (x: unknown): number | null => (typeof x === 'number' && Number.isFinite(x) ? x : null);
 
 export function mapProduct(p: TwProduct, origin = ''): { product: ProductRow; check: CheckRow } {
@@ -127,6 +139,7 @@ export function mapProduct(p: TwProduct, origin = ''): { product: ProductRow; ch
       rating_source: p.rating ? (p.ratingSource ?? '') : '',
       customer_rating: p.customerReviewsCount ? num(p.customerAverageRating) : null,
       reviews_count: p.customerReviewsCount ? num(p.customerReviewsCount) : null,
+      program: programOf(p),
     },
     check: {
       retailer: 'totalwine',

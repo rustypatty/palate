@@ -23,6 +23,7 @@ function readTotalWinePage() {
     categories: list(p.categories, ['name', 'type']),
     price: list(p.price, ['price', 'type']),
     promoBadges: list(p.promoBadges, ['badgeSubType', 'badgePromotionDescription']),
+    salesStrategy: pick(p.salesStrategy, ['name', 'type']),
     customerAverageRating: p.customerAverageRating,
     customerReviewsCount: p.customerReviewsCount,
     rating: p.rating,

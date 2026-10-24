@@ -253,6 +253,7 @@ export function stockLine(b: SuggestedItem, i: number): string {
     `${i + 1}. ${b.title}`,
     [b.region || b.country, b.grapes.join(', ')].filter(Boolean).join(', '),
     b.price !== null ? `$${b.price.toFixed(2)}` : 'price not shown',
+    b.program,
     b.deal,
     b.score,
     b.stock === 'Limited quantity' ? 'limited' : '',

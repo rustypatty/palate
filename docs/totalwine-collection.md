@@ -111,6 +111,7 @@ fine for detecting which product IDs are on screen (links contain `/p/<id>`), no
 | Pro rating | `rating` + `ratingSource` | `92`, `"James Suckling"` | `0` with no source means no pro score. |
 | Customer rating | `customerAverageRating`, `customerReviewsCount` | `4.3`, `387` | `0`/`0` = no reviews. |
 | Grape / region | `categories[]` with `type` `VARIETAL_TYPE` / `REGION` | `Sangiovese`, `Tuscany` | |
+| Own-import programme | `salesStrategy.name` (`type`) | `"Winery Direct"` (`"WD"`) | Also `"Premium Selection"`. Deals such as "20% off mix 9+ Winery Direct wines" only count these, so it's kept as `program`. |
 
 `stockMessages.storeInStock` was `false` on every product here, even ones the page shows as in stock for
 pickup. Don't use it; use the `INSTORE_PICKUP` message.

@@ -103,6 +103,14 @@ describe('Total Wine page → rows', () => {
     expect(mapProduct(castelgiocondo).check).toMatchObject({ status: 'limited', price: 79.97, sale_price: 59.97 });
   });
 
+  it('keeps Total Wine’s own-import programme, which some deals are limited to', () => {
+    expect(mapProduct({ ...renieri, salesStrategy: { name: 'Winery Direct', type: 'WD' } }).product.program).toBe('Winery Direct');
+    expect(mapProduct({ ...renieri, salesStrategy: { name: 'Premium Selection', type: 'PS' } }).product.program).toBe('Premium Selection');
+    expect(mapProduct({ ...renieri, salesStrategy: { name: 'Standard', type: 'STD' } }).product.program).toBe('');
+    expect(mapProduct(renieri).product.program).toBe('');
+    expect(stockBottle(row({ ...renieri, salesStrategy: { name: 'Winery Direct', type: 'WD' } }))?.program).toBe('Winery Direct');
+  });
+
   it('only accepts a Total Wine page with one store’s products', () => {
     const body = { store: { id: '535', name: 'Las Colinas (Irving)' }, pageUrl: PAGE, products: [renieri] };
     expect(checkImport(body)).toMatchObject({ ok: true, origin: 'Italy' });
