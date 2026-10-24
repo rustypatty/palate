@@ -108,7 +108,6 @@ describe('Total Wine page → rows', () => {
     expect(mapProduct({ ...renieri, salesStrategy: { name: 'Premium Selection', type: 'PS' } }).product.program).toBe('Premium Selection');
     expect(mapProduct({ ...renieri, salesStrategy: { name: 'Standard', type: 'STD' } }).product.program).toBe('');
     expect(mapProduct(renieri).product.program).toBe('');
-    expect(stockBottle(row({ ...renieri, salesStrategy: { name: 'Winery Direct', type: 'WD' } }))?.program).toBe('Winery Direct');
   });
 
   it('only accepts a Total Wine page with one store’s products', () => {

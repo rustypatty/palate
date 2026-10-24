@@ -38,8 +38,6 @@ export interface StockRow {
     url: string;
     pro_rating: number | null;
     rating_source: string;
-    /** Missing before the column existed. */
-    program?: string;
   } | null;
 }
 
@@ -80,7 +78,6 @@ export function stockBottle(row: StockRow): SuggestedItem | null {
     stock: row.status === 'limited' ? 'Limited quantity' : row.on_hand ? `${row.on_hand} in stock` : 'In stock',
     deal: [row.sale_price && row.price && row.sale_price < row.price ? `Sale, was $${row.price.toFixed(2)}` : '', row.deal].filter(Boolean).join(' · '),
     score: p.pro_rating ? `${p.pro_rating} pts${p.rating_source ? ` (${p.rating_source})` : ''}` : '',
-    program: p.program ?? '',
   };
 }
 
@@ -291,7 +288,7 @@ export async function loadTwStock(storeId?: string | null, now = Date.now()): Pr
   for (let from = 0; ; from += 1000) {
     const { data, error: e } = await sb
       .from('tw_stock')
-      .select('product_id, status, on_hand, aisle, price, sale_price, deal, checked_at, tw_products(name, producer, vintage, size_ml, style, region, grape, origin, url, pro_rating, rating_source, program)')
+      .select('product_id, status, on_hand, aisle, price, sale_price, deal, checked_at, tw_products(name, producer, vintage, size_ml, style, region, grape, origin, url, pro_rating, rating_source)')
       .eq('store_id', store.store_id)
       .in('status', ['in_stock', 'limited'])
       .gte('checked_at', since)

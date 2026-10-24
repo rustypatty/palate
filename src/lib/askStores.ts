@@ -135,7 +135,7 @@ export function searchStock(question: string, previous: string[], stocks: StoreS
       if (cap !== null && (item.price === null || item.price > cap)) continue;
       const origin = new Set(tokens(`${item.country} ${item.context ?? ''}`));
       if (countries.size && ![...countries].some((c) => origin.has(c))) continue;
-      const hay = new Set(tokens([item.title, item.context ?? '', item.country, 'region' in item ? item.region : '', 'grapes' in item ? item.grapes.join(' ') : '', 'program' in item ? (item.program ?? '') : ''].join(' ')).map(stem));
+      const hay = new Set(tokens([item.title, item.context ?? '', item.country, 'region' in item ? item.region : '', 'grapes' in item ? item.grapes.join(' ') : ''].join(' ')).map(stem));
       let score = 0;
       for (const t of own) if (hay.has(t)) score += 10;
       for (const t of places) if (hay.has(t)) score += 8;
@@ -178,7 +178,6 @@ export function stockBlock(stocks: StoreStock[], hits: StoreHit[], total = hits.
       item.style ?? '',
       detail.filter(Boolean).join(', '),
       item.price !== null ? `$${item.price.toFixed(2)}` : 'price not shown',
-      'program' in item ? item.program : '',
       'deal' in item ? item.deal : '',
       'score' in item ? item.score : '',
       'aisle' in item && item.aisle ? item.aisle : '',
@@ -187,7 +186,7 @@ export function stockBlock(stocks: StoreStock[], hits: StoreHit[], total = hits.
       .join(' | ');
   });
   const shown = total > hits.length ? `the best ${hits.length} of ${total} matching bottles` : `all ${hits.length} matching bottles`;
-  return `Store bottles from lists saved on my phone: ${lists}. Here are ${shown}, best first, picked by a simple word search, so a bottle whose name doesn't show its grape or place may be missing. Never say these are the only ones the store has. "Winery Direct" and "Premium Selection" mark Total Wine's own imports: deals such as "20% off a mix of 9+ Winery Direct wines" only count those bottles, so when I ask about such a deal, choose only bottles marked with it (id | store | bottle | colour | place | price | programme | deal | critic score | aisle):\n${lines.join('\n')}`;
+  return `Store bottles from lists saved on my phone: ${lists}. Here are ${shown}, best first, picked by a simple word search, so a bottle whose name doesn't show its grape or place may be missing. Never say these are the only ones the store has (id | store | bottle | colour | place | price | deal | critic score | aisle):\n${lines.join('\n')}`;
 }
 
 /** The rows under an answer: only ids that were really sent, in the answer's order, without repeats. */
