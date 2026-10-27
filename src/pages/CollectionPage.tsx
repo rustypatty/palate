@@ -406,6 +406,11 @@ export function CollectionPage() {
     </button>
   );
   const browsing = !filters.query && nFilters === 0 && filters.shelf === 'all';
+  // Picking a shelf hides the rows above the list, so the page would land partway down it: start at its top.
+  const showShelf = (shelf: Shelf) => {
+    set({ shelf });
+    window.requestAnimationFrame(() => document.querySelector('.collection')?.scrollIntoView({ behavior: 'smooth' }));
+  };
 
   return (
     <>
@@ -422,10 +427,7 @@ export function CollectionPage() {
       {browsing && (
         <HomeRows
           wines={wines}
-          onShow={(shelf) => {
-            set({ shelf });
-            window.requestAnimationFrame(() => document.querySelector('.collection')?.scrollIntoView({ behavior: 'smooth' }));
-          }}
+          onShow={showShelf}
         />
       )}
 
@@ -441,7 +443,7 @@ export function CollectionPage() {
         <div className="collection-filters">
           <div className="chips" role="group" aria-label="Show">
             {SHELVES.map((s) => (
-              <button key={s.value} type="button" className="chip" aria-pressed={filters.shelf === s.value} onClick={() => set({ shelf: s.value })}>
+              <button key={s.value} type="button" className="chip" aria-pressed={filters.shelf === s.value} onClick={() => showShelf(s.value)}>
                 {s.label}
                 <span className="count">{shelfCounts[s.value]}</span>
               </button>
