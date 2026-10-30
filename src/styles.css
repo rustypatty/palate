@@ -401,6 +401,11 @@ img {
   .want-pill.active {
     background: var(--tone-hover);
   }
+  .ask-pill {
+    border: 0;
+    font-family: inherit;
+    cursor: pointer;
+  }
   .topnav .spacer {
     flex: 1;
   }

@@ -1,6 +1,8 @@
-import { Bookmark, LayoutGrid, Plus, Store, Wine } from 'lucide-react';
+import { Bookmark, LayoutGrid, MessageSquare, Plus, Store, Wine } from 'lucide-react';
+import { useState } from 'react';
 import { Link, matchPath, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLists } from '../hooks';
+import { AskSheet } from './AskSheet';
 import { underlay } from './overlay';
 import { usePriceAutoCheck } from './PriceWatch';
 import { useDedupe } from './useDedupe';
@@ -25,6 +27,8 @@ export function Layout() {
   // Under an overlay (Tonight), the page it was opened from.
   const location = underlay(useLocation());
   const wantCount = useWantCount();
+  // The phone opens the chat from My wines' header; on desktop it's in the top bar, on every page.
+  const [asking, setAsking] = useState(false);
   usePhotoFinder();
   useCatalogNotes();
   usePriceAutoCheck();
@@ -54,11 +58,15 @@ export function Layout() {
               </span>
             )}
           </NavLink>
+          <button type="button" className="want-pill ask-pill" onClick={() => setAsking(true)}>
+            <MessageSquare size={17} /> Ask
+          </button>
           <Link to="/add" className="btn btn-wine add-pill">
             <Plus size={18} /> Add wine
           </Link>
         </div>
       </header>
+      {asking && <AskSheet onClose={() => setAsking(false)} />}
 
       <main className="main">
         {/* Keyed by page so each screen arrives with a soft crossfade. */}
