@@ -4271,6 +4271,39 @@ details.more[open] > .more-body {
   display: grid;
   gap: 16px;
 }
+.want-filters {
+  display: grid;
+  gap: 8px;
+}
+/* One scrolling row each on a phone; they wrap on wider screens. */
+.want-chips {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  margin: 0 calc(-1 * var(--gutter));
+  padding: 2px var(--gutter);
+}
+.want-chips::-webkit-scrollbar {
+  display: none;
+}
+.want-chips .chip {
+  flex: none;
+}
+@media (min-width: 900px) {
+  .want-chips {
+    flex-wrap: wrap;
+    margin: 0;
+    padding: 0;
+  }
+}
+.want-none {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  padding: 0 var(--text-in);
+  color: var(--ink-2);
+}
 
 .want-group-head {
   display: flex;
