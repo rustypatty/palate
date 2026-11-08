@@ -85,8 +85,10 @@ export function WineFormPage() {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const producer = draft.producer.trim();
-    const name = draft.name.trim();
+    // Text fields can arrive as null from synced data; treat that as empty rather than failing silently.
+    const text = (s: string | null | undefined) => (s ?? '').trim();
+    const producer = text(draft.producer);
+    const name = text(draft.name);
     if (!producer && !name) {
       setError('Add a producer or wine name so you can find it later.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -110,11 +112,11 @@ export function WineFormPage() {
       name,
       vintage,
       price,
-      country: draft.country.trim(),
-      region: draft.region.trim(),
-      store: draft.store.trim(),
-      notes: draft.notes.trim(),
-      barcode: draft.barcode.trim(),
+      country: text(draft.country),
+      region: text(draft.region),
+      store: text(draft.store),
+      notes: text(draft.notes),
+      barcode: text(draft.barcode),
     };
     setSaving(true);
     try {
