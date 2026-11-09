@@ -16,8 +16,8 @@ import { useServerKey } from '../lib/serverKey';
 import { buildPassport } from '../lib/passport';
 import { disablePush, enablePush, pushEnabled, pushSupport, sendTestPush } from '../lib/push';
 import { favouriteRed } from '../lib/profile';
-import { budgetLine, exploreCards, heroSummary, loveChips, mentions, redsLine, skipsLine, whitesLine } from '../lib/palatePage';
-import { buildTaste } from '../lib/taste';
+import { budgetLine, exploreFromRatings, heroSummary, loveChips, mentions, passedGrapes, ratedFavouriteRed, redsFromRatings, skipsLine, whitesFromRatings } from '../lib/palatePage';
+import { buildTaste, noteWords } from '../lib/taste';
 import { lastCheckedAt, priceDrops, watchedWines } from '../lib/priceWatch';
 import { usePriceAuto, usePriceCheckedAt, useTwStock } from '../lib/usePicks';
 import { ago } from '../components/StorePicks';
@@ -237,10 +237,8 @@ export function ProfilePage() {
     const watched = everything ? watchedWines(everything) : [];
     return { n: watched.length, drops: everything ? priceDrops(everything).length : 0, last: lastCheckedAt(watched, checkedHere) };
   }, [everything, checkedHere]);
-  const passport = useMemo(() => {
-    const p = everything ? buildPassport(everything) : null;
-    return { tasted: p?.tasted ?? 0, places: p?.places.length ?? 0, grapes: p?.grapes.length ?? 0 };
-  }, [everything]);
+  const fullPassport = useMemo(() => (everything ? buildPassport(everything) : null), [everything]);
+  const passport = { tasted: fullPassport?.tasted ?? 0, places: fullPassport?.places.length ?? 0, grapes: fullPassport?.grapes.length ?? 0 };
 
   useEffect(() => {
     navigator.storage?.persisted?.().then(setPersisted).catch(() => {});
@@ -265,19 +263,22 @@ export function ProfilePage() {
 
   if (wines === undefined) return null;
 
-  const fav = favouriteRed(profile);
+  // Your ratings lead once there are enough of them; the imported profile fills in until then.
+  const fav = ratedFavouriteRed(wines) || favouriteRed(profile);
   const summary = heroSummary(profile, taste, !fav);
   const rows = [
-    { label: 'Reds', text: redsLine(profile) },
-    { label: 'Whites', text: whitesLine(profile) },
+    { label: 'Reds', text: redsFromRatings(wines, profile, noteWords) },
+    { label: 'Whites', text: whitesFromRatings(wines, profile, noteWords) },
     { label: 'Skips', text: skipsLine(taste, wines, profile) },
     { label: 'Budget', text: budgetLine(wines, profile) },
   ].filter((r) => r.text);
   // Names the header already says (the favourite, the places in the paragraph) aren't repeated below.
   const shown = `${fav} ${summary}`;
-  const chips = loveChips(profile, taste, stats.places, shown);
+  // Grapes you've passed on (Merlot) aren't loves, even when they're in a blend you loved.
+  const passed = new Set(passedGrapes(wines));
+  const chips = loveChips(profile, taste, stats.places, shown).filter((v) => !passed.has(v));
   const skips = [...new Set(taste?.dislikes.map((a) => a.value) ?? [])].filter((v) => !mentions(shown, v)).slice(0, 8);
-  const explore = exploreCards(profile);
+  const explore = exploreFromRatings(fullPassport, profile, wines);
   const maxCountry = Math.max(1, ...stats.countries.map((c) => c.count));
   const toTry = lists?.want.length ?? 0;
 

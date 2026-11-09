@@ -1,5 +1,8 @@
-import type { Wine } from '../types';
+import type { Wine, WineStyle } from '../types';
+import { canonicalGrape, findAppellation } from './appellations';
 import { GRAPES } from './catalogMatch';
+import { RATING_VALUE } from './insights';
+import type { Passport } from './passport';
 import { norm } from './catalogNorm';
 import { profileFavourites, type PalateProfile } from './profile';
 import type { TasteProfile } from './taste';
@@ -33,6 +36,113 @@ export function heroSummary(profile: PalateProfile | null, taste: TasteProfile |
       .replace(/^enjoys\b/i, 'You enjoy'),
   );
   return [...lean, ...said, ...pass].join(' ');
+}
+
+/** Rated wines of a colour needed before your ratings, not the imported profile, describe it. */
+export const MIN_RATED_STYLE = 3;
+
+export interface RatedStyle {
+  /** Main grapes, best first (each wine counts for its first-listed grape, so a Bordeaux blend counts as Cabernet, not Merlot). */
+  grapes: string[];
+  /** Appellations, best first. */
+  places: string[];
+  /** Note words on the ones you enjoyed. */
+  words: string[];
+}
+
+/**
+ * What your ratings say about one colour: Loved +1, Liked +0.5, Wouldn't buy again −1, summed per
+ * main grape and per appellation, keeping only what comes out clearly ahead. Null below
+ * MIN_RATED_STYLE rated wines of that colour, or when nothing stands out.
+ */
+export function ratedStyle(wines: Wine[], style: WineStyle, wordsOf: (notes: string) => string[] = () => []): RatedStyle | null {
+  const colourOf = (w: Wine) => w.style ?? findAppellation(`${w.region} ${w.name}`)?.style ?? null;
+  const mine = wines.filter((w) => w.rating !== null && colourOf(w) === style);
+  if (mine.length < MIN_RATED_STYLE) return null;
+  const rank = (keyOf: (w: Wine) => string) => {
+    const pts = new Map<string, { sum: number; loved: number }>();
+    for (const w of mine) {
+      const k = keyOf(w);
+      if (!k) continue;
+      const cur = pts.get(k) ?? { sum: 0, loved: 0 };
+      cur.sum += RATING_VALUE[w.rating!];
+      if (w.rating === 'loved') cur.loved++;
+      pts.set(k, cur);
+    }
+    // Ahead means at least one loved bottle and a clearly positive total.
+    return [...pts]
+      .filter(([, v]) => v.loved > 0 && v.sum >= 1)
+      .sort((a, b) => b[1].sum - a[1].sum || b[1].loved - a[1].loved)
+      .map(([k]) => k);
+  };
+  const grapes = rank(mainGrape);
+  const places = rank((w) => findAppellation(`${w.region} ${w.name}`)?.name ?? '');
+  if (!grapes.length && !places.length) return null;
+  const counts = new Map<string, number>();
+  for (const w of mine.filter((x) => x.rating !== 'wouldnt')) for (const word of wordsOf(w.notes)) counts.set(word, (counts.get(word) ?? 0) + 1);
+  const words = [...counts].sort((a, b) => b[1] - a[1]).map(([w]) => w);
+  return { grapes, places, words };
+}
+
+/** "Pinot Noir, Grenache, Cabernet Sauvignon and Nebbiolo, most of all from Barolo and Pauillac." */
+function ratedLine(r: RatedStyle): string {
+  const grapes = listJoin(r.grapes.slice(0, 4));
+  const places = listJoin(r.places.slice(0, 3));
+  const head = grapes ? `${grapes}${places ? `, most of all from ${places}` : ''}` : `Most of all from ${places}`;
+  const words = r.words.slice(0, 3);
+  return `${cap(head)}.${words.length ? ` Your notes say ${listJoin(words)}.` : ''}`;
+}
+
+/** Your favourite red from your ratings (its leading grape); '' until there's enough to say. */
+export function ratedFavouriteRed(wines: Wine[]): string {
+  return ratedStyle(wines, 'red')?.grapes[0] ?? '';
+}
+
+/** Reds: from your ratings once there are enough, otherwise from the imported profile. */
+export function redsFromRatings(wines: Wine[], profile: PalateProfile | null, wordsOf?: (notes: string) => string[]): string {
+  const r = ratedStyle(wines, 'red', wordsOf);
+  return r ? ratedLine(r) : redsLine(profile);
+}
+
+/** Whites: from your ratings once there are enough, otherwise from the imported profile. */
+export function whitesFromRatings(wines: Wine[], profile: PalateProfile | null, wordsOf?: (notes: string) => string[]): string {
+  const r = ratedStyle(wines, 'white', wordsOf);
+  return r ? ratedLine(r) : whitesLine(profile);
+}
+
+/** Each wine's main grape: its first-listed one, else its appellation's. */
+function mainGrape(w: Wine): string {
+  return w.grapes[0] ? canonicalGrape(w.grapes[0]) : (findAppellation(`${w.region} ${w.name}`)?.grapes[0] ?? '');
+}
+
+/** Main grapes you've rated "Wouldn't buy again" and never enjoyed (Merlot after a flat Côtes de Bourg). */
+export function passedGrapes(wines: Wine[]): string[] {
+  const enjoyed = new Set(wines.filter((w) => w.rating === 'loved' || w.rating === 'liked').map(mainGrape));
+  return [...new Set(wines.filter((w) => w.rating === 'wouldnt').map(mainGrape))].filter((g) => g && !enjoyed.has(g));
+}
+
+/**
+ * Worth exploring, from your ratings: the passport's next steps (next door to a place you loved,
+ * a grape you love from somewhere new, a classic you haven't met). Suggested places are kept to
+ * the step's colour and leave out grapes you've passed on; a step left with nothing to try is
+ * dropped. Falls back to the imported profile's ideas when there are none.
+ */
+export function exploreFromRatings(passport: Passport | null, profile: PalateProfile | null, wines: Wine[] = [], n = 3): { title: string; sub: string }[] {
+  const avoid = new Set(passedGrapes(wines).map(fold));
+  const cards: { title: string; sub: string }[] = [];
+  for (const step of passport?.next ?? []) {
+    if (step.grape && avoid.has(fold(step.grape))) continue;
+    const tryThese = step.tryThese.filter((name) => {
+      const app = findAppellation(name);
+      if (!app) return true;
+      if (step.style && app.style && app.style !== step.style) return false;
+      return !app.grapes[0] || !avoid.has(fold(app.grapes[0]));
+    });
+    if (!tryThese.length) continue;
+    cards.push({ title: step.title, sub: `Try ${listJoin(tryThese)}` });
+    if (cards.length >= n) break;
+  }
+  return cards.length ? cards : exploreCards(profile, n);
 }
 
 /** "Noticeable, gripping tannin with some clear fruit." */
