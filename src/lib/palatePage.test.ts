@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { emptyDraft } from '../db';
 import type { Wine } from '../types';
-import { budgetLine, exploreCards, heroSummary, loveChips, mentions, redsLine, skipsLine, usualPrice, whitesLine } from './palatePage';
+import { budgetLine, exploreCards, exploreFromRatings, heroSummary, passedGrapes, loveChips, mentions, ratedFavouriteRed, ratedStyle, redsFromRatings, redsLine, skipsLine, usualPrice, whitesFromRatings, whitesLine } from './palatePage';
+import { buildPassport } from './passport';
+import { noteWords } from './taste';
 import type { PalateProfile } from './profile';
 import { buildTaste } from './taste';
 
@@ -122,5 +124,56 @@ describe('My palate wording', () => {
     expect(mentions('You lean toward reds from Rioja, Burgundy and Southern Rhône.', 'Southern Rhône')).toBe(true);
     expect(mentions('You lean toward reds from Rioja.', 'Rio')).toBe(false);
     expect(loveChips(profile, null, ['Rioja', 'Priorat'], 'reds from Rioja')).not.toContain('Rioja');
+  });
+});
+
+describe('My palate from your ratings', () => {
+  const reds = [
+    wine({ producer: 'Fourrier', name: 'Bourgogne Pinot Noir', region: 'Burgundy', grapes: ['Pinot Noir'], style: 'red', rating: 'loved', notes: 'Silky and fruit-forward.' }),
+    wine({ producer: 'Clair', name: 'Chambertin-Clos de Bèze Grand Cru', region: 'Burgundy', grapes: ['Pinot Noir'], style: 'red', rating: 'loved', notes: 'Silky.' }),
+    wine({ producer: 'Girardin', name: 'Savigny-les-Beaune 1er Cru', region: 'Burgundy', grapes: ['Pinot Noir'], style: 'red', rating: 'wouldnt' }),
+    wine({ producer: 'Vietti', name: 'Barolo Brunate', region: 'Barolo', grapes: ['Nebbiolo'], style: 'red', rating: 'loved' }),
+    wine({ producer: 'Ratti', name: 'Barolo Marcenasco', region: 'Barolo', grapes: ['Nebbiolo'], style: 'red', rating: 'loved' }),
+    wine({ producer: 'Pédesclaux', name: 'Pauillac', region: 'Bordeaux', grapes: ['Cabernet Sauvignon', 'Merlot'], style: 'red', rating: 'loved' }),
+    wine({ producer: 'Puy', name: 'Côtes de Bourg', region: 'Côtes de Bourg', grapes: ['Merlot'], style: 'red', rating: 'wouldnt' }),
+  ];
+
+  it('ranks reds by main grape, so a Bordeaux blend counts as Cabernet and not Merlot', () => {
+    const r = ratedStyle(reds, 'red', noteWords)!;
+    expect(r.grapes).toEqual(['Nebbiolo', 'Pinot Noir', 'Cabernet Sauvignon']);
+    expect(r.grapes).not.toContain('Merlot');
+    expect(r.places).toContain('Barolo');
+    expect(r.words[0]).toBe('silky');
+  });
+
+  it('takes the favourite red and the Reds line from ratings, over the imported profile', () => {
+    expect(ratedFavouriteRed(reds)).toBe('Nebbiolo');
+    const line = redsFromRatings(reds, profile, noteWords);
+    expect(line).toMatch(/^Nebbiolo, Pinot Noir and Cabernet Sauvignon, most of all from Barolo/);
+    expect(line).toContain('Your notes say silky');
+    expect(line).not.toMatch(/tannin/i);
+  });
+
+  it('falls back to the imported profile until there are enough rated wines of that colour', () => {
+    const one = [wine({ name: 'Puligny-Montrachet', region: 'Burgundy', grapes: ['Chardonnay'], style: 'white', rating: 'loved' })];
+    expect(whitesFromRatings(one, profile)).toBe(whitesLine(profile));
+    expect(ratedFavouriteRed(one)).toBe('');
+    const whites = [
+      ...one,
+      wine({ name: 'Chablis 1er Cru Montmains', region: 'Burgundy', grapes: ['Chardonnay'], style: 'white', rating: 'liked' }),
+      wine({ name: 'Pouilly-Fuissé', region: 'Pouilly-Fuissé', grapes: ['Chardonnay'], style: 'white', rating: 'liked' }),
+    ];
+    expect(whitesFromRatings(whites, profile)).toMatch(/^Chardonnay/);
+  });
+
+  it('builds Worth exploring from your ratings, leaving out grapes you pass on', () => {
+    const withBarbera = [...reds, wine({ name: "Barbera d'Asti", region: "Barbera d'Asti", grapes: ['Barbera'], style: 'red', rating: 'wouldnt' })];
+    expect(passedGrapes(withBarbera)).toEqual(['Merlot', 'Barbera']);
+    const cards = exploreFromRatings(buildPassport(withBarbera), profile, withBarbera);
+    expect(cards.length).toBeGreaterThan(0);
+    const text = cards.map((c) => `${c.title} ${c.sub}`).join(' ');
+    expect(text).not.toMatch(/Merlot|Barbera|Gavi/);
+    expect(cards.map((c) => c.title)).not.toContain(exploreCards(profile)[0].title);
+    expect(exploreFromRatings(null, profile)).toEqual(exploreCards(profile));
   });
 });
