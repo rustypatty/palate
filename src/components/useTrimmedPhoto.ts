@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
  * When a photo has a plain background, crop it to the bottle (plus a little air). The crop
  * keeps the photo's own pixels, and is never tighter than MIN_HEIGHT source pixels, so a
  * small photo is only enlarged a little and stays sharp.
+ * The plain background itself (a shop's grey or white studio backdrop) is then cut away, so
+ * the bottle stands on the page rather than in a box.
  */
 
 const MIN_HEIGHT = 480; // the tallest bottle on screen is about 360 points: enough pixels to stay crisp
@@ -25,6 +27,65 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 function near(a: Uint8ClampedArray, i: number, bg: number[]): boolean {
   if (a[i + 3] < 24) return true; // transparent counts as background
   return Math.abs(a[i] - bg[0]) + Math.abs(a[i + 1] - bg[1]) + Math.abs(a[i + 2] - bg[2]) < 42;
+}
+
+/** How far a pixel is from the background colour (0 = the same). */
+function dist(a: Uint8ClampedArray, i: number, bg: number[]): number {
+  return Math.abs(a[i] - bg[0]) + Math.abs(a[i + 1] - bg[1]) + Math.abs(a[i + 2] - bg[2]);
+}
+
+const CUT = 40; // this close to the backdrop's colour, and joined to the edge: backdrop
+const SOFT = 90; // edge pixels up to this far are faded a little, for a smooth outline
+
+/**
+ * Cut the backdrop out: every pixel of the background's colour that joins up with the photo's
+ * edge goes transparent (a white label inside the dark glass doesn't join up, so it stays).
+ * The bottle's own outline is softened by a pixel. True if a real backdrop was found.
+ */
+export function cutBackdrop(px: Uint8ClampedArray, w: number, h: number, bg: number[]): boolean {
+  const n = w * h;
+  const seen = new Uint8Array(n);
+  const queue = new Int32Array(n);
+  let head = 0;
+  let tail = 0;
+  const visit = (p: number) => {
+    if (seen[p]) return;
+    seen[p] = 1;
+    if (px[p * 4 + 3] < 24 || dist(px, p * 4, bg) < CUT) queue[tail++] = p;
+  };
+  for (let x = 0; x < w; x++) {
+    visit(x);
+    visit((h - 1) * w + x);
+  }
+  for (let y = 0; y < h; y++) {
+    visit(y * w);
+    visit(y * w + w - 1);
+  }
+  while (head < tail) {
+    const p = queue[head++];
+    const x = p % w;
+    if (x > 0) visit(p - 1);
+    if (x < w - 1) visit(p + 1);
+    if (p >= w) visit(p - w);
+    if (p < n - w) visit(p + w);
+  }
+  // Mostly backdrop or hardly any: not a bottle on a plain background, leave it be.
+  if (tail < n * 0.15 || tail > n * 0.97) return false;
+  const cut = new Uint8Array(n);
+  for (let k = 0; k < tail; k++) cut[queue[k]] = 1;
+  for (let p = 0; p < n; p++) {
+    if (cut[p]) {
+      px[p * 4 + 3] = 0;
+      continue;
+    }
+    // Next to the cut-away backdrop and still close to its colour: part see-through.
+    const x = p % w;
+    const edge = (x > 0 && cut[p - 1]) || (x < w - 1 && cut[p + 1]) || (p >= w && cut[p - w]) || (p < n - w && cut[p + w]);
+    if (!edge) continue;
+    const d = dist(px, p * 4, bg);
+    if (d < SOFT) px[p * 4 + 3] = Math.round((px[p * 4 + 3] * (d - CUT / 2)) / (SOFT - CUT / 2)) || 0;
+  }
+  return true;
 }
 
 async function trim(src: string): Promise<string | null> {
@@ -95,15 +156,22 @@ async function trim(src: string): Promise<string | null> {
   const y0 = Math.max(0, Math.floor(cy0));
   const x1 = Math.min(W, Math.ceil(cx1));
   const y1 = Math.min(H, Math.ceil(cy1));
-  // Not worth it unless it trims a real margin.
-  if ((x1 - x0) * (y1 - y0) > W * H * 0.8) return null;
-
+  const transparent = data[corners[0] + 3] < 24;
   const out = document.createElement('canvas');
   out.width = x1 - x0;
   out.height = y1 - y0;
-  out.getContext('2d')!.drawImage(img, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
-  const transparent = data[corners[0] + 3] < 24;
-  const blob = await new Promise<Blob | null>((r) => out.toBlob(r, transparent ? 'image/png' : 'image/jpeg', 0.92));
+  const octx = out.getContext('2d', { willReadFrequently: true })!;
+  octx.drawImage(img, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  // A coloured backdrop (not already see-through): cut it away.
+  let cutOut = false;
+  if (!transparent) {
+    const pixels = octx.getImageData(0, 0, out.width, out.height);
+    cutOut = cutBackdrop(pixels.data, out.width, out.height, bg);
+    if (cutOut) octx.putImageData(pixels, 0, 0);
+  }
+  // Not worth it unless it trims a real margin or cuts the backdrop away.
+  if (!cutOut && (x1 - x0) * (y1 - y0) > W * H * 0.8) return null;
+  const blob = await new Promise<Blob | null>((r) => out.toBlob(r, transparent || cutOut ? 'image/png' : 'image/jpeg', 0.92));
   return blob ? URL.createObjectURL(blob) : null;
 }
 
