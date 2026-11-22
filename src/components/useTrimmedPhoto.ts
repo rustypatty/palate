@@ -44,11 +44,24 @@ function dist(a: Uint8ClampedArray, i: number, bg: number[]): number {
 
 const CUT = 40; // this close to the backdrop's colour, and joined to the edge: backdrop
 const SOFT = 90; // edge pixels up to this far are faded a little, for a smooth outline
+const SHADOW = 100; // a shadow on the floor: grey, up to this much darker than the backdrop
+const FLOOR = 0.82; // ...and only in the bottom of the photo, where a bottle's shadow falls
+
+/** The backdrop darkened evenly (no colour of its own): a shadow cast on it, not part of a label. */
+function shadow(a: Uint8ClampedArray, i: number, bg: number[]): boolean {
+  const dr = bg[0] - a[i];
+  const dg = bg[1] - a[i + 1];
+  const db = bg[2] - a[i + 2];
+  const lo = Math.min(dr, dg, db);
+  const hi = Math.max(dr, dg, db);
+  return lo > -8 && hi - lo < 16 && (dr + dg + db) / 3 < SHADOW;
+}
 
 /**
  * Cut the backdrop out: every pixel of the background's colour that joins up with the photo's
- * edge goes transparent (a white label inside the dark glass doesn't join up, so it stays).
- * The bottle's own outline is softened by a pixel. True if a real backdrop was found.
+ * edge goes transparent (a white label inside the dark glass doesn't join up, so it stays), and
+ * so does the bottle's grey shadow on the floor. The bottle's own outline is softened by a pixel.
+ * True if a real backdrop was found.
  */
 export function cutBackdrop(px: Uint8ClampedArray, w: number, h: number, bg: number[]): boolean {
   const n = w * h;
@@ -56,10 +69,12 @@ export function cutBackdrop(px: Uint8ClampedArray, w: number, h: number, bg: num
   const queue = new Int32Array(n);
   let head = 0;
   let tail = 0;
+  const floor = Math.floor(h * FLOOR) * w;
   const visit = (p: number) => {
     if (seen[p]) return;
     seen[p] = 1;
-    if (px[p * 4 + 3] < 24 || dist(px, p * 4, bg) < CUT) queue[tail++] = p;
+    const i = p * 4;
+    if (px[i + 3] < 24 || dist(px, i, bg) < CUT || (p >= floor && shadow(px, i, bg))) queue[tail++] = p;
   };
   for (let x = 0; x < w; x++) {
     visit(x);
@@ -94,6 +109,48 @@ export function cutBackdrop(px: Uint8ClampedArray, w: number, h: number, bg: num
     if (d < SOFT) px[p * 4 + 3] = Math.round((px[p * 4 + 3] * (d - CUT / 2)) / (SOFT - CUT / 2)) || 0;
   }
   return true;
+}
+
+/**
+ * Where the see-through photo's solid part is, in pixels. Columns with only a sliver of
+ * something (a leftover streak of shadow on the floor) don't count, so they can't push the
+ * bottle off centre.
+ */
+function opaqueBox(px: Uint8ClampedArray, w: number, h: number): { x0: number; y0: number; x1: number; y1: number } | null {
+  const cols = new Uint32Array(w);
+  const rows = new Uint32Array(h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (px[(y * w + x) * 4 + 3] < 128) continue;
+      cols[x]++;
+      rows[y]++;
+    }
+  }
+  const minCol = Math.max(2, h * 0.04);
+  let x0 = 0;
+  let x1 = w - 1;
+  while (x0 < w && cols[x0] < minCol) x0++;
+  while (x1 > x0 && cols[x1] < minCol) x1--;
+  if (x0 >= x1) return null;
+  const minRow = Math.max(2, (x1 - x0) * 0.04);
+  let y0 = 0;
+  let y1 = h - 1;
+  while (y0 < h && rows[y0] < minRow) y0++;
+  while (y1 > y0 && rows[y1] < minRow) y1--;
+  return y0 >= y1 ? null : { x0, y0, x1: x1 + 1, y1: y1 + 1 };
+}
+
+/** The bottle on a fresh canvas with the usual bit of air around it. */
+function reframe(src: HTMLCanvasElement, b: { x0: number; y0: number; x1: number; y1: number }): HTMLCanvasElement {
+  const bh = b.y1 - b.y0;
+  const bw = b.x1 - b.x0;
+  const padY = Math.round(bh * PAD);
+  const padX = Math.round(bw * PAD) + padY;
+  const out = document.createElement('canvas');
+  out.width = bw + 2 * padX;
+  out.height = bh + 2 * padY;
+  out.getContext('2d')!.drawImage(src, b.x0, b.y0, bw, bh, padX, padY, bw, bh);
+  return out;
 }
 
 async function trim(src: string): Promise<string | null> {
@@ -165,7 +222,7 @@ async function trim(src: string): Promise<string | null> {
   const x1 = Math.min(W, Math.ceil(cx1));
   const y1 = Math.min(H, Math.ceil(cy1));
   const transparent = data[corners[0] + 3] < 24;
-  const out = document.createElement('canvas');
+  let out = document.createElement('canvas');
   // Big shop photos (2000px+) are scaled down: still sharp on screen, and quick to cut on a phone.
   const k = Math.min(1, MAX_HEIGHT / (y1 - y0));
   out.width = Math.max(1, Math.round((x1 - x0) * k));
@@ -177,7 +234,12 @@ async function trim(src: string): Promise<string | null> {
   if (!transparent) {
     const pixels = octx.getImageData(0, 0, out.width, out.height);
     cutOut = cutBackdrop(pixels.data, out.width, out.height, bg);
-    if (cutOut) octx.putImageData(pixels, 0, 0);
+    if (cutOut) {
+      octx.putImageData(pixels, 0, 0);
+      // With the shadow gone, frame the bottle alone: centred, the same size as other bottles.
+      const box = opaqueBox(pixels.data, out.width, out.height);
+      if (box) out = reframe(out, box);
+    }
   }
   // Not worth it unless it trims a real margin or cuts the backdrop away.
   if (!cutOut && (x1 - x0) * (y1 - y0) > W * H * 0.8) return null;
