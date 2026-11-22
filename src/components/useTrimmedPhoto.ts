@@ -10,10 +10,18 @@ import { useEffect, useState } from 'react';
  */
 
 const MIN_HEIGHT = 480; // the tallest bottle on screen is about 360 points: enough pixels to stay crisp
+const MAX_HEIGHT = 1000; // plenty for the tallest bottle on screen, even on a 3x display
 const PAD = 0.05;
 const cache = new Map<string, Promise<string | null>>();
 
 function loadImage(src: string): Promise<HTMLImageElement> {
+  // A web photo the offline cache first stored as unreadable (from a plain <img>) fails to load for
+  // reading: ask for it again under a slightly different address, which the cache stores readable.
+  if (src.startsWith('blob:') || src.startsWith('data:')) return loadOnce(src);
+  return loadOnce(src).catch(() => loadOnce(`${src}${src.includes('?') ? '&' : '?'}palate=read`));
+}
+
+function loadOnce(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     // Blob URLs are our own; remote photos need CORS to be read (if not, we keep them as they are).
@@ -158,10 +166,12 @@ async function trim(src: string): Promise<string | null> {
   const y1 = Math.min(H, Math.ceil(cy1));
   const transparent = data[corners[0] + 3] < 24;
   const out = document.createElement('canvas');
-  out.width = x1 - x0;
-  out.height = y1 - y0;
+  // Big shop photos (2000px+) are scaled down: still sharp on screen, and quick to cut on a phone.
+  const k = Math.min(1, MAX_HEIGHT / (y1 - y0));
+  out.width = Math.max(1, Math.round((x1 - x0) * k));
+  out.height = Math.max(1, Math.round((y1 - y0) * k));
   const octx = out.getContext('2d', { willReadFrequently: true })!;
-  octx.drawImage(img, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  octx.drawImage(img, x0, y0, x1 - x0, y1 - y0, 0, 0, out.width, out.height);
   // A coloured backdrop (not already see-through): cut it away.
   let cutOut = false;
   if (!transparent) {
@@ -189,10 +199,10 @@ export function useTrimmedPhoto(src: string | null): string | null | undefined {
       job = trim(src).catch(() => null);
       cache.set(src, job);
     }
-    const finish = (url: string | null) => alive && setDone((d) => (d?.src === src ? d : { src, url }));
-    job.then(finish);
-    // Slow network: show the original rather than wait.
-    const t = window.setTimeout(() => finish(null), 1500);
+    // The trimmed photo replaces the original whenever it's ready, even after the wait below.
+    job.then((url) => alive && setDone((d) => (d?.src === src && url === null ? d : { src, url })));
+    // Slow network or phone: show the original rather than wait (the trimmed one follows).
+    const t = window.setTimeout(() => alive && setDone((d) => (d?.src === src ? d : { src, url: null })), 1500);
     return () => {
       alive = false;
       window.clearTimeout(t);
