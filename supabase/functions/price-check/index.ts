@@ -191,8 +191,39 @@ async function searchPrices(wines: Wine[]): Promise<{ report: Report | null; see
   return { report: null, seen, note: 'no report' };
 }
 
-/** The cheapest offer per bottle, from your stores' sites and seen in the search. */
-function cheapest(wines: Wine[], report: Report, seen: Set<string>, date: string): Map<string, PricePoint> {
+/** Total Wine's product number from a product page address (…/p/38715750). */
+const twProductId = (url: string) => /totalwine\.com\/.*\/p\/(\d+)/i.exec(url)?.[1] ?? null;
+
+/**
+ * Today's price of these Total Wine products at your own stores (cheapest, sale price included),
+ * from the weekly stock import; products not on your stores' shelves are left out. Null when
+ * there's no recent stock data to go on.
+ */
+async function localTwPrices(ids: string[]): Promise<Map<string, number> | null> {
+  const since = new Date(Date.now() - 21 * DAY_MS).toISOString();
+  const { count } = await admin.from('tw_stock').select('product_id', { count: 'exact', head: true }).gte('checked_at', since);
+  if (!count) return null;
+  const out = new Map<string, number>();
+  if (!ids.length) return out;
+  const { data, error } = await admin.from('tw_stock').select('product_id, price, sale_price').in('product_id', ids).in('status', ['in_stock', 'limited']).gte('checked_at', since);
+  if (error) return null;
+  for (const r of (data ?? []) as { product_id: string; price: number | null; sale_price: number | null }[]) {
+    const p = r.sale_price && r.sale_price > 0 ? r.sale_price : r.price;
+    if (!p || p <= 0) continue;
+    const best = out.get(r.product_id);
+    if (best === undefined || p < best) out.set(r.product_id, p);
+  }
+  return out;
+}
+
+/**
+ * The cheapest offer per bottle, from your stores' sites and seen in the search. Total Wine's site
+ * shows whichever store it guesses (often another state's prices), so a Total Wine page's price is
+ * replaced by your own stores' price, and a bottle they don't carry is left out.
+ */
+async function cheapest(wines: Wine[], report: Report, seen: Set<string>, date: string): Promise<Map<string, PricePoint>> {
+  const ids = [...new Set(report.bottles.flatMap((b) => (b.offers ?? []).map((o) => twProductId(o.url)).filter((x): x is string => Boolean(x))))];
+  const twLocal = await localTwPrices(ids).catch(() => null);
   const out = new Map<string, PricePoint>();
   for (const b of report.bottles) {
     const wine = wines[b.n - 1];
@@ -200,8 +231,15 @@ function cheapest(wines: Wine[], report: Report, seen: Set<string>, date: string
     for (const o of b.offers ?? []) {
       const store = storeFor(o.url);
       if (!store || !seen.has(normalizeUrl(o.url)) || !(o.price_usd > 0)) continue;
+      let price = o.price_usd;
+      if (store.domain === 'totalwine.com' && twLocal) {
+        const id = twProductId(o.url);
+        const local = id ? twLocal.get(id) : undefined;
+        if (local === undefined) continue;
+        price = local;
+      }
       const best = out.get(wine.id);
-      if (!best || o.price_usd < best.price) out.set(wine.id, { date, price: o.price_usd, store: store.name, url: o.url });
+      if (!best || price < best.price) out.set(wine.id, { date, price, store: store.name, url: o.url });
     }
   }
   return out;
@@ -238,7 +276,7 @@ async function run(): Promise<Record<string, unknown>> {
 
   const { report, seen, note } = await searchPrices(due);
   if (!report) return { watched: watched.length, due: due.length, error: note };
-  const prices = cheapest(due, report, seen, new Date().toISOString());
+  const prices = await cheapest(due, report, seen, new Date().toISOString());
   let saved = 0;
   const drops: { wine: Wine; point: PricePoint; was: number | null }[] = [];
   for (const [id, point] of prices) {
