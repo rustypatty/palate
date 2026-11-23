@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { wine } from '../test/fixtures';
-import { cheapestVerified, priceCheckPrompt } from './priceCheckClient';
+import { cheapestVerified, lowestByProduct, priceCheckPrompt, twProductId } from './priceCheckClient';
 import { canWatch, dropFor, dropReason, dueForCheck, isDrop, lastCheckedAt, priceDrops, watchedWines, isWatched, WEEK_MS, withPoint } from './priceWatch';
 import { normalizeUrl } from './likeThis';
 import type { PricePoint } from '../types';
@@ -127,5 +127,33 @@ describe('batched check', () => {
     );
     expect(out.size).toBe(1);
     expect(out.get(a.id)).toEqual({ date: '2026-09-10T12:00:00.000Z', price: 44.5, store: 'Spec’s', url: specs });
+  });
+
+  it('prices Total Wine pages at your own stores, leaving out bottles they don’t carry', () => {
+    const tw = 'https://www.totalwine.com/wine/red-wine/pinot-noir/bergstrom-pinot-noir-cumberland/p/38715750';
+    const gone = 'https://www.totalwine.com/wine/red-wine/barolo/p/111';
+    const specs = 'https://www.specsonline.com/chianti-1';
+    const seen = new Set([tw, gone, specs].map(normalizeUrl));
+    expect(twProductId(tw)).toBe('38715750');
+    // The web search saw another state's $45.99; your stores sell it for $52.99.
+    const local = lowestByProduct([
+      { product_id: '38715750', price: 52.99, sale_price: null },
+      { product_id: '38715750', price: 54.99, sale_price: null },
+    ]);
+    const report = {
+      bottles: [
+        { n: 1, offers: [{ url: tw, price_usd: 45.99 }] },
+        { n: 2, offers: [{ url: gone, price_usd: 20 }, { url: specs, price_usd: 31 }] },
+      ],
+    };
+    const out = cheapestVerified([a, b], report, seen, at('2026-11-23T14:00:00Z'), local);
+    expect(out.get(a.id)?.price).toBe(52.99);
+    expect(out.get(b.id)).toMatchObject({ price: 31, store: 'Spec’s' });
+    // No stock data to go on: the web price stands.
+    expect(cheapestVerified([a, b], report, seen, at('2026-11-23T14:00:00Z'), null).get(a.id)?.price).toBe(45.99);
+  });
+
+  it('uses a real sale price, not the mix-6 deal', () => {
+    expect(lowestByProduct([{ product_id: '1', price: 49.99, sale_price: 39.99 }]).get('1')).toBe(39.99);
   });
 });

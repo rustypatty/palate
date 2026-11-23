@@ -75,11 +75,54 @@ export function priceCheckPrompt(wines: Wine[]): string {
   );
 }
 
+/** Total Wine's product number from a product page address (…/p/38715750). */
+export function twProductId(url: string): string | null {
+  return /totalwine\.com\/.*\/p\/(\d+)/i.exec(url)?.[1] ?? null;
+}
+
+/**
+ * Today's price of these Total Wine products at your own stores (the cheapest of them, sale
+ * price included), from the weekly stock import. Products not on your stores' shelves are left
+ * out. Null when there's no stock data to go on (signed out, nothing imported).
+ */
+export async function localTwPrices(ids: string[]): Promise<Map<string, number> | null> {
+  if (!ids.length) return new Map();
+  const { signedInClient } = await import('./cloud');
+  const sb = await signedInClient();
+  if (!sb) return null;
+  const since = new Date(Date.now() - 21 * 24 * 3600 * 1000).toISOString();
+  const { data, error } = await sb.from('tw_stock').select('product_id, price, sale_price').in('product_id', ids).in('status', ['in_stock', 'limited']).gte('checked_at', since);
+  if (error) return null;
+  const { count } = await sb.from('tw_stock').select('product_id', { count: 'exact', head: true }).gte('checked_at', since);
+  if (!count) return null;
+  return lowestByProduct((data ?? []) as { product_id: string; price: number | null; sale_price: number | null }[]);
+}
+
+export function lowestByProduct(rows: { product_id: string; price: number | null; sale_price: number | null }[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const r of rows) {
+    const p = r.sale_price && r.sale_price > 0 ? r.sale_price : r.price;
+    if (!p || p <= 0) continue;
+    const best = out.get(r.product_id);
+    if (best === undefined || p < best) out.set(r.product_id, p);
+  }
+  return out;
+}
+
 /**
  * Keep offers whose page is on one of the stores' sites and turned up in the search,
  * and take the cheapest per bottle.
+ * Total Wine's site shows whichever store it guesses (often another state's prices), so with
+ * `twLocal` a Total Wine page's price is replaced by your own stores' price, and a bottle your
+ * stores don't carry is left out.
  */
-export function cheapestVerified(wines: Wine[], report: z.infer<typeof ReportSchema>, seen: Set<string>, at: number): Map<string, PricePoint> {
+export function cheapestVerified(
+  wines: Wine[],
+  report: z.infer<typeof ReportSchema>,
+  seen: Set<string>,
+  at: number,
+  twLocal: Map<string, number> | null = null,
+): Map<string, PricePoint> {
   const out = new Map<string, PricePoint>();
   for (const b of report.bottles) {
     const wine = wines[b.n - 1];
@@ -87,8 +130,15 @@ export function cheapestVerified(wines: Wine[], report: z.infer<typeof ReportSch
     for (const o of b.offers) {
       const storeId = storeForDomain(o.url);
       if (!storeId || storeById(storeId).kind !== 'search' || !seen.has(normalizeUrl(o.url)) || !(o.price_usd > 0)) continue;
+      let price = o.price_usd;
+      if (storeId === 'totalwine' && twLocal) {
+        const id = twProductId(o.url);
+        const local = id ? twLocal.get(id) : undefined;
+        if (local === undefined) continue;
+        price = local;
+      }
       const best = out.get(wine.id);
-      if (!best || o.price_usd < best.price) out.set(wine.id, { date: new Date(at).toISOString(), price: o.price_usd, store: storeById(storeId).name, url: o.url });
+      if (!best || price < best.price) out.set(wine.id, { date: new Date(at).toISOString(), price, store: storeById(storeId).name, url: o.url });
     }
   }
   return out;
@@ -163,5 +213,7 @@ export async function checkPricesWithClaude(apiKey: string, wines: Wine[], signa
   }
   if (!report) return { ok: false, reason: stopNote || 'Claude didn’t report a result' };
   const at = Date.now();
-  return { ok: true, at, prices: cheapestVerified(wines, report, seen, at), usage };
+  const twIds = [...new Set(report.bottles.flatMap((b) => b.offers.map((o) => twProductId(o.url)).filter((x): x is string => Boolean(x))))];
+  const twLocal = await localTwPrices(twIds).catch(() => null);
+  return { ok: true, at, prices: cheapestVerified(wines, report, seen, at, twLocal), usage };
 }
