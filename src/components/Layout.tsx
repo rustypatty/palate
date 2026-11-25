@@ -1,4 +1,4 @@
-import { Bookmark, LayoutGrid, MessageSquare, Plus, Store, Wine } from 'lucide-react';
+import { BarChart3, Bookmark, LayoutGrid, MessageSquare, Plus, Store, Wine } from 'lucide-react';
 import { useState } from 'react';
 import { Link, matchPath, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLists } from '../hooks';
@@ -48,6 +48,7 @@ export function Layout() {
             </NavLink>
             <NavLink to="/store">In store</NavLink>
             <NavLink to="/profile">My palate</NavLink>
+            <NavLink to="/insights">Insights</NavLink>
           </nav>
           <span className="spacer" />
           <NavLink to="/want" className="want-pill">
@@ -89,6 +90,10 @@ export function Layout() {
             <NavLink to="/profile">
               <Wine size={20} strokeWidth={1.7} />
               My palate
+            </NavLink>
+            <NavLink to="/insights">
+              <BarChart3 size={20} strokeWidth={1.7} />
+              Insights
             </NavLink>
           </div>
           <Link to="/add" className="fab" aria-label="Add wine">

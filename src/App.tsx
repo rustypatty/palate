@@ -6,6 +6,7 @@ import { ScrollToTop } from './components/ScrollToTop';
 import { ToastProvider } from './components/Toast';
 import { CollectionPage } from './pages/CollectionPage';
 import { InStorePage } from './pages/InStorePage';
+import { InsightsPage } from './pages/InsightsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { WineDetailPage } from './pages/WineDetailPage';
 import { WantPage } from './pages/WantPage';
@@ -41,6 +42,7 @@ function AppRoutes() {
           <Route path="wine/:id" element={<WineDetailPage />} />
           <Route path="wine/:id/edit" element={<WineFormPage key="edit" />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="insights" element={<InsightsPage />} />
           <Route path="want" element={<WantPage />} />
           <Route
             path="watch"
